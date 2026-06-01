@@ -47,5 +47,8 @@ switch ($Target) {
   'clone-refs' { bash scripts/clone-references.sh }
   'seed'       { Write-Host "seed: not implemented until Phase 1" }
   'test'       { Write-Host "test: not implemented until Phase 1" }
-  'agent-run'  { Write-Host "agent-run: not implemented until Phase 2" }
+  'agent-run'  {
+    Invoke-Expression "$Compose --profile agent up -d --build agent"
+    Write-Host "agent up. Follow logs:  $Compose logs -f agent"
+  }
 }

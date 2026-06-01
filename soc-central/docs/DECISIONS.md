@@ -6,6 +6,31 @@ alternatives considered**.
 
 ---
 
+## D-017 — Agent resource caps at two layers
+**Decision:** the agent self-limits (`GOMAXPROCS`, `debug.SetMemoryLimit`) **and** is
+capped by the container runtime (`cpus`, `mem_limit` in compose; K3s requests/limits
+later). **Why:** the agent must be a polite guest on production hosts; defence in depth
+means a bug in one layer is still bounded by the other. Measured footprint in the MVP:
+~8 MiB RSS, ~0.1% CPU.
+
+## D-016 — Agent drives the `osqueryi` binary (not the Thrift extension API)
+**Decision:** the osquery collector shells out to `osqueryi --json "<sql>"` for a small
+query pack rather than linking osquery's Thrift/extension socket. **Why:** far simpler,
+no cgo, robust, and good enough for scheduled host-state in the MVP. It **degrades
+gracefully** — if `osqueryi` isn't on PATH the collector logs once and emits nothing, so
+the agent still runs. **Trade-off:** no event-stream/differential queries; moving to the
+extension API (or osquery's scheduled-query logging) is a later optimisation.
+
+## D-015 — File-integrity monitoring by polling (fanotify/auditd later)
+**Decision:** FIM walks the watched paths and fingerprints files (SHA-256 for small
+files, size+mtime for large), diffing against the previous scan to emit
+created/modified/deleted. The first scan is a silent baseline. **Why:** polling needs no
+privileges or kernel features, so it runs anywhere (incl. the lab container), and the
+`Collector` interface is identical to the event-driven version. **Trade-off:** detection
+latency = scan interval, and a full rescan each cycle; the production path is
+event-driven **fanotify/auditd** (instant, no rescan), which slots in behind the same
+interface without touching the scheduler/shipper.
+
 ## D-014 — Back-pressure via the broker; idempotency via `event_id`
 **Decision:** workers are a **durable pull consumer** with `max_ack_pending` bounding
 in-flight un-acked messages. If the data stores slow down, workers stop acking,

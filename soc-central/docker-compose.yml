@@ -181,6 +181,37 @@ services:
       ingest-edge:
         condition: service_started
 
+  # ---- agent: Go endpoint agent (osquery + FIM + sysinfo/network; eBPF/YARA staged-in) ----
+  # Not started by `up`; launch with:  make agent-run  (docker compose --profile agent up -d agent)
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    profiles: ["agent"]
+    restart: unless-stopped
+    environment:
+      AGENT_ID: agent-001
+      INGEST_URL: https://ingest-edge:8443/v1/telemetry
+      INGEST_AGENT_TOKEN: ${INGEST_AGENT_TOKEN:-change_me_agent_token}
+      CA_CERT: /certs/ca.crt
+      CLIENT_CERT: /certs/agent-001.crt
+      CLIENT_KEY: /certs/agent-001.key
+      FIM_PATHS: "/etc,/usr/bin,/watch"
+      SYSINFO_INTERVAL_SEC: "10"
+      NETWORK_INTERVAL_SEC: "15"
+      OSQUERY_INTERVAL_SEC: "30"
+      FIM_INTERVAL_SEC: "20"
+      AGENT_MAX_PROCS: "1"
+      AGENT_MEM_LIMIT_MB: "128"
+    volumes:
+      - ./certs:/certs:ro
+    # Host-enforced resource caps (in addition to the agent's own GOMAXPROCS/mem limit).
+    cpus: "0.50"
+    mem_limit: 256m
+    depends_on:
+      ingest-edge:
+        condition: service_started
+
   # ---- Grafana: metrics / trends / heatmaps (dashboards provisioned later) ----
   grafana:
     image: grafana/grafana:11.4.0

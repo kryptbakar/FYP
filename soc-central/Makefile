@@ -26,6 +26,10 @@ N ?= 500
 produce: ## Send N fake telemetry envelopes through the pipeline (default N=500)
 	$(COMPOSE) run --rm fake-producer --count $(N)
 
+agent-run: ## Build and launch the Go endpoint agent against the local stack
+	$(COMPOSE) --profile agent up -d --build agent
+	@echo "agent up. Follow logs:  $(COMPOSE) logs -f agent"
+
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down
 
@@ -54,6 +58,3 @@ seed: ## (Phase 1+) Seed databases / feed mirror — placeholder
 
 test: ## (Phase 1+) Run test suites — placeholder
 	@echo "test: not implemented until Phase 1"
-
-agent-run: ## (Phase 2+) Build & run the Go endpoint agent — placeholder
-	@echo "agent-run: not implemented until Phase 2"
