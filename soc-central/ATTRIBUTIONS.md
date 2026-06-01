@@ -104,3 +104,44 @@ own code), FastAPI (MIT), Uvicorn (BSD), Pydantic (MIT), Next.js (MIT), Tailwind
 > Note: Grafana is AGPL but we run the **official unmodified image as a standalone
 > service** and only *configure* it (provisioned dashboards/datasources). We do not
 > modify or link Grafana source, so its AGPL terms are satisfied by leaving it intact.
+
+---
+
+## Tool-Integration Expansion (Phase A) — verified 2026-06-02
+
+Ten OSS security tools run as **their own containers** (`docker-compose.tools.yml`); our
+code only **consumes their output** (we don't fork them). Licenses verified from each
+cloned repo's actual LICENSE file.
+
+| Repo | URL | License (verified) | Class | Use |
+|------|-----|--------------------|-------|-----|
+| Suricata | https://github.com/OISF/suricata | **GPL-2.0** (`LICENSE`) | 🟠 | Network IDS. Run as a **separate container**; we tail its EVE JSON. Do not vendor/link. |
+| Zeek | https://github.com/zeek/zeek | **BSD-3-Clause** (`COPYING`) | 🟢 | Traffic metadata. Separate container; we ship its logs. |
+| Nuclei | https://github.com/projectdiscovery/nuclei | **MIT** (`LICENSE.md`) | 🟢 | Template vuln scanner; parse `-jsonl`. |
+| Trivy | https://github.com/aquasecurity/trivy | **Apache-2.0** (`LICENSE`) | 🟢 | Container/image/fs CVE scanner; REST server. |
+| PyMISP | https://github.com/MISP/PyMISP | **BSD-2-Clause** (`LICENSE`) | 🟢 | MISP REST client (pip). |
+| OpenCTI client-python | https://github.com/OpenCTI-Platform/client-python | **Apache-2.0** (`LICENSE`) | 🟢 | OpenCTI/ATT&CK client (pip `pycti`). |
+| pySigma | https://github.com/SigmaHQ/pySigma | **LGPL-2.1** (`LICENSE`) | 🟠 | Sigma→query compiler (pip). Weak copyleft — use unmodified as a library. |
+| pySigma-backend-opensearch | https://github.com/SigmaHQ/pySigma-backend-opensearch | **LGPL-3.0** (`LICENSE`) | 🟠 | OpenSearch backend for pySigma (pip). Weak copyleft — library, unmodified. |
+| Sigma (rules) | https://github.com/SigmaHQ/sigma | **DRL 1.1** (rules) / spec public domain (`LICENSE`) | 🟢 | Detection rules; mirrored + compiled. DRL permits use/redistribution with attribution. |
+| Falco | https://github.com/falcosecurity/falco | **Apache-2.0** (`COPYING`) | 🟢 | Runtime detection (optional, D-031); consume gRPC/JSON. |
+| Falco client-go | https://github.com/falcosecurity/client-go | **Apache-2.0** (`LICENSE`) | 🟢 | Go client for Falco gRPC outputs. |
+| zeek2es | https://github.com/corelight/zeek2es | **BSD-3-Clause** (`LICENSE`) | 🟢 | Zeek-log→OpenSearch shipper reference. |
+| zeek/broker | https://github.com/zeek/broker | **BSD/NCSA** (`COPYING`) | 🟢 | Live Zeek event control reference. |
+| suricatarest | https://github.com/pfyon/suricatarest | **No license declared** | 🔴 | Dev-only PCAP→JSON helper; all rights reserved — concepts only. |
+| mrtc0/wazuh (Go client) | https://github.com/mrtc0/wazuh | **No license file found** | 🔴 | Not used — we call the Wazuh **Manager REST API** from Python instead. |
+| nvdlib | https://github.com/Fortra/nvdlib | **MIT** (upstream; clone failed on this run — re-verify on next sync) | 🟢 | Optional NVD wrapper; `feed-sync` already mirrors NVD directly. |
+
+**Already registered (Phase 0), reused here:** Wazuh (`wazuh/wazuh`) — **GPL-2.0** 🟠
+(host-monitoring **concepts**; we integrate via its Manager REST API, not its source).
+
+### New copyleft flags (distribution implications)
+- **Suricata — GPL-2.0** 🟠 and **Wazuh — GPL-2.0** 🟠: run as **standalone containers**
+  (official images), integrated only through their documented output/API. We do **not**
+  link or vendor their source, so GPL is **not** imposed on our code — same clean boundary
+  we use for Grafana (AGPL). Flagged for the panel because they're copyleft.
+- **pySigma (LGPL-2.1)** and **pySigma-backend-opensearch (LGPL-3.0)** 🟠: used as
+  **unmodified pip libraries**; LGPL permits this without copylefting our code.
+- **Sigma rules — DRL 1.1**: permissive for detection content with attribution.
+- **suricatarest / mrtc0-wazuh**: no clear license → **all rights reserved**, not used in
+  the product (dev/reference only).

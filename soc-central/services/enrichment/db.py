@@ -59,6 +59,17 @@ CREATE TABLE IF NOT EXISTS findings (
 CREATE INDEX IF NOT EXISTS findings_asset  ON findings (asset_id);
 CREATE INDEX IF NOT EXISTS findings_domain ON findings (domain);
 CREATE INDEX IF NOT EXISTS findings_kev    ON findings (kev) WHERE kev;
+
+-- Tool-integration expansion (Phase A): provenance + fusion dedup fields.
+-- Every finding carries which tool produced it, a pointer to the raw record, and a
+-- deterministic dedup_key so the AI Fusion Engine (Phase F) can merge findings that
+-- describe the same issue on the same asset and weight by tool consensus.
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS source_tool text NOT NULL DEFAULT 'agent';
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS raw_ref     text;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS dedup_key   text;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS consensus   jsonb;   -- [{tool, ...}] populated in Phase F
+CREATE INDEX IF NOT EXISTS findings_dedup  ON findings (dedup_key);
+CREATE INDEX IF NOT EXISTS findings_source ON findings (source_tool);
 """
 
 COMPLIANCE_DDL = """

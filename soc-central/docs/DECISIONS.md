@@ -6,6 +6,38 @@ alternatives considered**.
 
 ---
 
+## D-032 — Findings gain provenance + fusion fields (`source_tool`, `raw_ref`, `dedup_key`)
+**Decision:** the unified telemetry envelope adds optional `source_tool` / `raw_ref` and five
+tool-sourced `kind`s (ids_alert, traffic_metadata, scan_finding, ioc_match, runtime_alert);
+the `findings` table gains `source_tool` (default `agent`), `raw_ref`, `dedup_key`, and
+`consensus`. **Why:** multi-tool ingest needs provenance and a deterministic key so the
+Phase-F Fusion Engine can merge findings about the same issue and weight by tool consensus —
+without a second schema. All changes are **additive** (envelope stays v1; columns are
+`ADD COLUMN IF NOT EXISTS`).
+
+## D-031 — Falco included as an optional runtime-detection layer
+**Decision:** Falco is added under the `runtime` profile but **off by default** and clearly
+optional. **Why:** it wasn't in the original architecture (flagged in the expansion prompt),
+it overlaps the agent's eBPF, and it needs privileged kernel access that often won't work on
+Docker Desktop/WSL. Kept as a complementary layer; trivial to drop.
+
+## D-030 — Heavy tool platforms are defined behind profiles, not auto-run on the lab host
+**Decision:** all ten tools live in `docker-compose.tools.yml` behind **opt-in profiles**
+(sensors/scanners/runtime/hostmon/intel); `make up` (core stack) is unaffected. OpenCTI
+(Elastic+Redis+RabbitMQ+MinIO+platform+worker), MISP, and Wazuh are **heavy** (~10+ GB
+images, several GB RAM). On this disk-constrained lab host they are **defined + config-
+validated** and started **per-group as capacity allows**; the heaviest are deferred to a
+larger host. **Why:** honesty over a broken "everything-up" claim — the integration *code*
+(workers consuming each tool's output) is what matters and is built per phase. Documented
+what actually runs in PHASE-A-NOTES.
+
+## D-029 — Scope change: network IDS (Suricata/Zeek) brought INTO the MVP
+**Decision:** the tool-integration expansion deliberately brings **Suricata/Zeek and network
+detection** into scope, which the original scope document listed as an **explicit MVP
+non-goal** (Phase 2 roadmap). **Why:** the supervisor-provided expansion prompt requires it.
+**Flagged for the evaluation panel** because the project has a formal scope document — this
+is a sanctioned expansion, recorded here and in PHASE-A-NOTES so it's transparent.
+
 ## D-028 — Signed command channel (Ed25519), verified against a provisioned key
 **Decision:** every active-response command is **Ed25519-signed** by the server; the agent
 verifies it against a public key it was **provisioned with out-of-band** (mounted), not a

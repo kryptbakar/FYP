@@ -1,0 +1,182 @@
+# =====================================================================
+# SOC Central — Tool-Integration expansion (Phase A scaffolding).
+#
+# Ten battle-tested OSS security tools, each as its own container. Our code
+# (workers / ingest-edge) CONSUMES their output (EVE JSON, Zeek logs, Nuclei/Trivy
+# JSON, Wazuh Manager API, MISP/OpenCTI clients, Sigma-as-a-lib) — we do not fork them.
+#
+# Everything is behind OPT-IN PROFILES so `make up` (the core stack) is unaffected:
+#   sensors    -> suricata, zeek
+#   scanners   -> trivy, nuclei
+#   runtime    -> falco            (optional layer; see DECISIONS D-031)
+#   hostmon    -> wazuh-manager
+#   intel      -> misp + misp-db + misp-redis, opencti + its deps
+# Use with:  docker compose -f docker-compose.yml -f docker-compose.tools.yml --profile <p> up -d
+#
+# AIR-GAP: every tool here would fetch rules/DBs/feeds from the internet by default.
+# Phase B–H wire each to a LOCAL MIRROR (see docs/AIRGAP.md); at runtime only feed-sync
+# egresses. The configs below are Phase-A placeholders (defaults) — offline pinning lands
+# in each tool's phase.
+#
+# RESOURCES: OpenCTI (Elastic+Redis+RabbitMQ+MinIO+platform+worker), MISP, and Wazuh are
+# heavy (collectively ~10+ GB images, several GB RAM). Start the group your host can afford.
+# =====================================================================
+
+services:
+  # ----------------------- Phase B: network detection -----------------------
+  suricata:                       # Network IDS — writes EVE JSON (tailed by a worker)
+    image: jasonish/suricata:7.0
+    profiles: ["sensors", "tools"]
+    restart: unless-stopped
+    cap_add: ["NET_ADMIN", "NET_RAW", "SYS_NICE"]
+    command: ["-i", "eth0"]       # real capture needs host networking + a live iface (Phase B)
+    volumes:
+      - suricata_logs:/var/log/suricata          # eve.json -> worker tail
+      - ./tools/suricata/rules:/var/lib/suricata/rules:ro   # mirrored ET Open rules (Phase B)
+
+  zeek:                           # Traffic analysis — JSON protocol metadata logs
+    image: zeek/zeek:7.0
+    profiles: ["sensors", "tools"]
+    restart: unless-stopped
+    cap_add: ["NET_ADMIN", "NET_RAW"]
+    working_dir: /logs
+    command: ["zeek", "-i", "eth0", "LogAscii::use_json=T"]
+    volumes:
+      - zeek_logs:/logs                          # *.log -> zeek2es-style shipper (Phase B)
+
+  # ------------------------ Phase D: active scanning ------------------------
+  trivy:                          # Container/image/fs CVE scanner (REST server mode)
+    image: aquasec/trivy:0.58.0
+    profiles: ["scanners", "tools"]
+    restart: unless-stopped
+    command: ["server", "--listen", "0.0.0.0:4954"]
+    environment:
+      TRIVY_OFFLINE_SCAN: "true"
+      TRIVY_SKIP_DB_UPDATE: "true"               # use mirrored DB (Phase D / AIRGAP)
+    ports:
+      - "${TRIVY_PORT:-4954}:4954"
+    volumes:
+      - trivy_cache:/root/.cache/trivy           # pre-seeded vuln DB
+
+  nuclei:                         # Template-based vuln scanner (run on-demand)
+    image: projectdiscovery/nuclei:latest
+    profiles: ["scanners", "tools"]
+    restart: "no"
+    entrypoint: ["nuclei"]
+    command: ["-version"]                        # real scans: docker compose run (Phase D)
+    volumes:
+      - nuclei_templates:/root/nuclei-templates  # mirrored templates; run -disable-update-check
+
+  # ------------------------- Phase C: host + runtime ------------------------
+  wazuh-manager:                  # Host monitoring — REST API on :55000 (JWT), FIM/SCA/CIS
+    image: wazuh/wazuh-manager:4.9.2
+    profiles: ["hostmon", "tools"]
+    restart: unless-stopped
+    ports:
+      - "55000:55000"            # Manager REST API (Phase C integration)
+      - "1514:1514"
+      - "1515:1515"
+    volumes:
+      - wazuh_data:/var/ossec/data
+
+  falco:                          # Runtime (syscall) detection — OPTIONAL (DECISIONS D-031)
+    image: falcosecurity/falco:0.39.0
+    profiles: ["runtime", "tools"]
+    restart: unless-stopped
+    privileged: true              # needs kernel access; may not work on Docker Desktop/WSL
+    environment:
+      FALCO_GRPC_ENABLED: "true"
+      FALCO_GRPC_BIND_ADDRESS: "0.0.0.0:5060"
+    volumes:
+      - /var/run/docker.sock:/host/var/run/docker.sock
+      - /proc:/host/proc:ro
+
+  # ------------------------ Phase E: threat intel --------------------------
+  misp-redis:
+    image: redis:7-alpine
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+
+  misp-db:
+    image: mariadb:11
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: misp
+      MYSQL_USER: misp
+      MYSQL_PASSWORD: ${MISP_DB_PASSWORD:-change_me_misp}
+      MYSQL_ROOT_PASSWORD: ${MISP_DB_ROOT_PASSWORD:-change_me_misp_root}
+    volumes:
+      - misp_db:/var/lib/mysql
+
+  misp:                           # IOC store (PyMISP client integrates in Phase E)
+    image: ghcr.io/misp/misp-docker/misp-core:latest
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+    environment:
+      BASE_URL: ${MISP_BASE_URL:-https://localhost:8443}
+      MYSQL_HOST: misp-db
+      MYSQL_USER: misp
+      MYSQL_PASSWORD: ${MISP_DB_PASSWORD:-change_me_misp}
+      REDIS_FQDN: misp-redis
+    ports:
+      - "8443:443"
+    depends_on: ["misp-db", "misp-redis"]
+
+  # OpenCTI — ATT&CK mapping. Heavy: platform + worker + Elastic + Redis + RabbitMQ + MinIO.
+  opencti-redis:
+    image: redis:7-alpine
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+
+  opencti-elastic:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - opencti_es:/usr/share/elasticsearch/data
+
+  opencti-minio:
+    image: minio/minio:latest
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+    command: ["server", "/data"]
+    environment:
+      MINIO_ROOT_USER: ${OPENCTI_MINIO_USER:-opencti}
+      MINIO_ROOT_PASSWORD: ${OPENCTI_MINIO_PASSWORD:-change_me_minio_12chars}
+
+  opencti-rabbitmq:
+    image: rabbitmq:3.13-management
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+
+  opencti:
+    image: opencti/platform:6.4.1
+    profiles: ["intel", "tools"]
+    restart: unless-stopped
+    environment:
+      APP__ADMIN__EMAIL: ${OPENCTI_ADMIN_EMAIL:-admin@soc-central.local}
+      APP__ADMIN__PASSWORD: ${OPENCTI_ADMIN_PASSWORD:-change_me_opencti}
+      APP__ADMIN__TOKEN: ${OPENCTI_ADMIN_TOKEN:-00000000-0000-0000-0000-000000000000}
+      REDIS__HOSTNAME: opencti-redis
+      ELASTICSEARCH__URL: http://opencti-elastic:9200
+      MINIO__ENDPOINT: opencti-minio
+      MINIO__ACCESS_KEY: ${OPENCTI_MINIO_USER:-opencti}
+      MINIO__SECRET_KEY: ${OPENCTI_MINIO_PASSWORD:-change_me_minio_12chars}
+      RABBITMQ__HOSTNAME: opencti-rabbitmq
+    ports:
+      - "8080:8080"
+    depends_on: ["opencti-redis", "opencti-elastic", "opencti-minio", "opencti-rabbitmq"]
+
+volumes:
+  suricata_logs:
+  zeek_logs:
+  trivy_cache:
+  nuclei_templates:
+  wazuh_data:
+  misp_db:
+  opencti_es:
