@@ -7,7 +7,7 @@
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -38,6 +38,12 @@ feeds-sync: ## Mirror NVD/EPSS/KEV LIVE (the only internet-facing job)
 
 assess: ## Run a one-shot enrichment/assessment pass now
 	$(COMPOSE) run --rm enrichment --once
+
+risk-train: ## Train the XGBoost risk model (synthetic + analyst feedback)
+	$(COMPOSE) --profile ml run --rm risk-engine train
+
+risk-score: ## Score all findings: composite + ML risk + SHAP explanations
+	$(COMPOSE) --profile ml run --rm risk-engine score
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down

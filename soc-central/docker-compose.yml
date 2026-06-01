@@ -255,6 +255,26 @@ services:
       timescaledb:
         condition: service_healthy
 
+  # ---- risk-engine: composite risk score + XGBoost/SHAP (the intelligence layer) ----
+  # Profiled out of `up` (heavier image). Use: make risk-train  then  make risk-score
+  risk-engine:
+    build:
+      context: ./ml
+      dockerfile: Dockerfile
+    profiles: ["ml"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      MODEL_DIR: /models
+      RISK_INTERVAL: ${RISK_INTERVAL:-180}
+    volumes:
+      - models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   # ---- Grafana: metrics / trends / heatmaps (dashboards provisioned later) ----
   grafana:
     image: grafana/grafana:11.4.0
@@ -279,3 +299,4 @@ volumes:
   natsdata:
   grafanadata:
   feedscache:
+  models:

@@ -27,6 +27,31 @@ and fits the air-gapped model. Records use only stable JSON types so they surviv
 round-trip and re-hash identically. Phase 8 can anchor the head hash externally for
 stronger guarantees.
 
+## D-025 — Analyst feedback loop feeds retraining (bootstrapped synthetic labels)
+**Decision:** `analyst_feedback` captures accept/dismiss/escalate/deprioritize and an
+optional 0..100 priority label per finding via the API. Retraining folds those labels in
+at higher weight on top of the synthetic population. **Why:** we have no historical labels
+at day one, so we bootstrap from the composite formula + simulated interactions and let
+real analyst judgement progressively steer the model — "analyst-controlled" intelligence,
+not a black box. Cadence is monthly (a Phase 8 cron); for now it's the `train` command.
+
+## D-024 — SHAP via XGBoost's native TreeSHAP (no `shap`/`numba` dependency)
+**Decision:** per-finding SHAP contributions come from `booster.predict(pred_contribs=True)`
+(XGBoost's built-in exact TreeSHAP), not the `shap` package. **Why:** identical TreeSHAP
+maths, but a much smaller, air-gap-friendly image (avoids `shap`+`numba`+`llvmlite`, ~hundreds
+of MB and slow cold starts). Counterfactuals are computed by flipping the top levers
+(KEV/EPSS/exposure) and re-scoring.
+
+## D-023 — Two-layer risk: transparent composite + ML that learns interactions
+**Decision:** `risk_score` is the **deterministic weighted composite** (7 named factors,
+weights in `ml/scoring.py`) and is the ranking driver — fully explainable for a viva.
+`ml_risk_score` is an **XGBoost** prediction that learns the **non-linear interactions**
+the linear score can't (KEV×EPSS, exposure×CVSS, attack-phase), with SHAP explaining the
+per-finding contributions. **Why:** keep a defensible, auditable baseline while still
+gaining ML lift; if the model is unavailable, composite scoring still works. Training
+labels are bootstrapped (D-025). Adds an 8th "attack_phase" feature (kill-chain ordinal),
+adapting the Attack-Phase-Aware reference.
+
 ## D-020 — Assessment is a periodic batch over the data layer (not per-event)
 **Decision:** the enrichment engine reads each asset's *latest* host state from the data
 layer and (re)assesses on an interval, upserting findings by a stable `fingerprint`.

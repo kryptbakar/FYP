@@ -48,9 +48,9 @@ async def list_findings(
         f"""
         SELECT id, asset_id, domain, rule_id, title, severity, cve_id, package_name,
                package_version, port, proto, cvss_score, cvss_severity, epss, epss_percentile,
-               kev, kev_due_date, risk_score, status, first_seen, last_seen
+               kev, kev_due_date, risk_score, ml_risk_score, risk_rank, status, first_seen, last_seen
         FROM findings {where}
-        ORDER BY (cvss_score IS NULL), cvss_score DESC, last_seen DESC
+        ORDER BY risk_score DESC NULLS LAST, (cvss_score IS NULL), cvss_score DESC
         LIMIT %(limit)s OFFSET %(offset)s
         """,
         params,

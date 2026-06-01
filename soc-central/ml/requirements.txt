@@ -1,0 +1,8 @@
+# Risk engine — XGBoost (native TreeSHAP via pred_contribs) + numpy + Postgres.
+# Deliberately NOT pulling `shap`/`numba` (XGBoost computes exact SHAP itself).
+# Pin xgboost 1.7.6: same API we use, but (unlike 2.x) it does NOT drag in the huge
+# nvidia-nccl-cu12 GPU library — keeps the image small and air-gap friendly.
+xgboost==1.7.6
+numpy==1.26.4
+scipy==1.13.1
+psycopg[binary]==3.2.3

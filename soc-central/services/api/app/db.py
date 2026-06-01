@@ -24,10 +24,22 @@ async def fetch(query: str, params: tuple | dict = ()) -> list[dict]:
             async with conn.cursor() as cur:
                 await cur.execute(query, params)
                 return await cur.fetchall()
-    except psycopg.errors.UndefinedTable:
-        return []  # enrichment hasn't created the table yet
+    except (psycopg.errors.UndefinedTable, psycopg.errors.UndefinedColumn):
+        return []  # enrichment / risk-engine hasn't created the table/column yet
 
 
 async def fetch_one(query: str, params: tuple | dict = ()) -> dict | None:
     rows = await fetch(query, params)
     return rows[0] if rows else None
+
+
+async def execute(query: str, params: tuple | dict = ()) -> dict | None:
+    """Run a write; returns the RETURNING row if any."""
+    async with await psycopg.AsyncConnection.connect(
+        settings.postgres_dsn, row_factory=dict_row, autocommit=True
+    ) as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(query, params)
+            if cur.description:
+                return await cur.fetchone()
+    return None

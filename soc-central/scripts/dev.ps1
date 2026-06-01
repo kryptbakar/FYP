@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','produce','feeds-seed','feeds-sync','assess','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','seed','test','agent-run')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -27,7 +27,7 @@ function Ensure-Env {
 switch ($Target) {
   'help' {
     Write-Host "SOC Central targets:"
-    'env, certs, up, down, clean, restart, ps, logs, health, clone-refs, produce, feeds-seed, feeds-sync, assess, seed, test, agent-run' -split ', ' |
+    'env, certs, up, down, clean, restart, ps, logs, health, clone-refs, produce, feeds-seed, feeds-sync, assess, risk-train, risk-score, seed, test, agent-run' -split ', ' |
       ForEach-Object { Write-Host "  $_" }
   }
   'env'      { Ensure-Env }
@@ -37,6 +37,8 @@ switch ($Target) {
   'feeds-seed' { Invoke-Expression "$Compose --profile feeds run --rm feed-sync --seed" }
   'feeds-sync' { Invoke-Expression "$Compose --profile feeds run --rm feed-sync --feeds kev,epss,nvd" }
   'assess'     { Invoke-Expression "$Compose run --rm enrichment --once" }
+  'risk-train' { Invoke-Expression "$Compose --profile ml run --rm risk-engine train" }
+  'risk-score' { Invoke-Expression "$Compose --profile ml run --rm risk-engine score" }
   'down'     { Invoke-Expression "$Compose down" }
   'clean'    { Invoke-Expression "$Compose down -v" }
   'restart'  { Invoke-Expression "$Compose restart" }
