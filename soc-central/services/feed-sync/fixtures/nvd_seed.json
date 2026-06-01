@@ -1,0 +1,50 @@
+[
+  {
+    "cve_id": "CVE-2023-4911",
+    "published": "2023-10-03T00:00:00.000",
+    "last_modified": "2023-11-07T00:00:00.000",
+    "cvss_score": 7.8,
+    "cvss_severity": "HIGH",
+    "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+    "description": "A buffer overflow in the GNU C Library's dynamic loader ld.so while processing the GLIBC_TUNABLES environment variable (\"Looney Tunables\") allows local privilege escalation to root.",
+    "affected": [
+      {"vendor": "gnu", "product": "glibc", "version_start": "2.34", "version_start_incl": true, "version_end": "2.39", "version_end_excl": true}
+    ]
+  },
+  {
+    "cve_id": "CVE-2022-3715",
+    "published": "2022-12-08T00:00:00.000",
+    "last_modified": "2023-02-24T00:00:00.000",
+    "cvss_score": 7.8,
+    "cvss_severity": "HIGH",
+    "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+    "description": "A heap-buffer-overflow flaw was found in GNU Bash in the valid_parameter_transform function.",
+    "affected": [
+      {"vendor": "gnu", "product": "bash", "version_start": null, "version_start_incl": true, "version_end": "5.3", "version_end_excl": true}
+    ]
+  },
+  {
+    "cve_id": "CVE-2023-0286",
+    "published": "2023-02-08T00:00:00.000",
+    "last_modified": "2023-07-19T00:00:00.000",
+    "cvss_score": 7.4,
+    "cvss_severity": "HIGH",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:H",
+    "description": "There is a type confusion vulnerability relating to X.400 address processing inside an X.509 GeneralName in OpenSSL.",
+    "affected": [
+      {"vendor": "openssl", "product": "openssl", "version_start": "3.0.0", "version_start_incl": true, "version_end": "3.0.8", "version_end_excl": true}
+    ]
+  },
+  {
+    "cve_id": "CVE-2022-37434",
+    "published": "2022-08-05T00:00:00.000",
+    "last_modified": "2023-01-09T00:00:00.000",
+    "cvss_score": 9.8,
+    "cvss_severity": "CRITICAL",
+    "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "description": "zlib through 1.2.12 has a heap-based buffer over-read or buffer overflow in inflate() in inflate.c via a large gzip header extra field. NOTE: kept here to demonstrate version-range filtering (bookworm ships zlib 1.2.13, so this must NOT match).",
+    "affected": [
+      {"vendor": "zlib", "product": "zlib", "version_start": null, "version_start_incl": true, "version_end": "1.2.12", "version_end_excl": true}
+    ]
+  }
+]

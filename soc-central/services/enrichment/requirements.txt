@@ -1,0 +1,2 @@
+# enrichment engine — pinned deps (no internet at runtime).
+psycopg[binary]==3.2.3

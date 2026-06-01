@@ -212,6 +212,49 @@ services:
       ingest-edge:
         condition: service_started
 
+  # ---- feed-sync: THE ONLY internet-facing job — mirror NVD/EPSS/KEV locally ----
+  # Run on demand:  make feeds-seed   (offline fixtures)   |   make feeds-sync (live)
+  feed-sync:
+    build:
+      context: .
+      dockerfile: services/feed-sync/Dockerfile
+    profiles: ["feeds"]
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      NVD_API_KEY: ${NVD_API_KEY:-}
+      NVD_SYNC_DAYS: ${NVD_SYNC_DAYS:-7}
+      FEED_CACHE_DIR: /feeds-cache
+    volumes:
+      - feedscache:/feeds-cache
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---- enrichment: map host state -> CVEs, enrich from the mirror, write findings ----
+  enrichment:
+    build:
+      context: .
+      dockerfile: services/enrichment/Dockerfile
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_DB: ${TIMESCALE_DB:-soc_telemetry}
+      TIMESCALE_USER: ${TIMESCALE_USER:-soc}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-soc}
+      ASSESS_INTERVAL: ${ASSESS_INTERVAL:-120}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+
   # ---- Grafana: metrics / trends / heatmaps (dashboards provisioned later) ----
   grafana:
     image: grafana/grafana:11.4.0
@@ -235,3 +278,4 @@ volumes:
   osdata:
   natsdata:
   grafanadata:
+  feedscache:

@@ -7,7 +7,7 @@
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -29,6 +29,15 @@ produce: ## Send N fake telemetry envelopes through the pipeline (default N=500)
 agent-run: ## Build and launch the Go endpoint agent against the local stack
 	$(COMPOSE) --profile agent up -d --build agent
 	@echo "agent up. Follow logs:  $(COMPOSE) logs -f agent"
+
+feeds-seed: ## Populate the local feed mirror from bundled fixtures (offline)
+	$(COMPOSE) --profile feeds run --rm feed-sync --seed
+
+feeds-sync: ## Mirror NVD/EPSS/KEV LIVE (the only internet-facing job)
+	$(COMPOSE) --profile feeds run --rm feed-sync --feeds kev,epss,nvd
+
+assess: ## Run a one-shot enrichment/assessment pass now
+	$(COMPOSE) run --rm enrichment --once
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down

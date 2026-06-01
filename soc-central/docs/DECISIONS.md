@@ -6,6 +6,34 @@ alternatives considered**.
 
 ---
 
+## D-020 — Assessment is a periodic batch over the data layer (not per-event)
+**Decision:** the enrichment engine reads each asset's *latest* host state from the data
+layer and (re)assesses on an interval, upserting findings by a stable `fingerprint`.
+**Why:** vulnerability posture is a property of current state, not a stream of events;
+batch assessment is simpler, idempotent, and re-runs refresh rather than duplicate.
+Analyst-owned `status` is never overwritten. Findings carry a **preliminary** severity
+(CVSS/rule) now; the **composite risk score** (CVSS+EPSS+KEV+exposure+age+…) and SHAP
+explanations land in Phase 5 (the `risk_score` column is reserved).
+
+## D-019 — Approximate version matching + curated package→product alias map
+**Decision:** matching a distro package to CVEs uses (a) a curated `pkg_product_alias`
+map (e.g. `libc6→glibc`, `libssl3→openssl`) and (b) a best-effort upstream-version
+comparison that strips epoch/Debian-revision and compares dotted-numeric components.
+**Why:** full CPE applicability + dpkg version semantics are heavy; this is enough to
+correctly place glibc `2.36` in `[2.34, 2.39)` while keeping zlib `1.2.13` out of
+`(-inf, 1.2.12)`, which is the 80/20 for the MVP. **Trade-off:** possible
+false-positives/negatives on exotic versions; proper libapt version compare + full CPE
+match is future work. Findings record the matched range as evidence for review.
+
+## D-018 — Air-gapped feed mirror: feed-sync is the only outbound caller
+**Decision:** all external vuln data (NVD/EPSS/KEV) is mirrored into local Postgres by
+**feed-sync**, the single internet-facing job; every other service (enrichment, API,
+agent) reads the mirror and makes **no** outbound calls. Online runs also cache
+normalized rows to a volume so an air-gapped site can carry the cache in and replay it
+(`--from-cache`); a `--seed` fixture path makes dev/CI fully offline and deterministic.
+**Why:** the platform's core constraint is air-gapped/on-prem deployment (PITB). MISP and
+abuse.ch are approved future fetchers behind the same boundary.
+
 ## D-017 — Agent resource caps at two layers
 **Decision:** the agent self-limits (`GOMAXPROCS`, `debug.SetMemoryLimit`) **and** is
 capped by the container runtime (`cpus`, `mem_limit` in compose; K3s requests/limits

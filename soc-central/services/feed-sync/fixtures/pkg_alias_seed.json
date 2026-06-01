@@ -1,0 +1,19 @@
+{
+  "libc6": "glibc",
+  "libc-bin": "glibc",
+  "libc-l10n": "glibc",
+  "locales": "glibc",
+  "bash": "bash",
+  "bash-static": "bash",
+  "libssl3": "openssl",
+  "libssl1.1": "openssl",
+  "openssl": "openssl",
+  "zlib1g": "zlib",
+  "zlib1g-dev": "zlib",
+  "sudo": "sudo",
+  "openssh-server": "openssh",
+  "openssh-client": "openssh",
+  "libcurl4": "curl",
+  "curl": "curl",
+  "coreutils": "coreutils"
+}

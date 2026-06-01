@@ -1,0 +1,46 @@
+{
+  "title": "SOC Central seed KEV fixture (subset of real CISA KEV + one labelled lab demo entry)",
+  "catalogVersion": "lab-seed",
+  "vulnerabilities": [
+    {
+      "cveID": "CVE-2021-3156",
+      "vendorProject": "Sudo",
+      "product": "Sudo",
+      "vulnerabilityName": "Sudo Heap-Based Buffer Overflow (Baron Samedit)",
+      "dateAdded": "2022-03-25",
+      "dueDate": "2022-04-15",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "Real CISA KEV entry."
+    },
+    {
+      "cveID": "CVE-2014-6271",
+      "vendorProject": "GNU",
+      "product": "Bash",
+      "vulnerabilityName": "GNU Bash Arbitrary Code Execution (Shellshock)",
+      "dateAdded": "2021-11-03",
+      "dueDate": "2022-05-03",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "Real CISA KEV entry. Affects bash <= 4.3 (won't match modern bash)."
+    },
+    {
+      "cveID": "CVE-2021-44228",
+      "vendorProject": "Apache",
+      "product": "Log4j2",
+      "vulnerabilityName": "Apache Log4j2 Remote Code Execution (Log4Shell)",
+      "dateAdded": "2021-12-10",
+      "dueDate": "2021-12-24",
+      "knownRansomwareCampaignUse": "Known",
+      "notes": "Real CISA KEV entry."
+    },
+    {
+      "cveID": "CVE-2023-4911",
+      "vendorProject": "GNU",
+      "product": "glibc",
+      "vulnerabilityName": "GNU C Library ld.so GLIBC_TUNABLES Buffer Overflow (Looney Tunables)",
+      "dateAdded": "2024-01-01",
+      "dueDate": "2024-01-22",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "LAB DEMO ENTRY — NOT in the official CISA KEV. Included so a matching package finding exercises the KEV-enrichment join end-to-end."
+    }
+  ]
+}
