@@ -11,8 +11,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import hashlib
+
 import psycopg
 from psycopg.types.json import Jsonb
+
+import evidence
 
 log = logging.getLogger("enrichment.db")
 
@@ -57,6 +61,39 @@ CREATE INDEX IF NOT EXISTS findings_domain ON findings (domain);
 CREATE INDEX IF NOT EXISTS findings_kev    ON findings (kev) WHERE kev;
 """
 
+COMPLIANCE_DDL = """
+CREATE TABLE IF NOT EXISTS compliance_results (
+    id            bigserial PRIMARY KEY,
+    asset_id      text REFERENCES assets(host_id),
+    rule_id       text NOT NULL,
+    benchmark     text,
+    title         text NOT NULL,
+    severity      text,
+    status        text NOT NULL,           -- pass | fail | partial | not_applicable
+    rationale     text,
+    remediation   text,
+    evidence      jsonb,
+    evidence_hash text,                     -- hash of the appended evidence record
+    run_id        text,
+    evaluated_at  timestamptz DEFAULT now(),
+    fingerprint   text UNIQUE               -- asset+rule -> latest result upserts
+);
+CREATE INDEX IF NOT EXISTS compliance_asset  ON compliance_results (asset_id);
+CREATE INDEX IF NOT EXISTS compliance_status ON compliance_results (status);
+
+-- Append-only, hash-chained audit log (see evidence.py). Never updated/deleted.
+CREATE TABLE IF NOT EXISTS compliance_evidence (
+    seq        bigserial PRIMARY KEY,
+    run_id     text,
+    asset_id   text,
+    rule_id    text,
+    record     jsonb NOT NULL,
+    prev_hash  text NOT NULL,
+    hash       text NOT NULL,
+    created_at timestamptz DEFAULT now()
+);
+"""
+
 
 def connect(dsn: str) -> psycopg.Connection:
     return psycopg.connect(dsn, autocommit=True)
@@ -65,7 +102,8 @@ def connect(dsn: str) -> psycopg.Connection:
 def ensure_schema(pg: psycopg.Connection) -> None:
     with pg.cursor() as cur:
         cur.execute(FINDINGS_DDL)
-    log.info("findings schema ready")
+        cur.execute(COMPLIANCE_DDL)
+    log.info("findings + compliance schema ready")
 
 
 # ----------------------------------------------------- telemetry (read) ------
@@ -108,6 +146,20 @@ def packages_for(ts: psycopg.Connection, host_id: str, window: str = "2 days") -
             (host_id,),
         )
         return [{"name": n, "version": v} for (n, v) in cur.fetchall() if n]
+
+
+def osquery_latest(ts: psycopg.Connection, host_id: str, query_name: str, window: str = "2 days") -> list[dict]:
+    """All column-dicts for the latest run of a named osquery query on this host."""
+    with ts.cursor() as cur:
+        cur.execute(
+            f"""
+            SELECT payload->'columns' FROM telemetry_raw
+            WHERE host_id=%s AND kind='osquery_result' AND payload->>'query_name'=%s
+              AND ingested_at > now() - interval '{window}'
+            """,
+            (host_id, query_name),
+        )
+        return [row[0] for row in cur.fetchall() if row[0]]
 
 
 def flows_for(ts: psycopg.Connection, host_id: str, window: str = "2 days", limit: int = 5000) -> list[dict]:
@@ -169,4 +221,59 @@ def upsert_findings(pg: psycopg.Connection, findings: list[dict]) -> int:
 def summary(pg: psycopg.Connection) -> list[tuple]:
     with pg.cursor() as cur:
         cur.execute("SELECT domain, severity, count(*) FROM findings GROUP BY domain, severity ORDER BY 1,2")
+        return cur.fetchall()
+
+
+# ----------------------------------------------------- compliance (write) ----
+def append_evidence(pg: psycopg.Connection, run_id: str, asset_id: str, rule_id: str, record: dict) -> str:
+    """Append one immutable, hash-chained evidence record; return its hash.
+
+    Sequential within the single-threaded run, so the chain stays consistent.
+    """
+    with pg.cursor() as cur:
+        cur.execute("SELECT hash FROM compliance_evidence ORDER BY seq DESC LIMIT 1")
+        row = cur.fetchone()
+        prev = row[0] if row else evidence.GENESIS
+        h = evidence.record_hash(prev, record)
+        cur.execute(
+            """
+            INSERT INTO compliance_evidence (run_id, asset_id, rule_id, record, prev_hash, hash)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (run_id, asset_id, rule_id, Jsonb(record), prev, h),
+        )
+    return h
+
+
+def upsert_compliance_result(pg: psycopg.Connection, asset_id: str, run_id: str,
+                             result: dict, evidence_hash: str) -> None:
+    fp = hashlib.sha1(f"{asset_id}|{result['rule_id']}".encode()).hexdigest()
+    with pg.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO compliance_results (asset_id, rule_id, benchmark, title, severity, status,
+                rationale, remediation, evidence, evidence_hash, run_id, fingerprint, evaluated_at)
+            VALUES (%(asset_id)s, %(rule_id)s, %(benchmark)s, %(title)s, %(severity)s, %(status)s,
+                %(rationale)s, %(remediation)s, %(evidence)s, %(evidence_hash)s, %(run_id)s, %(fp)s, now())
+            ON CONFLICT (fingerprint) DO UPDATE SET
+                status = EXCLUDED.status, rationale = EXCLUDED.rationale,
+                evidence = EXCLUDED.evidence, evidence_hash = EXCLUDED.evidence_hash,
+                run_id = EXCLUDED.run_id, evaluated_at = now()
+            """,
+            {"asset_id": asset_id, "run_id": run_id, "fp": fp,
+             "evidence": Jsonb(result.get("evidence", {})), "evidence_hash": evidence_hash,
+             **{k: result.get(k) for k in ("rule_id", "benchmark", "title", "severity",
+                                           "status", "rationale", "remediation")}},
+        )
+
+
+def evidence_rows(pg: psycopg.Connection) -> list[dict]:
+    with pg.cursor() as cur:
+        cur.execute("SELECT seq, record, prev_hash, hash FROM compliance_evidence ORDER BY seq")
+        return [{"seq": s, "record": rec, "prev_hash": p, "hash": h} for (s, rec, p, h) in cur.fetchall()]
+
+
+def compliance_summary(pg: psycopg.Connection) -> list[tuple]:
+    with pg.cursor() as cur:
+        cur.execute("SELECT status, count(*) FROM compliance_results GROUP BY status ORDER BY 1")
         return cur.fetchall()

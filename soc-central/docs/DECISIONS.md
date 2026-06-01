@@ -6,6 +6,27 @@ alternatives considered**.
 
 ---
 
+## D-022 — Compliance evaluates available osquery state; missing data is `not_applicable`
+**Decision:** the compliance engine grades each rule **pass / fail / partial /
+not_applicable** against the host state the agent actually collects. Rules needing data
+we don't yet gather (e.g. `sshd_config`, file permissions, sysctl) return
+**`not_applicable`** with a reason, never a false pass. **Why:** honesty over coverage —
+a benchmark that silently passes uncollected controls is worse than useless in a viva or
+an audit. Expanding coverage is "collect more osquery + add rules", not a redesign. The
+rule set shipped is a representative CIS Debian 12 + org-policy starter, not the full set.
+
+## D-021 — Hash-chained, append-only evidence log for audit traceability
+**Decision:** every compliance evaluation appends an immutable record to
+`compliance_evidence`, where each record stores the previous record's hash and its own
+`hash = SHA-256(prev_hash + canonical(record))` — a Merkle/blockchain-style chain.
+`compliance_results` holds the current per-rule state (upserted); the chain is the
+**tamper-evident history**. Any edit to a past record breaks every subsequent hash, which
+`GET /compliance/evidence/verify` detects and pinpoints. **Why:** the brief requires
+audit traceability for compliance; this is verifiable offline, needs no external notary,
+and fits the air-gapped model. Records use only stable JSON types so they survive a jsonb
+round-trip and re-hash identically. Phase 8 can anchor the head hash externally for
+stronger guarantees.
+
 ## D-020 — Assessment is a periodic batch over the data layer (not per-event)
 **Decision:** the enrichment engine reads each asset's *latest* host state from the data
 layer and (re)assesses on an interval, upserting findings by a stable `fingerprint`.

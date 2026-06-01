@@ -10,7 +10,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from .config import settings
-from .routers import findings, health
+from .routers import compliance, findings, health
 
 app = FastAPI(
     title="SOC Central API",
@@ -22,6 +22,7 @@ app = FastAPI(
 
 app.include_router(health.router)
 app.include_router(findings.router)
+app.include_router(compliance.router)
 
 
 @app.get("/", tags=["system"], summary="Service banner")

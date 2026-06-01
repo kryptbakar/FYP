@@ -25,6 +25,20 @@ Every finding carries `evidence` (matched range, CVSS vector, sample IPs…) so 
 **explainable**. The *composite* risk score + SHAP explanations come in Phase 5; the
 `risk_score` column is reserved for it.
 
+## Compliance engine (Phase 4)
+
+The same engine also runs a **compliance pass**: `compliance.py` grades CIS-Benchmark +
+org-policy rules against the host's osquery state → **pass / fail / partial /
+not_applicable**, and `evidence.py` writes each evaluation to a **hash-chained,
+append-only evidence log** (`compliance_evidence`) for tamper-evident audit. Results are
+in `compliance_results`. Verify the chain any time:
+
+```
+GET /compliance/summary           # per-asset score
+GET /compliance/results?status=fail
+GET /compliance/evidence/verify    # recomputes the hash chain; flags tampering
+```
+
 ## Matching (the hard part)
 
 `matcher.py` loads the mirror into memory and answers "which CVEs affect this

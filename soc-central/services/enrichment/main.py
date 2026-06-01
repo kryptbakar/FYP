@@ -10,9 +10,12 @@ import argparse
 import logging
 import os
 import time
+from datetime import datetime, timezone
 
+import compliance
 import db
 import domains
+import evidence
 from matcher import Matcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -42,30 +45,58 @@ def run_once() -> None:
         db.ensure_schema(pg)
         matcher = Matcher.load(pg)
 
+        run_id = datetime.now(timezone.utc).strftime("run-%Y%m%dT%H%M%SZ")
         assets = db.list_assets(ts)
-        log.info("assessing %d asset(s)", len(assets))
-        total = 0
+        log.info("assessing %d asset(s) [run_id=%s]", len(assets), run_id)
+        total = comp_total = 0
         for a in assets:
             host_id = a["host_id"]
-            os_info = db.os_for(ts, host_id)
-            os_name = (os_info or {}).get("name")
+            os_info = db.os_for(ts, host_id) or {}
+            os_name = os_info.get("name")
             packages = db.packages_for(ts, host_id)
             installed = {p["name"] for p in packages}
             flows = db.flows_for(ts, host_id)
 
             db.upsert_asset(pg, host_id, a.get("hostname"), os_name, None, a.get("last_seen"))
 
+            # --- vulnerability assessment (Phase 3) ---
             findings = []
             findings += domains.assess_application(host_id, packages, matcher)
             findings += domains.assess_system(host_id, installed, os_info)
             findings += domains.assess_network(host_id, flows)
             n = db.upsert_findings(pg, findings)
             total += n
-            log.info("asset=%s packages=%d flows=%d findings=%d", host_id, len(packages), len(flows), n)
 
-        log.info("assessment complete: %d finding(s) upserted", total)
+            # --- compliance assessment (Phase 4): pass/fail/partial + hash-chained evidence ---
+            kernel = db.osquery_latest(ts, host_id, "kernel_info")
+            state = compliance.State(
+                os=os_info,
+                pkg_names={p.lower() for p in installed},
+                kernel=(kernel[0] if kernel else None),
+                listening=db.osquery_latest(ts, host_id, "listening_ports"),
+                users=db.osquery_latest(ts, host_id, "logged_in_users"),
+            )
+            for result in compliance.evaluate_asset(state):
+                record = {
+                    "run_id": run_id, "asset_id": host_id, "rule_id": result["rule_id"],
+                    "status": result["status"], "evidence": result["evidence"],
+                    "evaluated_at": datetime.now(timezone.utc).isoformat(),
+                }
+                ev_hash = db.append_evidence(pg, run_id, host_id, result["rule_id"], record)
+                db.upsert_compliance_result(pg, host_id, run_id, result, ev_hash)
+                comp_total += 1
+
+            log.info("asset=%s packages=%d flows=%d findings=%d compliance_rules=%d",
+                     host_id, len(packages), len(flows), n, len(compliance.RULES))
+
+        log.info("vuln findings upserted: %d", total)
         for domain, severity, count in db.summary(pg):
-            log.info("  %-12s %-8s %d", domain, severity, count)
+            log.info("  finding  %-12s %-8s %d", domain, severity, count)
+        log.info("compliance results: %d (evidence records appended)", comp_total)
+        for status, count in db.compliance_summary(pg):
+            log.info("  compliance  %-16s %d", status, count)
+        chain = evidence.verify_chain(db.evidence_rows(pg))
+        log.info("evidence chain: ok=%s length=%s", chain["ok"], chain["length"])
     finally:
         ts.close()
         pg.close()
