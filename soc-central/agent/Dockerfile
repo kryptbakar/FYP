@@ -20,8 +20,8 @@ RUN apt-get update \
     fi \
  && rm -rf /var/lib/apt/lists/*
 
-# Writable directory the FIM demo can touch to generate events.
-RUN mkdir -p /watch
+# Writable directories: FIM demo target + active-response quarantine vault.
+RUN mkdir -p /watch /quarantine
 
 COPY --from=build /out/agent /usr/local/bin/agent
 ENTRYPOINT ["/usr/local/bin/agent"]

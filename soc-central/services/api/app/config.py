@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     nats_host: str = "nats"
     nats_port: int = 4222
 
+    # Active response (Phase 6): shared agent token + Ed25519 command-signing key path.
+    ingest_agent_token: str = ""
+    command_signing_key: str = "/keys/command_signing.key"
+    two_person_min: int = 2  # distinct approvers required for a destructive action
+
     @property
     def postgres_dsn(self) -> str:
         return (

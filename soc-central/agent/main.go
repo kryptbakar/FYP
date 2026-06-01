@@ -61,6 +61,16 @@ func main() {
 	go func() { defer wg.Done(); shipper.Run(ctx) }()
 	go func() { defer wg.Done(); sched.Run(ctx) }()
 
+	// Active-response responder (signed command channel).
+	if cfg.ResponseEnabled {
+		if responder, rerr := newResponder(cfg, log); rerr != nil {
+			log.Error("responder disabled", "err", rerr)
+		} else {
+			wg.Add(1)
+			go func() { defer wg.Done(); responder.Run(ctx) }()
+		}
+	}
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop

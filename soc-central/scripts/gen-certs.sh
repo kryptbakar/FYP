@@ -47,6 +47,11 @@ EOF
 openssl x509 -req -in agent-001.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
   -days "$DAYS" -sha256 -extfile agent.ext -out agent-001.crt 2>/dev/null
 
+echo "[*] Ed25519 command-signing keypair (active-response, Phase 6)"
+openssl genpkey -algorithm ed25519 -out command_signing.key 2>/dev/null
+# Raw 32-byte public key (last 32 bytes of the DER SPKI), base64 — what the Go agent verifies against.
+openssl pkey -in command_signing.key -pubout -outform DER 2>/dev/null | tail -c 32 | base64 | tr -d '\n' > command_signing.pub.b64
+
 rm -f ./*.csr server.ext agent.ext ca.srl
 chmod 600 ./*.key 2>/dev/null || true
 chmod 644 ./*.crt 2>/dev/null || true

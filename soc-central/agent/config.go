@@ -46,6 +46,13 @@ type Config struct {
 	// Resource caps (the agent must be a polite guest on monitored hosts).
 	MaxProcs   int
 	MemLimitMB int
+
+	// Active response (Phase 6): the signed command channel.
+	ResponseEnabled bool
+	APIURL          string
+	ServerPubKey    string // base64 raw Ed25519 public key the agent verifies against
+	ResponsePoll    time.Duration
+	QuarantineDir   string
 }
 
 func loadConfig() Config {
@@ -81,6 +88,12 @@ func loadConfig() Config {
 
 		MaxProcs:   envInt("AGENT_MAX_PROCS", 1),
 		MemLimitMB: envInt("AGENT_MEM_LIMIT_MB", 128),
+
+		ResponseEnabled: envBool("RESPONSE_ENABLED", false),
+		APIURL:          env("API_URL", "http://api:8000"),
+		ServerPubKey:    env("SERVER_PUBKEY", "/certs/command_signing.pub.b64"),
+		ResponsePoll:    envSec("RESPONSE_POLL_SEC", 10),
+		QuarantineDir:   env("QUARANTINE_DIR", "/quarantine"),
 	}
 }
 

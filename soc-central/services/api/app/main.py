@@ -7,10 +7,20 @@ feedback) are layered on in later phases.
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
+from . import schema
 from .config import settings
-from .routers import compliance, findings, health, risk
+from .routers import compliance, findings, health, incidents, response, risk
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    schema.ensure_schema()  # incident/response tables (idempotent)
+    yield
+
 
 app = FastAPI(
     title="SOC Central API",
@@ -18,12 +28,15 @@ app = FastAPI(
     summary="Centralized SOC & vulnerability-intelligence backend",
     docs_url="/docs",
     openapi_url="/openapi.json",
+    lifespan=lifespan,
 )
 
 app.include_router(health.router)
 app.include_router(findings.router)
 app.include_router(compliance.router)
 app.include_router(risk.router)
+app.include_router(incidents.router)
+app.include_router(response.router)
 
 
 @app.get("/", tags=["system"], summary="Service banner")

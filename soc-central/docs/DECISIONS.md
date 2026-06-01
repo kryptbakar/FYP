@@ -6,6 +6,31 @@ alternatives considered**.
 
 ---
 
+## D-028 — Signed command channel (Ed25519), verified against a provisioned key
+**Decision:** every active-response command is **Ed25519-signed** by the server; the agent
+verifies it against a public key it was **provisioned with out-of-band** (mounted), not a
+key carried by the command — zero-trust on the channel. The server signs the *exact
+canonical bytes* the agent verifies, so there's no cross-language canonicalization risk and
+the command cannot be forged/altered in transit. **Why:** containment is destructive;
+authenticity + integrity + non-repudiation are mandatory. Verified: a tampered command is
+**refused** (`verify_failed`) and does not execute. Agent→API poll uses a bearer token for
+now; full mTLS-everywhere is Phase 8.
+
+## D-027 — Two-person rule for destructive actions (separation of duties)
+**Decision:** all containment actions (process kill / network isolate / file quarantine /
+user disable) require **≥2 distinct approvers**, and the **requester may not approve their
+own** request; only on quorum is the command signed + dispatchable. **Why:** destructive
+response on production hosts must not be unilateral — the standard SOC control against a
+single malicious/mistaken operator. Configurable via `TWO_PERSON_MIN`.
+
+## D-026 — Hash-chained audit for active response (reuses the evidence-chain construction)
+**Decision:** every action lifecycle event (requested → approved → signed → dispatched →
+completed/failed/verify_failed) appends to a hash-chained `action_audit` log
+(`hash = SHA-256(prev_hash + canonical(record))`), same construction as the Phase-4
+compliance evidence chain (D-021). `GET /response/audit/verify` recomputes it. **Why:**
+destructive actions demand a tamper-evident, non-repudiable record of who requested/approved/
+ran what. Verified: editing any past record is detected and pinpointed.
+
 ## D-022 — Compliance evaluates available osquery state; missing data is `not_applicable`
 **Decision:** the compliance engine grades each rule **pass / fail / partial /
 not_applicable** against the host state the agent actually collects. Rules needing data
