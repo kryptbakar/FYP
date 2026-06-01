@@ -1,0 +1,21 @@
+# --- Repo-root safety net (the real rules live in soc-central/.gitignore) ---
+
+# Personal Claude Code / IDE tooling config — not a project deliverable.
+.claude/
+
+# Secrets — never publish (belt-and-suspenders; also ignored in soc-central/).
+.env
+**/.env
+!**/.env.example
+
+# Study-only reference clones (~1 GB, junctioned to D:). Never commit.
+reference/
+**/reference/
+
+# Local data volumes / build artifacts
+**/data/
+**/volumes/
+__pycache__/
+*.log
+.DS_Store
+Thumbs.db

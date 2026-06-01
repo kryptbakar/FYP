@@ -1,0 +1,52 @@
+# =====================================================================
+# SOC Central — developer task runner.
+# Linux/macOS: use `make <target>`.
+# Windows (no make): use `pwsh scripts/dev.ps1 <target>` (same targets).
+# =====================================================================
+
+COMPOSE ?= docker compose
+
+.DEFAULT_GOAL := help
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env
+
+help: ## Show available targets
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+env: ## Create .env from .env.example if missing
+	@test -f .env || (cp .env.example .env && echo "Created .env from .env.example")
+
+up: env ## Build images and start the full MVP stack
+	$(COMPOSE) up -d --build
+
+down: ## Stop the stack (keep data volumes)
+	$(COMPOSE) down
+
+clean: ## Stop the stack AND remove data volumes (destructive)
+	$(COMPOSE) down -v
+
+restart: ## Restart the stack
+	$(COMPOSE) restart
+
+ps: ## Show running services
+	$(COMPOSE) ps
+
+logs: ## Tail logs for all services
+	$(COMPOSE) logs -f --tail=100
+
+health: ## Curl the API liveness + readiness endpoints
+	@echo "--- /health ---"   && curl -fsS http://localhost:8000/health   && echo
+	@echo "--- /version ---"  && curl -fsS http://localhost:8000/version  && echo
+	@echo "--- /health/ready ---" && curl -fsS http://localhost:8000/health/ready && echo
+
+clone-refs: ## Shallow-clone all reference repos into reference/ (study only)
+	bash scripts/clone-references.sh
+
+seed: ## (Phase 1+) Seed databases / feed mirror — placeholder
+	@echo "seed: not implemented until Phase 1"
+
+test: ## (Phase 1+) Run test suites — placeholder
+	@echo "test: not implemented until Phase 1"
+
+agent-run: ## (Phase 2+) Build & run the Go endpoint agent — placeholder
+	@echo "agent-run: not implemented until Phase 2"

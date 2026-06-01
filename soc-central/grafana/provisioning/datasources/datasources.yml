@@ -1,0 +1,32 @@
+# Grafana datasource provisioning.
+# Phase 0: wire Grafana to the two SQL stores so dashboards (added in Phase 7)
+# have data sources ready. OpenSearch datasource is added in Phase 7.
+apiVersion: 1
+
+datasources:
+  - name: TimescaleDB
+    type: postgres
+    access: proxy
+    url: timescaledb:5432
+    user: ${TIMESCALE_USER:-soc}
+    jsonData:
+      database: ${TIMESCALE_DB:-soc_telemetry}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: true
+    secureJsonData:
+      password: ${TIMESCALE_PASSWORD:-soc}
+    editable: true
+
+  - name: PostgreSQL
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: ${POSTGRES_USER:-soc}
+    jsonData:
+      database: ${POSTGRES_DB:-soc_central}
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD:-soc}
+    editable: true

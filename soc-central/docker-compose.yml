@@ -1,0 +1,141 @@
+# =====================================================================
+# SOC Central — MVP stack (Phase 0).
+# Single-host lab: data stores + broker + FastAPI skeleton.
+# Bring up with `make up` (or `pwsh scripts/dev.ps1 up` on Windows).
+#
+# Phase 0 deliberately keeps OpenSearch security DISABLED for a frictionless
+# lab. SSO/RBAC/mTLS/TLS are layered in from Phase 7 onward (see docs/DECISIONS.md).
+# =====================================================================
+
+name: soc-central
+
+services:
+  # ---- PostgreSQL: transactional state (assets, findings, incidents) ----
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-soc} -d ${POSTGRES_DB:-soc_central}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- TimescaleDB: time-series telemetry (host/network metrics, flows) ----
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${TIMESCALE_DB:-soc_telemetry}
+      POSTGRES_USER: ${TIMESCALE_USER:-soc}
+      POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-soc}
+    ports:
+      - "${TIMESCALE_PORT:-5433}:5432"
+    volumes:
+      - tsdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMESCALE_USER:-soc} -d ${TIMESCALE_DB:-soc_telemetry}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ---- OpenSearch: full-text / log search ----
+  opensearch:
+    image: opensearchproject/opensearch:2.18.0
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      # MVP lab: disable the security plugin (no TLS/auth). Re-enabled in Phase 7.
+      - DISABLE_SECURITY_PLUGIN=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "${OPENSEARCH_PORT:-9200}:9200"
+    volumes:
+      - osdata:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+  # ---- NATS JetStream: durable message broker ----
+  # Official nats image is distroless (no shell), so no container healthcheck;
+  # the API readiness probe TCP-checks it instead.
+  nats:
+    image: nats:2.10
+    restart: unless-stopped
+    command: ["-js", "-m", "8222", "-sd", "/data"]
+    ports:
+      - "${NATS_PORT:-4222}:4222"       # client
+      - "${NATS_MONITOR_PORT:-8222}:8222" # monitoring/http
+    volumes:
+      - natsdata:/data
+
+  # ---- API: FastAPI skeleton (the core backend, built out across phases) ----
+  api:
+    build:
+      context: ./services/api
+    restart: unless-stopped
+    environment:
+      SOC_ENV: ${SOC_ENV:-development}
+      SOC_VERSION: ${SOC_VERSION:-0.0.0-phase0}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      OPENSEARCH_HOST: opensearch
+      OPENSEARCH_PORT: 9200
+      OPENSEARCH_SCHEME: http
+      NATS_HOST: nats
+      NATS_PORT: 4222
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
+  # ---- Grafana: metrics / trends / heatmaps (dashboards provisioned later) ----
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - postgres
+      - timescaledb
+
+volumes:
+  pgdata:
+  tsdata:
+  osdata:
+  natsdata:
+  grafanadata:

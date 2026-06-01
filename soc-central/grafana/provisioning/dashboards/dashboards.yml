@@ -1,0 +1,15 @@
+# Grafana dashboard provider. Dashboards (JSON) are added in Phase 7 and
+# dropped into ../dashboards, which is mounted at the path below.
+apiVersion: 1
+
+providers:
+  - name: soc-central
+    orgId: 1
+    folder: SOC Central
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true
