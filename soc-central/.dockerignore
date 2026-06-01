@@ -1,0 +1,23 @@
+# Keep the build context small and safe. ingest-edge/workers/fake-producer build
+# with context = repo root (to reach schema/), so we must exclude the heavy and
+# secret bits explicitly.
+reference
+reference/**
+certs
+certs/**
+.git
+**/.git
+.env
+**/.env
+data
+**/data
+volumes
+**/volumes
+*.log
+**/*.log
+**/__pycache__
+**/*.pyc
+web/node_modules
+ml/artifacts
+docs
+grafana/dashboards

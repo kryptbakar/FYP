@@ -7,8 +7,9 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','up','down','clean','restart','ps','logs','health','clone-refs','seed','test','agent-run')]
-  [string]$Target = 'help'
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','produce','seed','test','agent-run')]
+  [string]$Target = 'help',
+  [int]$N = 500
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,11 +27,13 @@ function Ensure-Env {
 switch ($Target) {
   'help' {
     Write-Host "SOC Central targets:"
-    'env, up, down, clean, restart, ps, logs, health, clone-refs, seed, test, agent-run' -split ', ' |
+    'env, certs, up, down, clean, restart, ps, logs, health, clone-refs, produce, seed, test, agent-run' -split ', ' |
       ForEach-Object { Write-Host "  $_" }
   }
   'env'      { Ensure-Env }
-  'up'       { Ensure-Env; Invoke-Expression "$Compose up -d --build" }
+  'certs'    { bash scripts/gen-certs.sh }
+  'up'       { Ensure-Env; bash scripts/gen-certs.sh; Invoke-Expression "$Compose up -d --build" }
+  'produce'  { Invoke-Expression "$Compose run --rm fake-producer --count $N" }
   'down'     { Invoke-Expression "$Compose down" }
   'clean'    { Invoke-Expression "$Compose down -v" }
   'restart'  { Invoke-Expression "$Compose restart" }

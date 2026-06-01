@@ -7,7 +7,7 @@
 COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -16,8 +16,15 @@ help: ## Show available targets
 env: ## Create .env from .env.example if missing
 	@test -f .env || (cp .env.example .env && echo "Created .env from .env.example")
 
-up: env ## Build images and start the full MVP stack
+certs: ## Generate the dev mTLS PKI (idempotent; --force to regenerate)
+	bash scripts/gen-certs.sh
+
+up: env certs ## Build images and start the full MVP stack
 	$(COMPOSE) up -d --build
+
+N ?= 500
+produce: ## Send N fake telemetry envelopes through the pipeline (default N=500)
+	$(COMPOSE) run --rm fake-producer --count $(N)
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down
