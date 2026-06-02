@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     # General
     soc_env: str = "development"
-    soc_version: str = "0.0.0-phase0"
+    soc_version: str = "1.0.0"
 
     # API
     api_log_level: str = "info"
