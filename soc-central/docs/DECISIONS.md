@@ -6,6 +6,35 @@ alternatives considered**.
 
 ---
 
+## D-045 — nginx serves the console and reverse-proxies `/api` (same-origin, no CORS, no baked host)
+**Context:** the SPA must call the FastAPI from the browser.
+**Decision:** the console container's nginx serves the static SPA **and** proxies
+`/api/*` → `http://api:8000/` on the internal Docker network, so the browser makes
+**same-origin** requests to `/api/...`. **Why:** (1) no CORS to configure or weaken;
+(2) the API host/port is never baked into the client — the console is portable across
+environments; (3) nothing the browser loads egresses. We still added a permissive,
+configurable `CORSMiddleware` to the API (`cors_allow_origins_raw`) so a dev console on
+another port or Swagger can call it directly. **Verified 2026-06-02:** `/api/version`,
+`/api/risk/ranking`, and `/api/findings/{id}/explain` all resolve through the proxy with
+live data. **Alternatives:** CORS + an absolute API URL in the client (more config, leaks
+the host, fragile across deploys).
+
+## D-044 — The analyst console is a dependency-free static SPA (air-gap-pure); Next.js deferred to a mirrored registry
+**Context:** the architecture names a Next.js/Tailwind console; the host has a flaky link +
+limited disk; the target is air-gapped; this is the flagship, must-not-fail deliverable.
+**Decision:** build the console as a **dependency-free SPA** — hand-built design system,
+pure-SVG charts, vanilla JS, **no npm / no CDN / no build step** — served by nginx. **Why:**
+it ships **zero external assets**, so it runs fully air-gapped and needs no package registry
+at build time (itself an air-gap virtue and a real pitch point); it builds instantly with no
+network risk; and it gives total control of an investor-grade look. The framework is
+invisible to evaluators — the UI is what they see — so reliability + polish win. The
+production migration to the named Next.js/Tailwind toolchain happens once a **mirrored npm
+registry (Verdaccio)** exists in the K3s phase; the API contract and the design system carry
+over. **Verified 2026-06-02:** console + assets served, `app.js` syntax-clean, live data
+rendered via the proxy. **Alternatives:** Next.js/Vite now — rejected for this PoC: the
+build-time `npm install` over a flaky link is a real failure mode on the flagship deliverable,
+and a node SSR runtime is heavier to air-gap than static files on nginx.
+
 ## D-043 — Tool feeds mirrored via each tool's own offline-prepare into named volumes; `--seed` for this host
 **Context:** Nuclei/Trivy/Sigma/Suricata fetch rules/DBs from the internet by default;
 the air gap forbids that at runtime (expansion §6).

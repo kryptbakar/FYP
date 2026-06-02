@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     # API
     api_log_level: str = "info"
+    # Console origins allowed for direct (non-proxied) browser calls. Comma-separated,
+    # or "*" for any. In the normal topology the console is same-origin via nginx /api.
+    cors_allow_origins_raw: str = "*"
 
     # PostgreSQL (transactional)
     postgres_host: str = "postgres"
@@ -38,6 +41,13 @@ class Settings(BaseSettings):
     ingest_agent_token: str = ""
     command_signing_key: str = "/keys/command_signing.key"
     two_person_min: int = 2  # distinct approvers required for a destructive action
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        raw = self.cors_allow_origins_raw.strip()
+        if raw == "*" or not raw:
+            return ["*"]
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
     @property
     def postgres_dsn(self) -> str:

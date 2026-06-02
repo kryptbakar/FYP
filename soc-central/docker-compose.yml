@@ -303,6 +303,19 @@ services:
       - postgres
       - timescaledb
 
+  # ---- console: Next-gen analyst workbench (static SPA on nginx + /api proxy) ----
+  # Dependency-free, air-gapped (no CDN/npm). nginx reverse-proxies /api -> the API,
+  # so the browser makes same-origin calls. See web/console/ and DECISIONS D-044/D-045.
+  console:
+    build:
+      context: .
+      dockerfile: web/console/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${CONSOLE_PORT:-3001}:8080"
+    depends_on:
+      - api
+
 volumes:
   pgdata:
   tsdata:

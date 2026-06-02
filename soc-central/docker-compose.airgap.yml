@@ -35,6 +35,7 @@ services:
   api:          { networks: [socnet] }
   grafana:      { networks: [socnet] }
   enrichment:   { networks: [socnet] }   # reads the CVE mirror from Postgres, never live
+  console:      { networks: [socnet] }   # serves the SPA + proxies /api to the sealed API
   risk-engine:  { networks: [socnet] }
   agent:        { networks: [socnet] }
   fake-producer: { networks: [socnet] }
