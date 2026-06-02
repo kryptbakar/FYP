@@ -6,9 +6,10 @@
 
 COMPOSE ?= docker compose
 COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
+COMPOSE_AIRGAP = $(COMPOSE) -f docker-compose.yml -f docker-compose.airgap.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest intel-enrich
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest intel-enrich mirror-sync airgap-up airgap-verify
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -68,6 +69,15 @@ scan-ingest: ## (Phase D) ingest Trivy + Nuclei scanner findings (bundled fixtur
 intel-enrich: ## (Phase E) MISP IOC match + OpenCTI ATT&CK + Sigma detection over the stores
 	$(COMPOSE_TOOLS) build intel-enricher
 	$(COMPOSE_TOOLS) run --rm intel-enricher
+
+mirror-sync: ## (Phase H) mirror Nuclei/Trivy/Sigma/Suricata feeds into local volumes (SEED=1 for offline)
+	bash tools/airgap/mirror-sync.sh $(if $(SEED),--seed,)
+
+airgap-up: ## (Phase H) start the stack with egress SEALED (only feed-sync may reach the net)
+	$(COMPOSE_AIRGAP) up -d --build
+
+airgap-verify: ## (Phase H) prove the air gap holds: runtime network sealed, sync path egresses
+	bash tools/airgap/verify-egress.sh
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down
