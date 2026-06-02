@@ -31,8 +31,9 @@ services:
     cap_add: ["NET_ADMIN", "NET_RAW", "SYS_NICE"]
     command: ["-i", "eth0"]       # real capture needs host networking + a live iface (Phase B)
     volumes:
-      - suricata_logs:/var/log/suricata          # eve.json -> worker tail
-      - ./tools/suricata/rules:/var/lib/suricata/rules:ro   # mirrored ET Open rules (Phase B)
+      - suricata_logs:/var/log/suricata          # eve.json -> sensor-bridge tail
+      - ./tools/suricata/rules:/var/lib/suricata/rules:ro   # local + mirrored ET Open rules
+      - ./tools/sensors/data:/pcaps:ro           # offline test pcaps (deterministic demo)
 
   zeek:                           # Traffic analysis — JSON protocol metadata logs
     image: zeek/zeek:7.0
@@ -42,7 +43,22 @@ services:
     working_dir: /logs
     command: ["zeek", "-i", "eth0", "LogAscii::use_json=T"]
     volumes:
-      - zeek_logs:/logs                          # *.log -> zeek2es-style shipper (Phase B)
+      - zeek_logs:/logs                          # *.log -> sensor-bridge shipper (Phase B)
+      - ./tools/sensors/data:/pcaps:ro
+
+  sensor-bridge:                  # tails Suricata eve.json + Zeek logs -> JetStream (Phase B)
+    build:
+      context: .
+      dockerfile: services/sensor-bridge/Dockerfile
+    profiles: ["sensors", "tools"]
+    restart: unless-stopped
+    environment:
+      NATS_URL: nats://nats:4222
+      SURICATA_EVE: /var/log/suricata/eve.json
+      ZEEK_LOG_DIR: /zeek-logs
+    volumes:
+      - suricata_logs:/var/log/suricata:ro
+      - zeek_logs:/zeek-logs:ro
 
   # ------------------------ Phase D: active scanning ------------------------
   trivy:                          # Container/image/fs CVE scanner (REST server mode)

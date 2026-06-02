@@ -5,9 +5,10 @@
 # =====================================================================
 
 COMPOSE ?= docker compose
+COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -44,6 +45,16 @@ risk-train: ## Train the XGBoost risk model (synthetic + analyst feedback)
 
 risk-score: ## Score all findings: composite + ML risk + SHAP explanations
 	$(COMPOSE) --profile ml run --rm risk-engine score
+
+clone-tools: ## Clone the tool-integration reference repos into reference/ (study only)
+	bash scripts/clone-references-tools.sh
+
+sensors-test: ## (Phase B) run Suricata on the test pcap and ship alerts through the pipeline
+	docker run --rm -v "$(CURDIR)/tools/sensors:/w" -w /w python:3.12-slim python make_test_pcap.py data/test.pcap
+	$(COMPOSE_TOOLS) build sensor-bridge
+	$(COMPOSE_TOOLS) run --rm --entrypoint suricata suricata -r /pcaps/test.pcap -l /var/log/suricata -S /var/lib/suricata/rules/local.rules -k none
+	$(COMPOSE_TOOLS) run --rm sensor-bridge --once
+	@echo "Suricata alerts shipped. Query: curl localhost:9200/telemetry-v1/_count -d '{\"query\":{\"term\":{\"source_tool.keyword\":\"suricata\"}}}'"
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down

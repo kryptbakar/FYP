@@ -56,3 +56,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Phase B sensor test data: generated pcap + Suricata output; mirrored ET ruleset.
+# Keep local.rules and the small Zeek fixtures (re-include after the *.log rule above).
+tools/sensors/data/*.pcap
+tools/sensors/data/out/
+tools/suricata/rules/*.rules
+!tools/suricata/rules/local.rules
+!tools/sensors/data/zeek/conn.log
+!tools/sensors/data/zeek/dns.log

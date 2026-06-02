@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import signal
+from datetime import datetime, timezone
 from pathlib import Path
 
 import nats
@@ -119,6 +120,9 @@ async def run() -> None:
                 env_doc = json.loads(m.data)
                 if _validator is not None:
                     _validator.validate(env_doc)
+                # Robustness: direct broker publishers (e.g. sensor-bridge) may omit
+                # ingested_at, which ingest-edge would normally stamp. Default it here.
+                env_doc.setdefault("ingested_at", datetime.now(timezone.utc).isoformat())
                 seq = m.metadata.sequence.stream if m.metadata else None
                 rows.append(Storage.to_row(env_doc, seq))
                 docs.append(env_doc)

@@ -6,6 +6,24 @@ alternatives considered**.
 
 ---
 
+## D-034 — File-based sensors integrate via a `sensor-bridge`, not a new ingestion path
+**Decision:** Suricata (EVE JSON) and Zeek (TSV/JSON logs) are file-based, not REST. A
+`sensor-bridge` worker **tails their files** and publishes normalized envelopes
+(`ids_alert` / `traffic_metadata`) onto the **existing JetStream pipeline**; the existing
+workers then fan them out to TimescaleDB + OpenSearch. **Why:** keeps the broker interface
+stable (Ground-Rule #4) and reuses all downstream storage/validation — adding a sensor is a
+new producer, not a new pipeline. Verified: real Suricata on a deterministic pcap → 2 alerts
+→ bridge → OpenSearch + Timescale; Zeek conn/dns logs → `traffic_metadata` likewise.
+
+## D-033 — Internal sensors publish straight to the broker; only remote agents use mTLS edge
+**Decision:** internal server-side sensors (Suricata/Zeek via `sensor-bridge`) publish
+directly to JetStream and stamp `ingested_at` themselves; remote endpoint **agents** still go
+through `ingest-edge` (mTLS + token + schema validation). **Why:** the mTLS edge exists to
+authenticate *untrusted remote* agents; co-located sensors on the SOC host don't need it and
+shouldn't pay its overhead. Defence-in-depth is preserved — the worker re-validates every
+envelope against the schema regardless of source (and now defaults a missing `ingested_at`,
+so any direct publisher is safe).
+
 ## D-032 — Findings gain provenance + fusion fields (`source_tool`, `raw_ref`, `dedup_key`)
 **Decision:** the unified telemetry envelope adds optional `source_tool` / `raw_ref` and five
 tool-sourced `kind`s (ids_alert, traffic_metadata, scan_finding, ioc_match, runtime_alert);

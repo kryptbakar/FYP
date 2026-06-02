@@ -1,0 +1,2 @@
+{"ts":1717200000.0,"uid":"CwT1aQ2bD","id.orig_h":"10.0.0.10","id.orig_p":40000,"id.resp_h":"8.8.8.8","id.resp_p":53,"proto":"udp","service":"dns","duration":0.012,"orig_bytes":29,"resp_bytes":0,"conn_state":"S0","history":"D"}
+{"ts":1717200001.5,"uid":"CkP9zR4eF","id.orig_h":"10.0.0.10","id.orig_p":51514,"id.resp_h":"185.220.101.45","id.resp_p":443,"proto":"tcp","service":"ssl","duration":3.4,"orig_bytes":1200,"resp_bytes":34000,"conn_state":"SF","history":"ShADadFf"}

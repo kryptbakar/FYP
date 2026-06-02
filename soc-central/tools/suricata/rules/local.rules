@@ -1,0 +1,6 @@
+# SOC Central — local Suricata rules (Phase B starter).
+# The mirrored ET Open ruleset is loaded from this same directory at runtime (Phase B/§6);
+# this local file guarantees a deterministic alert for the offline pcap test.
+
+alert ip any any -> any any (msg:"SOC-Central TEST: IP packet observed"; sid:1000001; rev:1;)
+alert dns any any -> any any (msg:"SOC-Central TEST: DNS query observed"; sid:1000002; rev:1;)
