@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','mirror-sync','airgap-up','airgap-verify','seed','test','agent-run')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -61,6 +61,15 @@ switch ($Target) {
     Invoke-Expression "$ct build intel-enricher"
     Invoke-Expression "$ct run --rm intel-enricher"
   }
+  'mirror-sync'   {
+    $seed = if ($N -eq 1) { '--seed' } else { '' }   # pass -N 1 for offline seed mode
+    bash tools/airgap/mirror-sync.sh $seed
+  }
+  'airgap-up'     {
+    Ensure-Env; bash scripts/gen-certs.sh
+    Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.airgap.yml up -d --build"
+  }
+  'airgap-verify' { bash tools/airgap/verify-egress.sh }
   'down'     { Invoke-Expression "$Compose down" }
   'clean'    { Invoke-Expression "$Compose down -v" }
   'restart'  { Invoke-Expression "$Compose restart" }

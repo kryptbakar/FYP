@@ -6,6 +6,41 @@ alternatives considered**.
 
 ---
 
+## D-043 — Tool feeds mirrored via each tool's own offline-prepare into named volumes; `--seed` for this host
+**Context:** Nuclei/Trivy/Sigma/Suricata fetch rules/DBs from the internet by default;
+the air gap forbids that at runtime (expansion §6).
+**Decision:** a sibling sync job `tools/airgap/mirror-sync.sh` (the second internet-facing
+job after feed-sync) populates four named Docker volumes using **each tool's own**
+download mechanism (`nuclei -update-templates`, `trivy image --download-db-only`,
+`git clone SigmaHQ/sigma`, ET Open tarball) which the tool containers mount read-only and
+run with updates disabled. A `--seed` mode lays down a minimal deterministic mirror from
+the repo's bundled rules so the offline path works on this constrained/flaky host.
+**Why:** reusing the tools' own offline-prepare avoids re-implementing fetch/format logic
+(which would rot), and named volumes are the natural unit to ship by sneakernet. The seed
+mode keeps the offline runtime demonstrable without the multi-GB live pulls. **Verified
+2026-06-02:** seed populated all four volumes (nuclei template, trivy db marker,
+sigma `susp_egress.yml`, suricata `local.rules`). **Alternatives:** a bespoke fetcher
+service (more code, duplicates upstream tooling); baking feeds into images (bloated,
+can't refresh without rebuild). Cross-platform copy uses `tar`-over-stdin, not a host
+bind-mount, because Docker Desktop/Windows doesn't resolve git-bash `/c/...` source paths.
+
+## D-042 — Air-gap enforced with a Docker `internal` network; verified by a probe; K3s NetworkPolicy in prod
+**Context:** the air gap was a *convention* (only feed-sync egresses). Phase H must
+**verify** it (expansion §H: "run with egress blocked and confirm").
+**Decision:** `docker-compose.airgap.yml` puts every runtime service on a
+`socnet` network with `internal: true` (no route off-host) and dual-homes only
+feed-sync/mirror-sync on an `egress` bridge. `tools/airgap/verify-egress.sh` probes the
+sealed network vs a normal-bridge positive control and asserts NO-ROUTE vs REACHED.
+**Why:** `internal: true` is the one Docker primitive that *enforces* egress-deny at the
+network layer, so the gap is provable, not asserted. **Trade-off (documented in
+AIRGAP.md):** `internal` blocks both directions, so a sealed service also loses host
+port-publishing — the overlay is therefore a **verification harness**, while the console
+demo runs on `make up`. The production primitive is a **K3s NetworkPolicy** (Phase 8):
+egress-deny except the sync job, ingress-allow for the console. **Verified 2026-06-02:**
+verdict `AIR-GAP ENFORCED` (api could not resolve DNS / reach :443; control bridge could).
+**Alternatives:** host-firewall iptables rules (not portable across dev hosts); trusting
+that no service has egress code (unverifiable claim).
+
 ## D-041 — Fusion annotates clusters; it never deletes a tool's finding
 **Context:** several tools flag the same issue on the same asset (Phase F dedup).
 **Decision:** the Fusion Engine **groups** findings by `dedup_key` into clusters and

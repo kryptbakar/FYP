@@ -1,0 +1,44 @@
+# =====================================================================
+# SOC Central — Air-gap enforcement overlay (Phase H).
+#
+# The air-gap is a GROUND RULE (only the sync job may touch the internet). This
+# overlay turns that convention into something Docker *enforces and we can verify*:
+#
+#   socnet  (internal: true)  -> NO route off-host. Every runtime service lives here.
+#   egress  (normal bridge)   -> the ONLY place a container can reach the internet.
+#                                Attached solely to feed-sync (+ the mirror-sync job),
+#                                which are dual-homed so they can also write the mirror.
+#
+# Assigning a service `networks: [socnet]` REPLACES its default network membership, so
+# it loses all outbound routing — a sealed runtime. feed-sync gets [socnet, egress] so
+# it can reach Postgres AND the internet; nothing else can.
+#
+# Run the stack air-gapped:
+#   docker compose -f docker-compose.yml -f docker-compose.airgap.yml up -d
+# Prove it (probe expects: socnet=BLOCKED, egress=OK):
+#   make airgap-verify     (or: pwsh scripts/dev.ps1 airgap-verify)
+# =====================================================================
+
+networks:
+  socnet:
+    internal: true        # Docker installs no default route -> no egress, period.
+  egress: {}              # ordinary bridge with NAT to the internet.
+
+services:
+  # ---- sealed runtime services (no internet at runtime) --------------------
+  postgres:     { networks: [socnet] }
+  timescaledb:  { networks: [socnet] }
+  opensearch:   { networks: [socnet] }
+  nats:         { networks: [socnet] }
+  ingest-edge:  { networks: [socnet] }
+  workers:      { networks: [socnet] }
+  api:          { networks: [socnet] }
+  grafana:      { networks: [socnet] }
+  enrichment:   { networks: [socnet] }   # reads the CVE mirror from Postgres, never live
+  risk-engine:  { networks: [socnet] }
+  agent:        { networks: [socnet] }
+  fake-producer: { networks: [socnet] }
+
+  # ---- the ONE exception: the internet-facing sync job ---------------------
+  feed-sync:
+    networks: [socnet, egress]           # mirror NVD/EPSS/KEV in; write Postgres
