@@ -1,0 +1,31 @@
+{{- if .Values.ingress.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "soc.fullname" . }}
+  labels: {{- include "soc.labels" . | nindent 4 }}
+  annotations:
+    {{- if .Values.ingress.oidcProtected }}
+    # Traefik forward-auth -> oauth2-proxy (Keycloak OIDC). See deploy/identity/.
+    traefik.ingress.kubernetes.io/router.middlewares: "{{ .Release.Namespace }}-soc-oidc@kubernetescrd"
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts: [{{ .Values.ingress.host | quote }}]
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # The console serves the SPA and reverse-proxies /api itself (D-045),
+          # so a single backend keeps the same-origin model in production too.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "soc.fullname" . }}-console
+                port: { number: {{ .Values.console.port }} }
+{{- end }}

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "soc.fullname" . }}-ingest-edge
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.ingestEdge.replicas }}
+  selector:
+    matchLabels: {{- include "soc.selector" (dict "root" . "component" "ingest-edge") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "soc.selector" (dict "root" . "component" "ingest-edge") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "soc.fullname" . }}
+      securityContext: {{- include "soc.podSecurity" . | nindent 8 }}
+      containers:
+        - name: ingest-edge
+          image: {{ include "soc.image" (dict "root" . "name" .Values.ingestEdge.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext: {{- include "soc.containerSecurity" . | nindent 12 }}
+          ports: [{ containerPort: {{ .Values.ingestEdge.port }}, name: mtls }]
+          envFrom:
+            - configMapRef: { name: {{ include "soc.fullname" . }}-config }
+            - secretRef: { name: soc-ingest }
+          volumeMounts:
+            - { name: pki, mountPath: /certs, readOnly: true }
+          resources: {{- toYaml .Values.ingestEdge.resources | nindent 12 }}
+      volumes:
+        # mTLS server cert/key + CA, issued by Vault PKI (see deploy/vault/).
+        - name: pki
+          secret: { secretName: soc-ingest-tls }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "soc.fullname" . }}-ingest-edge
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  type: LoadBalancer            # exposed to remote agents on the trusted network
+  selector: {{- include "soc.selector" (dict "root" . "component" "ingest-edge") | nindent 4 }}
+  ports:
+    - name: mtls
+      port: {{ .Values.ingestEdge.port }}
+      targetPort: {{ .Values.ingestEdge.port }}

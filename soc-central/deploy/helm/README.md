@@ -1,9 +1,11 @@
-# helm — placeholder
+# helm/
 
-**Built in:** Phase 8
+`soc-central/` — the Helm chart for the SOC Central product workloads (api, console,
+workers, ingest-edge, the cron jobs) and the security primitives (default-deny egress
+NetworkPolicies, OIDC-protected ingress). See **[../README.md](../README.md)** for the
+full air-gapped K3s deployment guide (operators, Vault, identity, backup, GitOps).
 
-K3s Helm charts: CloudNativePG, OpenSearch operator, ArgoCD, Velero, Vault-backed secrets.
-
-This directory is intentionally a stub in Phase 0 (scaffolding). See
-[../../docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) for where it fits and
-[../../docs/DECISIONS.md](../../docs/DECISIONS.md) for rationale.
+```bash
+helm lint   deploy/helm/soc-central
+helm install soc deploy/helm/soc-central -n soc-central --create-namespace
+```

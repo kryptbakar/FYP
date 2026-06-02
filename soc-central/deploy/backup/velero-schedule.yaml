@@ -1,0 +1,45 @@
+# Velero backup / DR. Snapshots namespace resources + PV data to the on-prem MinIO
+# (no cloud). Complements CloudNativePG's continuous WAL archiving (PITR for the DB)
+# with whole-namespace recovery (manifests, secrets-as-projected, PVCs).
+#
+# velero install --provider aws --bucket soc-backups --use-node-agent \
+#   --backup-location-config region=minio,s3ForcePathStyle=true,s3Url=http://minio.minio.svc:9000 \
+#   --secret-file ./minio-creds   (image from registry.soc.local)
+apiVersion: velero.io/v1
+kind: BackupStorageLocation
+metadata:
+  name: soc-minio
+  namespace: velero
+spec:
+  provider: aws
+  objectStorage: { bucket: soc-backups, prefix: velero }
+  config:
+    region: minio
+    s3ForcePathStyle: "true"
+    s3Url: http://minio.minio.svc:9000
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: soc-central-daily
+  namespace: velero
+spec:
+  schedule: "0 1 * * *"          # 01:00 daily
+  template:
+    includedNamespaces: ["soc-central"]
+    storageLocation: soc-minio
+    snapshotVolumes: true
+    ttl: 720h0m0s                # 30-day retention
+---
+apiVersion: velero.io/v1
+kind: Schedule
+metadata:
+  name: soc-central-weekly-full
+  namespace: velero
+spec:
+  schedule: "0 0 * * 0"          # Sunday 00:00 — longer-retention full
+  template:
+    includedNamespaces: ["soc-central", "vault"]
+    storageLocation: soc-minio
+    snapshotVolumes: true
+    ttl: 2160h0m0s               # 90-day retention

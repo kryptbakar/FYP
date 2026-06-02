@@ -1,0 +1,75 @@
+# =====================================================================
+# The production air-gap primitive (DECISIONS D-042). Unlike the lab's blunt
+# `internal: true` compose network (which also blocks inbound), a NetworkPolicy does
+# egress-DENY while keeping ingress-ALLOW — so the console stays reachable on the
+# trusted LAN while NO workload can reach the internet, except feed-sync to the mirror.
+# =====================================================================
+
+# 1) Default DENY all egress for every SOC Central pod.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "soc.fullname" . }}-default-deny-egress
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: soc-central
+  policyTypes: [Egress]
+  egress: []          # nothing — explicit allows below re-open only what's needed
+---
+# 2) Allow in-cluster traffic (pod<->pod, DNS) for everyone. Keeps the platform working
+#    while still denying the internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "soc.fullname" . }}-allow-internal
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: soc-central
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}          # any pod in the cluster (DBs, NATS, OpenSearch)
+    - to:                                # cluster DNS
+        - namespaceSelector: {}
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+---
+# 3) The ONE exception: feed-sync (the air-gapped update channel) may egress to the
+#    internet/mirror. Selected by the egress label the CronJob stamps on its pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "soc.fullname" . }}-allow-feedsync-egress
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      soc-central/egress: allowed
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            # At a true air-gap site, narrow this to the on-prem mirror's CIDR only.
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports:
+        - { protocol: TCP, port: 443 }
+---
+# 4) Ingress to API + console: only from the ingress controller (the trusted-LAN entry).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "soc.fullname" . }}-allow-frontend-ingress
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/component, operator: In, values: [api, console, ingest-edge] }
+  policyTypes: [Ingress]
+  ingress:
+    - {}    # allow inbound (from the ingress controller / agents on the trusted network)

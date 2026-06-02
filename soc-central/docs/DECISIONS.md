@@ -6,6 +6,45 @@ alternatives considered**.
 
 ---
 
+## D-048 — Signed agent supply chain: cosign over a SHA-256 manifest, verified fail-closed on endpoints
+**Context:** the endpoint agent runs in hostile/remote places; a trojanized binary is a
+real threat (Phase 8 "signed agent binaries with tamper detection").
+**Decision:** the release pipeline builds reproducibly (`-trimpath`, stripped, pinned),
+emits a `SHA256SUMS` manifest, and **cosign-signs the manifest** (key in Vault transit at
+a true site). Endpoints run `verify.sh` before install: it verifies the cosign signature
+**and** the per-binary checksum, and **fails closed** on any mismatch. **Why:** signing the
+checksum manifest covers every artifact with one signature; fail-closed verification is the
+actual tamper gate; Vault-transit signing means the private key never hits disk. This is
+distinct from the Ed25519 *command*-signing channel (D-028) — that authenticates runtime
+response commands; this authenticates the *binary* itself. **Alternatives:** GPG detached
+sigs (workable but cosign fits the container/OCI story and Vault integration better);
+signing each binary separately (more signatures, same guarantee).
+
+## D-047 — Vault on-prem with manual (Shamir) unseal + External Secrets; no cloud auto-unseal
+**Context:** secrets must stay on-prem and reach workloads without ever touching git, an
+image, or a `.env` (the `.env` → Vault migration promised since Phase 0).
+**Decision:** HashiCorp Vault with **Raft integrated storage** (no Consul), **manual Shamir
+unseal** (no cloud KMS — an air-gapped site has none; key shares held by operators),
+`kv-v2` + `pki` + `transit` engines, and the **External Secrets Operator** projecting
+`soc/*` paths into the k8s Secrets the chart mounts. PKI issues the ingest-edge/agent mTLS
+certs; transit wraps the Ed25519 command-signing key. **Why:** matches the controlled-access
+reality of an air gap; ESO keeps the chart declarative (no secrets in values); rotating a
+secret in Vault re-projects automatically. **Alternatives:** sealed-secrets (secrets still
+in git, encrypted — weaker custody); cloud KMS auto-unseal (no internet/KMS at the site).
+
+## D-046 — Production air gap = K3s NetworkPolicy (egress-deny / ingress-allow), not the lab's `internal:true`
+**Context:** D-042 enforced the gap in the lab with a Docker `internal` network, but that
+blocks ingress too (the console became unreachable) — explicitly flagged as a lab-only
+verification harness whose production answer is a NetworkPolicy.
+**Decision:** ship a **default-deny egress** NetworkPolicy over all SOC Central pods, plus
+narrow allows: in-cluster + DNS for everyone, internet egress **only** for feed-sync pods
+(selected by an `egress: allowed` label), and **ingress-allow** to api/console/ingest-edge.
+**Why:** this is the one primitive that gives egress-deny *and* keeps the console reachable
+on the trusted LAN — exactly the property the compose overlay couldn't. The feed-sync label
+selector keeps "only the sync job egresses" true and auditable. **Verified:** the chart
+renders the four policies; `helm template` is clean. **Alternatives:** Cilium host firewall /
+node iptables (less portable, not declarative-in-chart); per-namespace deny (coarser).
+
 ## D-045 — nginx serves the console and reverse-proxies `/api` (same-origin, no CORS, no baked host)
 **Context:** the SPA must call the FastAPI from the browser.
 **Decision:** the console container's nginx serves the static SPA **and** proxies

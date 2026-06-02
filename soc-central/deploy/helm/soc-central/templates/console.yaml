@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "soc.fullname" . }}-console
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.console.replicas }}
+  selector:
+    matchLabels: {{- include "soc.selector" (dict "root" . "component" "console") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "soc.selector" (dict "root" . "component" "console") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "soc.fullname" . }}
+      securityContext: {{- include "soc.podSecurity" . | nindent 8 }}
+      containers:
+        - name: console
+          image: {{ include "soc.image" (dict "root" . "name" .Values.console.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          ports: [{ containerPort: {{ .Values.console.port }} }]
+          # nginx proxies /api -> the API service; inject its address.
+          env:
+            - { name: API_UPSTREAM, value: "{{ include "soc.fullname" . }}-api:{{ .Values.api.port }}" }
+          readinessProbe:
+            httpGet: { path: /, port: {{ .Values.console.port }} }
+            initialDelaySeconds: 4
+          resources: {{- toYaml .Values.console.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "soc.fullname" . }}-console
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "soc.selector" (dict "root" . "component" "console") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.console.port }}
+      targetPort: {{ .Values.console.port }}
