@@ -17,6 +17,7 @@ import numpy as np
 
 import db
 import features
+import fusion
 import scoring
 import train as trainer
 from explain import Explainer
@@ -45,9 +46,13 @@ def do_train() -> None:
     pg = db.connect(dsn())
     db.ensure_schema(pg)
     ctx = db.load_context(pg)
+    # Consensus weight is a training feature too: recompute clusters over all findings
+    # so each labelled feedback row gets the same _consensus its scoring run saw.
+    clusters = fusion.build_clusters(db.load_findings(pg))
     fb = db.load_feedback(pg)
     extra_X, extra_y = [], []
     for row in fb:
+        row["_consensus"] = clusters.get(row["id"], {}).get("weight", 0.0)
         fd = features.build(row, ctx)
         extra_X.append(features.to_vector(fd))
         extra_y.append(float(row["label_priority"]))
@@ -61,8 +66,18 @@ def do_train() -> None:
 
 def do_score_once(pg, ctx, explainer, mver) -> int:
     findings = db.load_findings(pg)
+    # Fusion stage: dedup into clusters + derive each finding's consensus weight, and
+    # persist the cluster record (which tools agree) onto every member.
+    clusters = fusion.build_clusters(findings)
+    corroborated = 0
     band_counts: dict[str, int] = {}
     for fr in findings:
+        con = clusters.get(fr["id"])
+        if con:
+            db.write_consensus(pg, fr["id"], con)
+            fr["_consensus"] = con["weight"]
+            if con["n_tools"] > 1:
+                corroborated += 1
         fd = features.build(fr, ctx)
         comp, components = scoring.composite(fd)
         ml_score = None
@@ -73,7 +88,8 @@ def do_score_once(pg, ctx, explainer, mver) -> int:
         db.write_risk(pg, fr["id"], comp, components, ml_score, mver)
         band_counts[scoring.band(comp)] = band_counts.get(scoring.band(comp), 0) + 1
     db.recompute_ranks(pg)
-    log.info("scored %d findings; composite bands=%s; model=%s", len(findings), band_counts, mver or "none")
+    log.info("scored %d findings; %d corroborated by >1 tool; composite bands=%s; model=%s",
+             len(findings), corroborated, band_counts, mver or "none")
     return len(findings)
 
 

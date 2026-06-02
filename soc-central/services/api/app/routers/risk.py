@@ -20,7 +20,8 @@ async def ranking(limit: Annotated[int, Query(ge=1, le=500)] = 25) -> list[dict]
     return await db.fetch(
         """
         SELECT risk_rank, id, asset_id, domain, title, severity, cve_id, source_tool,
-               risk_score, ml_risk_score, kev, cvss_score, epss
+               risk_score, ml_risk_score, kev, cvss_score, epss,
+               attack, threat_intel, consensus
         FROM findings
         WHERE risk_score IS NOT NULL
         ORDER BY risk_score DESC
@@ -30,23 +31,25 @@ async def ranking(limit: Annotated[int, Query(ge=1, le=500)] = 25) -> list[dict]
     )
 
 
-@router.get("/findings/{finding_id}/explain", summary="XAI: composite breakdown + SHAP + counterfactuals")
+@router.get("/findings/{finding_id}/explain", summary="XAI: composite breakdown + SHAP waterfall + consensus")
 async def explain(finding_id: int) -> dict:
     finding = await db.fetch_one(
-        "SELECT id, title, domain, severity, risk_score, ml_risk_score, risk_components, model_version "
+        "SELECT id, title, domain, severity, risk_score, ml_risk_score, risk_components, model_version, "
+        "source_tool, attack, threat_intel, consensus "
         "FROM findings WHERE id = %(id)s",
         {"id": finding_id},
     )
     if not finding:
         return {}
     explanation = await db.fetch_one(
-        "SELECT ml_risk_score, base_value, shap, top_factors, counterfactuals, model_version "
+        "SELECT ml_risk_score, base_value, shap, top_factors, counterfactuals, waterfall, model_version "
         "FROM finding_explanations WHERE finding_id = %(id)s",
         {"id": finding_id},
     )
     return {
         "finding": finding,
         "composite_components": finding.get("risk_components"),
+        "consensus": finding.get("consensus"),
         "ml_explanation": explanation or {"note": "no ML explanation yet — run the risk-engine `train` then `score`"},
     }
 

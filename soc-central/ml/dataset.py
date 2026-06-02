@@ -26,6 +26,10 @@ def _label(fd: dict[str, float], rng) -> float:
     boost += 12.0 * fd["exposure"] * fd["cvss"]                # exploitable AND reachable
     boost += 10.0 * fd["attack_phase"] * (0.5 + fd["cvss"])    # late kill-chain stages matter more
     boost += 6.0 * fd["compliance_impact"] * fd["exposure"]    # weak host + exposed
+    # Phase-F fusion interactions:
+    boost += 20.0 * fd["threat_intel"] * (0.5 + fd["epss"])    # live IOC seen AND exploitable
+    boost += 15.0 * fd["consensus"] * (0.5 + fd["cvss"])       # several tools agree on a real issue
+    boost += 8.0 * fd["attack_ctx"] * fd["consensus"]          # ATT&CK-mapped AND corroborated
     noise = rng.normal(0, 4.0)                                 # analyst subjectivity
     return float(np.clip(base + boost + noise, 0, 100))
 
@@ -39,6 +43,9 @@ def generate_synthetic(n: int = 6000, seed: int = 42) -> tuple[np.ndarray, np.nd
             "epss": float(rng.beta(0.6, 6)),          # most CVEs low EPSS, a few high
             "kev": float(rng.random() < 0.15),
             "exposure": float(rng.beta(1.5, 2)),
+            "threat_intel": float(rng.random() < 0.08),          # IOC hits are rare but decisive
+            "consensus": float(rng.choice([0.0, 0.0, 0.0, 0.5, 1.0])),  # most findings: one tool
+            "attack_ctx": float(rng.choice([0.0, 0.0, 0.5, 0.7, 0.9, 1.0])),
             "compliance_impact": float(rng.random()),
             "age": float(rng.random()),
             "criticality": float(rng.choice([0.25, 0.5, 1.0])),

@@ -45,8 +45,25 @@ class Explainer:
             "shap": shap,
             "top_factors": [{"feature": k, "contribution": v,
                              "direction": "increases" if v >= 0 else "decreases"} for k, v in top],
+            "waterfall": self._waterfall(base, shap, pred),
             "counterfactuals": self._counterfactuals(vector, pred),
         }
+
+    def _waterfall(self, base: float, shap: dict, pred: float) -> list[dict]:
+        """A SHAP waterfall the console renders directly: start at the model's base
+        value, then add each feature's contribution (largest |impact| first) to reach
+        the final score. Each step carries its running cumulative total."""
+        steps = [{"feature": "base_value", "contribution": round(base, 2),
+                  "cumulative": round(base, 2)}]
+        running = base
+        for k, v in sorted(shap.items(), key=lambda kv: abs(kv[1]), reverse=True):
+            running += v
+            steps.append({"feature": k, "contribution": round(v, 3),
+                          "direction": "increases" if v >= 0 else "decreases",
+                          "cumulative": round(running, 2)})
+        steps.append({"feature": "ml_risk_score", "contribution": 0.0,
+                      "cumulative": round(pred, 2)})
+        return steps
 
     def _counterfactuals(self, vector: list[float], pred: float) -> list[dict]:
         idx = {f: i for i, f in enumerate(FEATURES)}
@@ -55,6 +72,8 @@ class Explainer:
             ("kev", "if not on the KEV list", 0.0),
             ("epss", "if exploitation became unlikely (EPSS≈0)", 0.0),
             ("exposure", "if the asset were not network-exposed", 0.0),
+            ("threat_intel", "if there were no live MISP IOC match", 0.0),
+            ("consensus", "if only one tool reported it (no corroboration)", 0.0),
         ]:
             if vector[idx[feat]] == newval:
                 continue

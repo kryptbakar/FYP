@@ -6,6 +6,33 @@ alternatives considered**.
 
 ---
 
+## D-041 — Fusion annotates clusters; it never deletes a tool's finding
+**Context:** several tools flag the same issue on the same asset (Phase F dedup).
+**Decision:** the Fusion Engine **groups** findings by `dedup_key` into clusters and
+writes a shared `consensus` jsonb onto every member — but leaves each tool's row, with
+its own `fingerprint` and raw evidence, intact. The console leads with the cluster's
+highest-severity member (`primary`) but can expand to every contributing tool.
+**Why:** an analyst investigating an alert needs to see *what each tool actually said*
+(Suricata's signature, MISP's IOC context, Trivy's package). Collapsing to one synthetic
+row would destroy that evidence and the audit trail. Consensus is additive metadata, not
+a destructive merge. **Alternatives:** materialize one merged finding per cluster —
+rejected: loses per-tool provenance and complicates re-runs (each tool re-upserts its own
+row idempotently). Dedup recipes are documented in `ml/FUSION.md`.
+
+## D-040 — Consensus weight saturates at 2 independent tools; fusion factors join the composite
+**Context:** Phase F adds multi-tool consensus + threat-intel + ATT&CK context to scoring.
+**Decision:** the consensus weight maps distinct corroborating tools as 1→0.0, 2→0.5,
+3+→1.0 (saturating), and the three fusion factors (`threat_intel`, `consensus`,
+`attack_ctx`) join the **composite** weighted sum (rebalanced to still total 1.0), not
+just the ML model. **Why:** the one→two-tools jump is the most informative — a second
+independent confirmation is decisive, a fifth adds little — so a saturating curve matches
+reality and resists a single noisy tool inflating scores. Putting the factors in the
+transparent composite (not only XGBoost) keeps the headline score defensible without the
+model, while XGBoost still learns the interactions (`threat_intel×epss`, `consensus×cvss`)
+and SHAP attributes them. **Alternatives:** linear/log count (less interpretable, no
+saturation); ML-only fusion features (would make the composite baseline blind to the very
+signals that most change priority).
+
 ## D-039 — Sigma via pySigma, with an `x_opensearch_query` fallback
 **Decision:** the Sigma evaluator compiles rules with **pySigma + the OpenSearch backend**;
 if pySigma is unavailable (or a rule won't convert), it falls back to a per-rule

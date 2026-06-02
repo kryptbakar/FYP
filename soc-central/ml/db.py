@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS finding_explanations (
     model_version  text,
     created_at     timestamptz DEFAULT now()
 );
+-- Phase F: SHAP waterfall (base -> per-factor steps -> final) for the console.
+ALTER TABLE finding_explanations ADD COLUMN IF NOT EXISTS waterfall jsonb;
 
 CREATE TABLE IF NOT EXISTS analyst_feedback (
     id            bigserial PRIMARY KEY,
@@ -58,7 +60,9 @@ def ensure_schema(pg: psycopg.Connection) -> None:
 def load_findings(pg: psycopg.Connection) -> list[dict]:
     with pg.cursor() as cur:
         cur.execute(
-            "SELECT id, asset_id, domain, rule_id, severity, cve_id, cvss_score, epss, kev, first_seen FROM findings"
+            """SELECT id, asset_id, domain, rule_id, severity, cve_id, cvss_score, epss, kev,
+                      first_seen, source_tool, dedup_key, attack, threat_intel
+               FROM findings"""
         )
         return cur.fetchall()
 
@@ -95,18 +99,29 @@ def write_risk(pg: psycopg.Connection, finding_id: int, composite: float,
         )
 
 
+def write_consensus(pg: psycopg.Connection, finding_id: int, consensus: dict) -> None:
+    """Annotate a finding with its fusion-cluster consensus record (Phase F)."""
+    with pg.cursor() as cur:
+        cur.execute(
+            "UPDATE findings SET consensus=%s WHERE id=%s",
+            (Jsonb(consensus), finding_id),
+        )
+
+
 def upsert_explanation(pg: psycopg.Connection, finding_id: int, exp: dict, model_version: str | None) -> None:
     with pg.cursor() as cur:
         cur.execute(
             """INSERT INTO finding_explanations
-                 (finding_id, ml_risk_score, base_value, shap, top_factors, counterfactuals, model_version, created_at)
-               VALUES (%s,%s,%s,%s,%s,%s,%s, now())
+                 (finding_id, ml_risk_score, base_value, shap, top_factors, counterfactuals, waterfall, model_version, created_at)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s, now())
                ON CONFLICT (finding_id) DO UPDATE SET
                  ml_risk_score=EXCLUDED.ml_risk_score, base_value=EXCLUDED.base_value,
                  shap=EXCLUDED.shap, top_factors=EXCLUDED.top_factors,
-                 counterfactuals=EXCLUDED.counterfactuals, model_version=EXCLUDED.model_version, created_at=now()""",
+                 counterfactuals=EXCLUDED.counterfactuals, waterfall=EXCLUDED.waterfall,
+                 model_version=EXCLUDED.model_version, created_at=now()""",
             (finding_id, exp["ml_risk_score"], exp["base_value"], Jsonb(exp["shap"]),
-             Jsonb(exp["top_factors"]), Jsonb(exp["counterfactuals"]), model_version),
+             Jsonb(exp["top_factors"]), Jsonb(exp["counterfactuals"]), Jsonb(exp.get("waterfall", [])),
+             model_version),
         )
 
 
@@ -124,7 +139,8 @@ def load_feedback(pg: psycopg.Connection) -> list[dict]:
     with pg.cursor() as cur:
         cur.execute(
             """SELECT f.id, f.asset_id, f.domain, f.rule_id, f.severity, f.cve_id,
-                      f.cvss_score, f.epss, f.kev, f.first_seen, af.label_priority
+                      f.cvss_score, f.epss, f.kev, f.first_seen,
+                      f.source_tool, f.dedup_key, f.attack, f.threat_intel, af.label_priority
                FROM analyst_feedback af JOIN findings f ON f.id = af.finding_id
                WHERE af.label_priority IS NOT NULL"""
         )
