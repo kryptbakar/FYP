@@ -1,10 +1,32 @@
 # Grafana datasource provisioning.
-# Phase 0: wire Grafana to the two SQL stores so dashboards (added in Phase 7)
-# have data sources ready. OpenSearch datasource is added in Phase 7.
+# Wires Grafana to the two SQL stores. Stable UIDs let the provisioned dashboards
+# (Phase G / grafana/dashboards/*.json) reference them deterministically.
+#
+# NOTE (air-gap): an OpenSearch datasource needs the grafana-opensearch-datasource
+# plugin, whose install pulls from the internet — incompatible with the air gap unless
+# the plugin is mirrored. So the Phase-G dashboards run on the built-in `postgres`
+# datasource (the rich findings/risk/compliance data lives in Postgres anyway). The
+# OpenSearch log dashboards are deferred until the plugin is mirrored (see PHASE-G-NOTES).
 apiVersion: 1
 
 datasources:
+  - name: PostgreSQL
+    uid: soc-postgres
+    type: postgres
+    access: proxy
+    url: postgres:5432
+    user: ${POSTGRES_USER:-soc}
+    isDefault: true
+    jsonData:
+      database: ${POSTGRES_DB:-soc_central}
+      sslmode: disable
+      postgresVersion: 1600
+    secureJsonData:
+      password: ${POSTGRES_PASSWORD:-soc}
+    editable: true
+
   - name: TimescaleDB
+    uid: soc-timescale
     type: postgres
     access: proxy
     url: timescaledb:5432
@@ -16,17 +38,4 @@ datasources:
       timescaledb: true
     secureJsonData:
       password: ${TIMESCALE_PASSWORD:-soc}
-    editable: true
-
-  - name: PostgreSQL
-    type: postgres
-    access: proxy
-    url: postgres:5432
-    user: ${POSTGRES_USER:-soc}
-    jsonData:
-      database: ${POSTGRES_DB:-soc_central}
-      sslmode: disable
-      postgresVersion: 1600
-    secureJsonData:
-      password: ${POSTGRES_PASSWORD:-soc}
     editable: true

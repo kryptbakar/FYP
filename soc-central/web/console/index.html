@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SOC Central — Analyst Console</title>
+  <meta name="description" content="SOC Central — exploit-aware, explainable, air-gapped security operations console." />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%2338bdf8' d='M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z'/></svg>" />
+  <link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Z" fill="#06121f" fill-opacity=".25" stroke="#06121f" stroke-width="1.5" stroke-linejoin="round"/><path d="m9 11.5 2 2 4-4.5" stroke="#06121f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div class="name">SOC Central</div>
+          <div class="sub">Intelligence Fusion</div>
+        </div>
+      </div>
+
+      <div class="nav-group-label">Operations</div>
+      <nav id="nav"></nav>
+
+      <div class="spacer"></div>
+      <div class="sidebar-foot">
+        <div id="airgap-foot" class="tag-air" style="margin-bottom:10px"><span class="statusdot"></span> Air-gapped</div>
+        <div>API <span id="ver" class="mono">·</span></div>
+        <div style="margin-top:3px">Evidence chain <span id="chain" class="mono">·</span></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="page-title">Command Center</h1>
+          <div id="page-crumb" class="crumb">Real-time security posture</div>
+        </div>
+        <div class="grow"></div>
+        <div id="topbar-stat" class="cellwrap"></div>
+      </header>
+      <div id="content" class="content"></div>
+    </main>
+  </div>
+
+  <div id="overlay" class="overlay"></div>
+  <aside id="drawer" class="drawer"><div id="drawer-inner" style="display:flex;flex-direction:column;height:100%"></div></aside>
+  <div id="toast" class="toast"></div>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>

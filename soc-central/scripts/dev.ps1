@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','mirror-sync','airgap-up','airgap-verify','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','console','mirror-sync','airgap-up','airgap-verify','seed','test','agent-run')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -60,6 +60,10 @@ switch ($Target) {
     $ct = "$Compose -f docker-compose.yml -f docker-compose.tools.yml"
     Invoke-Expression "$ct build intel-enricher"
     Invoke-Expression "$ct run --rm intel-enricher"
+  }
+  'console'       {
+    Invoke-Expression "$Compose up -d --build console"
+    Write-Host "Console:  http://localhost:3001    Grafana:  http://localhost:3000"
   }
   'mirror-sync'   {
     $seed = if ($N -eq 1) { '--seed' } else { '' }   # pass -N 1 for offline seed mode

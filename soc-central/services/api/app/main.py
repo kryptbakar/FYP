@@ -10,6 +10,7 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import schema
 from .config import settings
@@ -29,6 +30,17 @@ app = FastAPI(
     docs_url="/docs",
     openapi_url="/openapi.json",
     lifespan=lifespan,
+)
+
+# The console is served same-origin via the nginx /api proxy, so CORS isn't needed in
+# the normal topology. We still allow it (configurable) so the API can be hit directly
+# from a dev console on another port or from Swagger during development.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allow_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(health.router)
