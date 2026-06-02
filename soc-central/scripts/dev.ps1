@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','seed','test','agent-run')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -55,6 +55,11 @@ switch ($Target) {
   'scan-ingest'  {
     Invoke-Expression "$Compose build enrichment"
     Invoke-Expression "$Compose run --rm enrichment --scan"
+  }
+  'intel-enrich' {
+    $ct = "$Compose -f docker-compose.yml -f docker-compose.tools.yml"
+    Invoke-Expression "$ct build intel-enricher"
+    Invoke-Expression "$ct run --rm intel-enricher"
   }
   'down'     { Invoke-Expression "$Compose down" }
   'clean'    { Invoke-Expression "$Compose down -v" }

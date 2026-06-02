@@ -6,6 +6,26 @@ alternatives considered**.
 
 ---
 
+## D-039 — Sigma via pySigma, with an `x_opensearch_query` fallback
+**Decision:** the Sigma evaluator compiles rules with **pySigma + the OpenSearch backend**;
+if pySigma is unavailable (or a rule won't convert), it falls back to a per-rule
+`x_opensearch_query` field and runs that against the log store, so detection still works.
+**Why:** pySigma is the right tool, but on this flaky/air-gapped host its wheels didn't always
+install — the fallback (which is what pySigma would compile to anyway) keeps Sigma detection
+functioning and is honest about the mode in the finding's evidence. Verified: the port-4444
+rule matched 82 telemetry docs → one HIGH `sigma` finding (tagged T1571). The mirrored SigmaHQ
+rule set loads from `rules/`.
+
+## D-038 — MISP/OpenCTI enrichers verified via fixtures; live via their REST APIs
+**Decision:** the `intel-enricher` matches telemetry indicators against **MISP** IOCs and tags
+findings with **OpenCTI** ATT&CK techniques, adding `findings.threat_intel` (IOC context) and
+`findings.attack` (technique). Both heavy platforms are verified offline with real-shaped
+**fixtures**; live mode calls their REST APIs (PyMISP / pycti are the official clients, in
+`reference/` and attributed — swappable for the lean httpx path). **Why:** the value is the
+*enrichment logic + the attack/threat_intel signal* (which feed the Phase-F fusion model);
+running multi-GB MISP/OpenCTI stacks isn't feasible on the lab host. Verified: 185.220.101.45
+matched a Cobalt-Strike IOC; ATT&CK T1190 spans agent+nuclei+trivy CVE findings.
+
 ## D-037 — Scanner CVEs routed through the existing mirror enrichment (not re-matched)
 **Decision:** Trivy/Nuclei already map a target to CVEs/templates, so the `enrichment --scan`
 path takes their JSON directly, enriches each CVE with **EPSS + KEV from the local mirror**

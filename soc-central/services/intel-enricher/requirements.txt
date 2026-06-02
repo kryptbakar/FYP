@@ -1,0 +1,6 @@
+# intel-enricher — MISP/OpenCTI enrichers + Sigma evaluator.
+psycopg[binary]==3.2.3
+httpx==0.28.1
+pyyaml==6.0.2
+pysigma==0.11.18
+pysigma-backend-opensearch==1.1.4

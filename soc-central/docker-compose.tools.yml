@@ -123,6 +123,23 @@ services:
       - falco_logs:/var/log/falco   # file_output -> events.json, tailed by sensor-bridge
 
   # ------------------------ Phase E: threat intel --------------------------
+  intel-enricher:                 # MISP IOC match + OpenCTI ATT&CK + Sigma eval -> findings (Phase E)
+    build:
+      context: .
+      dockerfile: services/intel-enricher/Dockerfile
+    profiles: ["intel", "tools"]
+    restart: "no"                 # run on demand: make intel-enrich
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      TIMESCALE_HOST: timescaledb
+      TIMESCALE_DB: ${TIMESCALE_DB:-soc_telemetry}
+      TIMESCALE_USER: ${TIMESCALE_USER:-soc}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-soc}
+      OPENSEARCH_HOST: opensearch
+
   misp-redis:
     image: redis:7-alpine
     profiles: ["intel", "tools"]

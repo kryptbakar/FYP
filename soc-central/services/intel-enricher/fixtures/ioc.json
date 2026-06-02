@@ -1,0 +1,5 @@
+[
+  {"value": "185.220.101.45", "type": "ip-dst", "threat_level": "high", "event_info": "Cobalt Strike C2 infrastructure", "tags": ["tlp:amber", "type:OSINT", "malware:CobaltStrike"]},
+  {"value": "45.137.21.9", "type": "ip-dst", "threat_level": "high", "event_info": "Known scanning/bruteforce host", "tags": ["tlp:white", "ddos"]},
+  {"value": "evil-c2.example", "type": "domain", "threat_level": "high", "event_info": "Malware C2 domain (sinkholed)", "tags": ["tlp:green", "malware:generic"]}
+]

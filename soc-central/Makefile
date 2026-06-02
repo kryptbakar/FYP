@@ -8,7 +8,7 @@ COMPOSE ?= docker compose
 COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest intel-enrich
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -64,6 +64,10 @@ scan-ingest: ## (Phase D) ingest Trivy + Nuclei scanner findings (bundled fixtur
 	$(COMPOSE) build enrichment
 	$(COMPOSE) run --rm enrichment --scan
 	@echo "Scanner findings ingested. curl 'localhost:8000/findings?asset_id=scan-target-01'"
+
+intel-enrich: ## (Phase E) MISP IOC match + OpenCTI ATT&CK + Sigma detection over the stores
+	$(COMPOSE_TOOLS) build intel-enricher
+	$(COMPOSE_TOOLS) run --rm intel-enricher
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down
