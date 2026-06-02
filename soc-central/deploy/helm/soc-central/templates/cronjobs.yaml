@@ -1,0 +1,49 @@
+{{- /* Shared CronJob skeleton via a template; called per job below. */ -}}
+{{- define "soc.cronjob" -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .name }}
+  labels: {{- include "soc.labels" .root | nindent 4 }}
+  {{- if .egress }}
+  annotations:
+    soc-central/egress: "mirror-sources"   # selected by the egress NetworkPolicy
+  {{- end }}
+spec:
+  schedule: {{ .schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          labels:
+            {{- include "soc.selector" (dict "root" .root "component" .component) | nindent 12 }}
+            {{- if .egress }}
+            soc-central/egress: allowed
+            {{- end }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ include "soc.fullname" .root }}
+          securityContext: {{- include "soc.podSecurity" .root | nindent 12 }}
+          containers:
+            - name: {{ .component }}
+              image: {{ include "soc.image" (dict "root" .root "name" .image) }}
+              imagePullPolicy: {{ .root.Values.global.imagePullPolicy }}
+              securityContext: {{- include "soc.containerSecurity" .root | nindent 16 }}
+              args: {{ toJson .args }}
+              envFrom:
+                - configMapRef: { name: {{ include "soc.fullname" .root }}-config }
+                - secretRef: { name: soc-db }
+{{- end -}}
+
+{{- /* feed-sync: the AIR-GAPPED UPDATE CHANNEL (the only egress-allowed workload) */ -}}
+{{ include "soc.cronjob" (dict "root" . "name" (printf "%s-feed-sync" (include "soc.fullname" .)) "component" "feed-sync" "image" .Values.jobs.feedSync.image "schedule" .Values.jobs.feedSync.schedule "args" .Values.jobs.feedSync.args "egress" .Values.jobs.feedSync.allowEgress) }}
+---
+{{ include "soc.cronjob" (dict "root" . "name" (printf "%s-enrichment" (include "soc.fullname" .)) "component" "enrichment" "image" .Values.jobs.enrichment.image "schedule" .Values.jobs.enrichment.schedule "args" .Values.jobs.enrichment.args "egress" false) }}
+---
+{{ include "soc.cronjob" (dict "root" . "name" (printf "%s-risk-train" (include "soc.fullname" .)) "component" "risk-engine" "image" .Values.jobs.riskEngine.image "schedule" .Values.jobs.riskEngine.schedule "args" .Values.jobs.riskEngine.args "egress" false) }}
+---
+{{ include "soc.cronjob" (dict "root" . "name" (printf "%s-risk-score" (include "soc.fullname" .)) "component" "risk-engine" "image" .Values.jobs.riskEngine.image "schedule" .Values.jobs.riskEngine.score.schedule "args" .Values.jobs.riskEngine.score.args "egress" false) }}

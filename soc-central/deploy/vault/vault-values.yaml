@@ -1,0 +1,25 @@
+# HashiCorp Vault — on-prem secrets for the air-gapped cluster (Helm values).
+# No cloud auto-unseal (an air-gapped site has no KMS): Shamir manual/HSM unseal,
+# which suits the controlled-access posture. Raft integrated storage = no extra DB.
+#
+# helm install vault hashicorp/vault -n vault --create-namespace -f vault-values.yaml
+server:
+  image:
+    repository: registry.soc.local/hashicorp/vault
+  ha:
+    enabled: true
+    replicas: 3
+    raft:
+      enabled: true            # integrated storage; no Consul
+  dataStorage:
+    size: 10Gi
+    storageClass: local-path
+  # Manual unseal (Shamir). Operators unseal after restart with their key shares.
+  extraEnvironmentVars:
+    VAULT_CACERT: /vault/userconfig/vault-tls/ca.crt
+injector:
+  enabled: true                # Vault Agent sidecar injection (alternative to ESO)
+# Engines to enable post-install (documented; applied via `vault secrets enable`):
+#   - kv-v2  at secret/        -> soc/db, soc/opensearch, soc/ingest, soc/command-signing, soc/minio
+#   - pki    at pki/           -> issues mTLS certs for ingest-edge + agents (soc-ingest-tls)
+#   - transit at transit/      -> wraps the Ed25519 command-signing key (never leaves Vault)

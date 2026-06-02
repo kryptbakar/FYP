@@ -1,0 +1,63 @@
+# PostgreSQL HA via CloudNativePG operator.
+# 3 instances (1 primary + 2 sync replicas), automated failover, and continuous
+# WAL archiving to the on-prem MinIO (the same object store Velero uses). The chart's
+# `postgres.host` (soc-pg-rw) is the operator's read-write Service.
+#
+# Install the operator first (air-gapped: from the mirrored chart):
+#   helm install cnpg cnpg/cloudnative-pg -n cnpg-system --create-namespace
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: soc-pg
+  namespace: soc-central
+spec:
+  instances: 3
+  imageName: registry.soc.local/cloudnative-pg/postgresql:16.4
+  primaryUpdateStrategy: unsupervised
+
+  storage:
+    size: 20Gi
+    storageClass: local-path
+  walStorage:
+    size: 5Gi
+    storageClass: local-path
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: 256MB
+
+  bootstrap:
+    initdb:
+      database: soc_central
+      owner: soc
+      secret:
+        name: soc-db          # provided by Vault/External Secrets (user+password)
+
+  # Continuous backup → MinIO (point-in-time recovery; complements Velero snapshots).
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://soc-backups/pg
+      endpointURL: http://minio.minio.svc:9000
+      s3Credentials:
+        accessKeyId:     { name: soc-minio, key: access-key }
+        secretAccessKey: { name: soc-minio, key: secret-key }
+      wal:
+        compression: gzip
+    retentionPolicy: "30d"
+
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits:   { cpu: "2", memory: 2Gi }
+---
+# Scheduled base backups (PITR window).
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: soc-pg-daily
+  namespace: soc-central
+spec:
+  schedule: "0 2 * * *"
+  backupOwnerReference: self
+  cluster:
+    name: soc-pg

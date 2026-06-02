@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "soc.fullname" . }}-workers
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.workers.replicas }}
+  selector:
+    matchLabels: {{- include "soc.selector" (dict "root" . "component" "workers") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "soc.selector" (dict "root" . "component" "workers") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "soc.fullname" . }}
+      securityContext: {{- include "soc.podSecurity" . | nindent 8 }}
+      containers:
+        - name: workers
+          image: {{ include "soc.image" (dict "root" . "name" .Values.workers.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext: {{- include "soc.containerSecurity" . | nindent 12 }}
+          envFrom:
+            - configMapRef: { name: {{ include "soc.fullname" . }}-config }
+            - secretRef: { name: soc-db }
+            - secretRef: { name: soc-opensearch }
+          resources: {{- toYaml .Values.workers.resources | nindent 12 }}

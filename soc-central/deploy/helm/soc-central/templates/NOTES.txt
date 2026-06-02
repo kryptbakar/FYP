@@ -1,0 +1,24 @@
+SOC Central {{ .Chart.AppVersion }} deployed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Workloads:
+  • API            ({{ .Values.api.replicas }} replicas)
+  • Console        ({{ .Values.console.replicas }} replicas)  ← analyst workbench
+  • Ingest-edge    ({{ .Values.ingestEdge.replicas }} replicas, mTLS :{{ .Values.ingestEdge.port }})
+  • Stream workers ({{ .Values.workers.replicas }} replicas)
+  • CronJobs       feed-sync (air-gapped update channel), enrichment, monthly retrain + daily score
+
+Access (trusted LAN only — egress to the internet is DENIED by NetworkPolicy):
+{{- if .Values.ingress.enabled }}
+  https://{{ .Values.ingress.host }}/   {{ if .Values.ingress.oidcProtected }}(behind Keycloak OIDC){{ end }}
+{{- end }}
+
+Prerequisites that must already be installed in the cluster (see deploy/README.md):
+  • CloudNativePG operator + the Cluster CR (deploy/databases/postgres-cnpg.yaml)
+  • OpenSearch operator + OpenSearchCluster CR (deploy/databases/opensearch-cluster.yaml)
+  • Vault + External Secrets Operator (deploy/vault/) — provides soc-db / soc-opensearch /
+    soc-ingest / soc-command-signing / soc-ingest-tls Secrets
+  • Keycloak + oauth2-proxy (deploy/identity/)  • Velero (deploy/backup/)  • ArgoCD (deploy/argocd/)
+
+Verify the air gap holds (egress denied, ingress allowed):
+  kubectl run probe --rm -it --image=registry.soc.local/busybox --restart=Never -- \
+    wget -T5 -qO- https://example.com || echo "EGRESS DENIED (expected)"

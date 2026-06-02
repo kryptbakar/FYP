@@ -1,0 +1,57 @@
+{
+  "realm": "soc-central",
+  "enabled": true,
+  "displayName": "SOC Central",
+  "sslRequired": "external",
+  "loginWithEmailAllowed": true,
+  "comment": "Imported by Keycloak (kc.sh import / operator realmImport). Clients + RBAC roles for the SOC Central platform. Secrets are placeholders — real client secrets come from Vault.",
+  "roles": {
+    "realm": [
+      { "name": "soc-admin",   "description": "Full platform admin: response approval, config, user mgmt" },
+      { "name": "soc-analyst", "description": "Triage, incidents, feedback, request response actions" },
+      { "name": "soc-viewer",  "description": "Read-only dashboards and findings" }
+    ]
+  },
+  "groups": [
+    { "name": "SOC Admins",   "realmRoles": ["soc-admin", "soc-analyst", "soc-viewer"] },
+    { "name": "SOC Analysts", "realmRoles": ["soc-analyst", "soc-viewer"] },
+    { "name": "SOC Viewers",  "realmRoles": ["soc-viewer"] }
+  ],
+  "clients": [
+    {
+      "clientId": "soc-console",
+      "name": "SOC Central Console + API (via oauth2-proxy)",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "redirectUris": ["https://soc.internal/oauth2/callback"],
+      "webOrigins": ["https://soc.internal"],
+      "secret": "REPLACED_FROM_VAULT",
+      "defaultClientScopes": ["openid", "profile", "email", "roles"],
+      "protocolMappers": [
+        {
+          "name": "realm-roles-to-groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "config": {
+            "claim.name": "groups",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "access.token.claim": "true",
+            "id.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "soc-grafana",
+      "name": "Grafana (OIDC SSO)",
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "redirectUris": ["https://soc.internal/grafana/login/generic_oauth"],
+      "secret": "REPLACED_FROM_VAULT",
+      "defaultClientScopes": ["openid", "profile", "email", "roles"]
+    }
+  ]
+}

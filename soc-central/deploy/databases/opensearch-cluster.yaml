@@ -1,0 +1,45 @@
+# OpenSearch HA via the OpenSearch Kubernetes operator.
+# 3 master/data nodes for quorum + resilience. The chart's `opensearch.host`
+# (soc-opensearch) targets this cluster's Service. TLS on; admin creds from Vault.
+#
+# Install the operator first (air-gapped: mirrored chart):
+#   helm install opensearch-operator opensearch-operator/opensearch-operator -n opensearch-system --create-namespace
+apiVersion: opensearch.opster.io/v1
+kind: OpenSearchCluster
+metadata:
+  name: soc-opensearch
+  namespace: soc-central
+spec:
+  general:
+    serviceName: soc-opensearch
+    version: 2.18.0
+    image: registry.soc.local/opensearchproject/opensearch:2.18.0
+    pluginsList: []          # air-gapped: no runtime plugin downloads
+  security:
+    tls:
+      transport: { generate: true }
+      http: { generate: true }
+    config:
+      adminCredentialsSecret: { name: soc-opensearch }   # from Vault
+  dashboards:
+    enable: false            # Grafana is our viz layer (Phase G)
+  nodePools:
+    - component: nodes
+      replicas: 3
+      diskSize: 30Gi
+      roles: ["cluster_manager", "data", "ingest"]
+      persistence:
+        pvc:
+          storageClass: local-path
+          accessModes: ["ReadWriteOnce"]
+      resources:
+        requests: { cpu: 500m, memory: 2Gi }
+        limits:   { cpu: "2", memory: 4Gi }
+---
+# NATS JetStream — clustered for HA (3-node RAFT). Installed via the mirrored
+# nats Helm chart; values pinned here for reference.
+# helm install soc-nats nats/nats -n soc-central -f - <<'EOF'
+# config:
+#   jetstream: { enabled: true, fileStore: { pvc: { size: 10Gi } } }
+#   cluster:   { enabled: true, replicas: 3 }
+# EOF
