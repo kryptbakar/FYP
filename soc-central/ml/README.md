@@ -20,11 +20,21 @@ findings + asset context ──▶ features (8) ──▶ composite (risk_score,
 analyst_feedback ─────────────────────────────────────▶ retrain (higher-weighted labels)
 ```
 
+## Phase F — the AI Fusion Engine
+The engine is now **multi-tool**. Before scoring, `fusion.py` groups findings from all
+tools by their `dedup_key` into clusters, records *which* tools agree, and derives a
+**consensus weight** (1 tool→0, 2→0.5, 3+→1.0). That weight plus the inherited
+threat-intel (MISP IOC) and ATT&CK context (OpenCTI/Sigma) become **3 new features**,
+lifting the vector from 8 to **11** and the composite from 7 to **10 weighted factors**
+(still summing to 1.0). SHAP now also emits a **waterfall** (base → each factor → final)
+for the console. Dedup rules + consensus formula: **[FUSION.md](FUSION.md)**.
+
 ## Files
-`scoring.py` weights/composite · `features.py` 8-feature vector + context ·
+`scoring.py` weights/composite (10 factors) · `features.py` 11-feature vector + context ·
+`fusion.py` **dedup + consensus front-end (Phase F)** ·
 `dataset.py` bootstrapped training set (synthetic + interactions + feedback) ·
-`train.py` XGBoost train/eval/save · `explain.py` TreeSHAP + counterfactuals ·
-`db.py` read findings/context, write risk + explanations · `run.py` CLI.
+`train.py` XGBoost train/eval/save · `explain.py` TreeSHAP + waterfall + counterfactuals ·
+`db.py` read findings/context, write risk + consensus + explanations · `run.py` CLI.
 
 ## Run
 
@@ -41,6 +51,7 @@ image (D-024). Why bootstrap labels? No historical labels at day one; analyst fe
 progressively steers the model (D-025).
 
 ## Deferred
-MITRE ATT&CK technique mapping (current attack-phase is a coarse kill-chain ordinal);
-real labeled history; monthly retraining cron (Phase 8). Model metrics live in
+Real labeled history (still bootstrapping from synthetic + feedback); the monthly
+retraining cadence is wired in code (feedback folded at 5× on every `train`) but the
+scheduler itself lands with K3s CronJobs in Phase 8. Model metrics live in
 `/models/meta.json`.
