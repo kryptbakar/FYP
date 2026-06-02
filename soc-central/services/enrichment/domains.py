@@ -30,6 +30,14 @@ def _fp(*parts: Any) -> str:
 
 
 def _finding(asset_id: str, domain: str, rule_id: str, title: str, severity: str, **kw) -> dict:
+    source_tool = kw.get("source_tool", "agent")
+    # dedup_key groups the SAME underlying issue across tools (Phase-F fusion); fingerprint is
+    # per-tool (so e.g. agent + trivy both record a CVE -> consensus). Agent fingerprints keep
+    # their original form (no source_tool prefix) so re-assess stays idempotent.
+    dedup_key = kw.get("dedup_key") or _fp(asset_id, domain, kw.get("cve_id") or rule_id, kw.get("port"))
+    fp_parts = [asset_id, domain, rule_id, kw.get("package_name"), kw.get("port")]
+    if source_tool != "agent":
+        fp_parts = [source_tool] + fp_parts
     f = {
         "asset_id": asset_id, "domain": domain, "rule_id": rule_id, "title": title,
         "severity": severity, "description": kw.get("description"),
@@ -39,8 +47,9 @@ def _finding(asset_id: str, domain: str, rule_id: str, title: str, severity: str
         "cvss_severity": kw.get("cvss_severity"), "epss": kw.get("epss"),
         "epss_percentile": kw.get("epss_percentile"), "kev": kw.get("kev", False),
         "kev_due_date": kw.get("kev_due_date"), "evidence": kw.get("evidence", {}),
+        "source_tool": source_tool, "raw_ref": kw.get("raw_ref"), "dedup_key": dedup_key,
     }
-    f["fingerprint"] = _fp(asset_id, domain, rule_id, kw.get("package_name"), kw.get("port"))
+    f["fingerprint"] = _fp(*fp_parts)
     return f
 
 

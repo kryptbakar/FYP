@@ -6,6 +6,17 @@ alternatives considered**.
 
 ---
 
+## D-037 — Scanner CVEs routed through the existing mirror enrichment (not re-matched)
+**Decision:** Trivy/Nuclei already map a target to CVEs/templates, so the `enrichment --scan`
+path takes their JSON directly, enriches each CVE with **EPSS + KEV from the local mirror**
+(CVSS from the scanner or `nvd_cve`), and writes a `findings` row tagged `source_tool`.
+**Why:** reuse the Phase-3 mirror + Phase-5 risk engine — scanner results become first-class,
+ranked, explainable findings without a parallel store and without re-running our package→CVE
+matcher (the scanner did that). Per-tool **fingerprint** (so agent + trivy both record a CVE →
+consensus) and a shared **dedup_key** (asset+cve) for Phase-F fusion. Verified offline with
+real-shaped fixtures (Trivy needs its vuln DB, Nuclei its templates — both mirrored per §6);
+live runs feed the same parser.
+
 ## D-036 — Wazuh integrated via the Manager REST API (JWT :55000), not the deprecated wazuh-api
 **Decision:** the `wazuh-bridge` authenticates to the **Wazuh Manager's embedded REST API**
 (port 55000, JWT) and pulls FIM (syscheck) + SCA/CIS, normalizing to `fim_event` /

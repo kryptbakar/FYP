@@ -212,19 +212,22 @@ def upsert_findings(pg: psycopg.Connection, findings: list[dict]) -> int:
                 INSERT INTO findings (asset_id, domain, rule_id, title, description, severity,
                     cve_id, package_name, package_version, port, proto,
                     cvss_score, cvss_severity, epss, epss_percentile, kev, kev_due_date,
-                    evidence, fingerprint, last_seen)
+                    source_tool, raw_ref, dedup_key, evidence, fingerprint, last_seen)
                 VALUES (%(asset_id)s, %(domain)s, %(rule_id)s, %(title)s, %(description)s, %(severity)s,
                     %(cve_id)s, %(package_name)s, %(package_version)s, %(port)s, %(proto)s,
                     %(cvss_score)s, %(cvss_severity)s, %(epss)s, %(epss_percentile)s, %(kev)s, %(kev_due_date)s,
-                    %(evidence)s, %(fingerprint)s, now())
+                    %(source_tool)s, %(raw_ref)s, %(dedup_key)s, %(evidence)s, %(fingerprint)s, now())
                 ON CONFLICT (fingerprint) DO UPDATE SET
                     severity = EXCLUDED.severity, description = EXCLUDED.description,
                     cvss_score = EXCLUDED.cvss_score, cvss_severity = EXCLUDED.cvss_severity,
                     epss = EXCLUDED.epss, epss_percentile = EXCLUDED.epss_percentile,
                     kev = EXCLUDED.kev, kev_due_date = EXCLUDED.kev_due_date,
-                    evidence = EXCLUDED.evidence, last_seen = now()
+                    source_tool = EXCLUDED.source_tool, raw_ref = EXCLUDED.raw_ref,
+                    dedup_key = EXCLUDED.dedup_key, evidence = EXCLUDED.evidence, last_seen = now()
                 """,
-                {**f, "evidence": Jsonb(f.get("evidence", {}))},
+                {**f, "evidence": Jsonb(f.get("evidence", {})),
+                 "source_tool": f.get("source_tool", "agent"),
+                 "raw_ref": f.get("raw_ref"), "dedup_key": f.get("dedup_key")},
             )
     return len(findings)
 

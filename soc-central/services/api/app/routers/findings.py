@@ -46,7 +46,7 @@ async def list_findings(
     params["limit"], params["offset"] = limit, offset
     return await db.fetch(
         f"""
-        SELECT id, asset_id, domain, rule_id, title, severity, cve_id, package_name,
+        SELECT id, asset_id, domain, rule_id, title, severity, cve_id, source_tool, package_name,
                package_version, port, proto, cvss_score, cvss_severity, epss, epss_percentile,
                kev, kev_due_date, risk_score, ml_risk_score, risk_rank, status, first_seen, last_seen
         FROM findings {where}

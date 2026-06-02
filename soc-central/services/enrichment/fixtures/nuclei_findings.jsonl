@@ -1,0 +1,3 @@
+{"template-id":"CVE-2021-44228","info":{"name":"Apache Log4j2 Remote Code Execution (Log4Shell)","severity":"critical","classification":{"cve-id":["CVE-2021-44228"]}},"host":"http://api:8000","matched-at":"http://api:8000/","type":"http"}
+{"template-id":"exposed-swagger-ui","info":{"name":"Exposed Swagger / OpenAPI UI","severity":"low"},"host":"http://api:8000","matched-at":"http://api:8000/docs","type":"http"}
+{"template-id":"git-config","info":{"name":"Exposed .git/config","severity":"medium"},"host":"http://api:8000","matched-at":"http://api:8000/.git/config","type":"http"}

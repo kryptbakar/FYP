@@ -7,6 +7,7 @@ assessment domains against the local feed mirror, and upsert findings. Runs once
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import time
@@ -16,6 +17,7 @@ import compliance
 import db
 import domains
 import evidence
+import scanners
 from matcher import Matcher
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -102,11 +104,44 @@ def run_once() -> None:
         pg.close()
 
 
+def run_scan(trivy_path: str, nuclei_path: str, asset_id: str) -> None:
+    """Phase D: ingest Trivy/Nuclei scanner output as enriched findings."""
+    pg = db.connect(pg_dsn())
+    try:
+        db.ensure_schema(pg)
+        matcher = Matcher.load(pg)
+        db.upsert_asset(pg, asset_id, asset_id, "scanned-target", None, datetime.now(timezone.utc))
+        findings = []
+        if trivy_path and os.path.exists(trivy_path):
+            findings += scanners.parse_trivy(json.loads(open(trivy_path).read()), asset_id, matcher)
+            log.info("trivy: parsed %s", trivy_path)
+        if nuclei_path and os.path.exists(nuclei_path):
+            recs = [json.loads(line) for line in open(nuclei_path) if line.strip()]
+            findings += scanners.parse_nuclei(recs, asset_id, matcher)
+            log.info("nuclei: parsed %s (%d records)", nuclei_path, len(recs))
+        n = db.upsert_findings(pg, findings)
+        log.info("scan-ingest: %d finding(s) upserted (asset=%s)", n, asset_id)
+        with pg.cursor() as cur:
+            cur.execute("SELECT source_tool, count(*) FROM findings GROUP BY source_tool ORDER BY 1")
+            for st, cnt in cur.fetchall():
+                log.info("  findings source_tool %-10s %d", st, cnt)
+    finally:
+        pg.close()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--once", action="store_true", help="run a single assessment and exit")
     ap.add_argument("--interval", type=int, default=int(env("ASSESS_INTERVAL", "120")))
+    ap.add_argument("--scan", action="store_true", help="ingest Trivy/Nuclei scanner output (Phase D)")
+    ap.add_argument("--trivy", default=env("TRIVY_JSON", "/app/fixtures/trivy_report.json"))
+    ap.add_argument("--nuclei", default=env("NUCLEI_JSONL", "/app/fixtures/nuclei_findings.jsonl"))
+    ap.add_argument("--asset", default=env("SCAN_ASSET_ID", "scan-target-01"))
     args = ap.parse_args()
+
+    if args.scan:
+        run_scan(args.trivy, args.nuclei, args.asset)
+        return
 
     if args.once or args.interval <= 0:
         run_once()

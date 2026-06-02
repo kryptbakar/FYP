@@ -19,7 +19,7 @@ router = APIRouter(tags=["risk"])
 async def ranking(limit: Annotated[int, Query(ge=1, le=500)] = 25) -> list[dict]:
     return await db.fetch(
         """
-        SELECT risk_rank, id, asset_id, domain, title, severity, cve_id,
+        SELECT risk_rank, id, asset_id, domain, title, severity, cve_id, source_tool,
                risk_score, ml_risk_score, kev, cvss_score, epss
         FROM findings
         WHERE risk_score IS NOT NULL

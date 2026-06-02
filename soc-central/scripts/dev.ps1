@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','seed','test','agent-run')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -51,6 +51,10 @@ switch ($Target) {
     Invoke-Expression "$ct build sensor-bridge"
     Invoke-Expression "$ct run --rm --entrypoint suricata suricata -r /pcaps/test.pcap -l /var/log/suricata -S /var/lib/suricata/rules/local.rules -k none"
     Invoke-Expression "$ct run --rm sensor-bridge --once"
+  }
+  'scan-ingest'  {
+    Invoke-Expression "$Compose build enrichment"
+    Invoke-Expression "$Compose run --rm enrichment --scan"
   }
   'down'     { Invoke-Expression "$Compose down" }
   'clean'    { Invoke-Expression "$Compose down -v" }

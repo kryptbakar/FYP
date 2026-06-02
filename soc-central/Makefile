@@ -8,7 +8,7 @@ COMPOSE ?= docker compose
 COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -59,6 +59,11 @@ sensors-test: ## (Phase B) run Suricata on the test pcap and ship alerts through
 wazuh-pull: ## (Phase C) pull Wazuh FIM/SCA into the pipeline (FIXTURES=1 for offline)
 	$(COMPOSE_TOOLS) build wazuh-bridge
 	$(COMPOSE_TOOLS) run --rm wazuh-bridge $(if $(FIXTURES),--from-fixtures,)
+
+scan-ingest: ## (Phase D) ingest Trivy + Nuclei scanner findings (bundled fixtures, offline)
+	$(COMPOSE) build enrichment
+	$(COMPOSE) run --rm enrichment --scan
+	@echo "Scanner findings ingested. curl 'localhost:8000/findings?asset_id=scan-target-01'"
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down
