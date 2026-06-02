@@ -8,7 +8,7 @@ COMPOSE ?= docker compose
 COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test
+.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -55,6 +55,10 @@ sensors-test: ## (Phase B) run Suricata on the test pcap and ship alerts through
 	$(COMPOSE_TOOLS) run --rm --entrypoint suricata suricata -r /pcaps/test.pcap -l /var/log/suricata -S /var/lib/suricata/rules/local.rules -k none
 	$(COMPOSE_TOOLS) run --rm sensor-bridge --once
 	@echo "Suricata alerts shipped. Query: curl localhost:9200/telemetry-v1/_count -d '{\"query\":{\"term\":{\"source_tool.keyword\":\"suricata\"}}}'"
+
+wazuh-pull: ## (Phase C) pull Wazuh FIM/SCA into the pipeline (FIXTURES=1 for offline)
+	$(COMPOSE_TOOLS) build wazuh-bridge
+	$(COMPOSE_TOOLS) run --rm wazuh-bridge $(if $(FIXTURES),--from-fixtures,)
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down

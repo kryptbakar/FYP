@@ -1,0 +1,6 @@
+[
+  {"id": 6500, "policy_id": "cis_debian12", "title": "Ensure SSH PermitRootLogin is disabled", "result": "failed", "rationale": "Permitting root login over SSH increases attack surface.", "remediation": "Set 'PermitRootLogin no' in /etc/ssh/sshd_config", "compliance": [{"cis": ["5.2.7"]}, {"cis_csc": ["4.3"]}]},
+  {"id": 6501, "policy_id": "cis_debian12", "title": "Ensure auditd is installed", "result": "failed", "rationale": "No host audit trail without auditd.", "remediation": "apt-get install auditd", "compliance": [{"cis": ["4.1.1"]}]},
+  {"id": 6502, "policy_id": "cis_debian12", "title": "Ensure permissions on /etc/passwd are 644", "result": "passed", "rationale": "World-writable passwd is dangerous.", "remediation": "chmod 644 /etc/passwd", "compliance": [{"cis": ["6.1.2"]}]},
+  {"id": 6503, "policy_id": "cis_debian12", "title": "Ensure password expiration is 365 days or less", "result": "failed", "rationale": "Stale passwords increase risk.", "remediation": "Set PASS_MAX_DAYS in /etc/login.defs", "compliance": [{"cis": ["5.4.1.1"]}]}
+]

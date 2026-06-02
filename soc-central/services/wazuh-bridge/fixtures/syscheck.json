@@ -1,0 +1,6 @@
+[
+  {"file": "/etc/passwd", "event": "modified", "sha256": "9bb9299629e3e235e8c7b6498ecc4f3f6f5fe2d8190ac8ba0e67ea78559c125c", "size": "2841", "mtime": "2026-06-02T10:11:00Z"},
+  {"file": "/usr/bin/sudo", "event": "modified", "sha256": "1f2d3c4b5a6978899aabbccddeeff00112233445566778899aabbccddeeff001", "size": "166056"},
+  {"file": "/root/.ssh/authorized_keys", "event": "added", "sha256": "deadbeefcafe0000deadbeefcafe0000deadbeefcafe0000deadbeefcafe0000", "size": "742"},
+  {"file": "/etc/cron.d/.hidden", "event": "added", "sha256": "00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff", "size": "120"}
+]

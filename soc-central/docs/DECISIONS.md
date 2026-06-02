@@ -6,6 +6,26 @@ alternatives considered**.
 
 ---
 
+## D-036 — Wazuh integrated via the Manager REST API (JWT :55000), not the deprecated wazuh-api
+**Decision:** the `wazuh-bridge` authenticates to the **Wazuh Manager's embedded REST API**
+(port 55000, JWT) and pulls FIM (syscheck) + SCA/CIS, normalizing to `fim_event` /
+`scan_finding`. **Why:** since Wazuh 4.0 the standalone `wazuh-api` repo is deprecated and the
+API lives in the Manager. The bridge has a `--from-fixtures` mode (real-shaped API responses)
+so the integration is verifiable offline — the heavy Wazuh image (~1.5 GB) won't run on this
+lab host; live mode calls the real Manager. Falco runs identically via its JSON `file_output`
+tailed by `sensor-bridge` → `runtime_alert` (Falco needs kernel access it lacks on Docker
+Desktop/WSL, so verified via fixtures too).
+
+## D-035 — Wazuh and the Go agent COMPLEMENT (multi-tool consensus), not duplicate
+**Decision:** both our Go agent and Wazuh do FIM/host checks independently, and **both** feed
+the pipeline tagged by `source_tool`. We do **not** disable one to avoid "duplication."
+**Why:** independent corroboration is a *signal* — the Phase-F Fusion Engine dedups by
+`dedup_key` (e.g. asset+path for FIM, asset+CIS-control for compliance) and **boosts
+confidence when tools agree**, recording which tools contributed. The lightweight Go agent is
+always-on baseline telemetry; Wazuh adds deeper FIM/SCA/log analysis where deployed. Same for
+compliance: Wazuh SCA/CIS results sit alongside our rule-engine results and are reconciled in
+fusion, not merged blindly.
+
 ## D-034 — File-based sensors integrate via a `sensor-bridge`, not a new ingestion path
 **Decision:** Suricata (EVE JSON) and Zeek (TSV/JSON logs) are file-based, not REST. A
 `sensor-bridge` worker **tails their files** and publishes normalized envelopes

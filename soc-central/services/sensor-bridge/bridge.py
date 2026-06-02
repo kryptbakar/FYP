@@ -42,6 +42,7 @@ HOST_ID = env("SENSOR_HOST_ID", "soc-sensor-01")
 HOSTNAME = env("SENSOR_HOSTNAME", "soc-sensor-01")
 EVE_PATH = Path(env("SURICATA_EVE", "/var/log/suricata/eve.json"))
 ZEEK_DIR = Path(env("ZEEK_LOG_DIR", "/zeek-logs"))
+FALCO_LOG = Path(env("FALCO_LOG", "/falco/events.json"))   # Falco file_output (JSON lines)
 POLL = float(env("BRIDGE_POLL_SEC", "2"))
 
 
@@ -89,6 +90,17 @@ def zeek_record(logname: str, rec: dict) -> dict:
     return envelope("traffic_metadata", "zeek", payload, raw_ref=str(raw) if raw else None)
 
 
+def falco_event(rec: dict) -> dict:
+    # Falco JSON: {rule, priority, output, time, output_fields:{...}}
+    payload = {
+        "rule": rec.get("rule"),
+        "priority": rec.get("priority"),
+        "output": rec.get("output"),
+        "fields": rec.get("output_fields", {}),
+    }
+    return envelope("runtime_alert", "falco", payload, raw_ref=rec.get("rule"))
+
+
 class Publisher:
     def __init__(self, js):
         self.js = js
@@ -124,6 +136,17 @@ async def drain_zeek(pub: Publisher, path: Path, fh) -> None:
             continue
 
 
+async def drain_falco(pub: Publisher, fh) -> None:
+    for line in fh:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            await pub.send(falco_event(json.loads(line)))
+        except json.JSONDecodeError:
+            continue
+
+
 async def run_once(pub: Publisher) -> None:
     if EVE_PATH.exists():
         with EVE_PATH.open() as fh:
@@ -133,6 +156,10 @@ async def run_once(pub: Publisher) -> None:
         with logp.open() as fh:
             await drain_zeek(pub, logp, fh)
         log.info("zeek: published records from %s", logp.name)
+    if FALCO_LOG.exists():
+        with FALCO_LOG.open() as fh:
+            await drain_falco(pub, fh)
+        log.info("falco: published alerts from %s", FALCO_LOG)
 
 
 async def run_tail(pub: Publisher) -> None:
@@ -149,6 +176,11 @@ async def run_tail(pub: Publisher) -> None:
                 fh.seek(offsets.get(str(logp), 0))
                 await drain_zeek(pub, logp, fh)
                 offsets[str(logp)] = fh.tell()
+        if FALCO_LOG.exists():
+            with FALCO_LOG.open() as fh:
+                fh.seek(offsets.get(str(FALCO_LOG), 0))
+                await drain_falco(pub, fh)
+                offsets[str(FALCO_LOG)] = fh.tell()
         await asyncio.sleep(POLL)
 
 

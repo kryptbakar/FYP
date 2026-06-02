@@ -46,7 +46,7 @@ services:
       - zeek_logs:/logs                          # *.log -> sensor-bridge shipper (Phase B)
       - ./tools/sensors/data:/pcaps:ro
 
-  sensor-bridge:                  # tails Suricata eve.json + Zeek logs -> JetStream (Phase B)
+  sensor-bridge:                  # tails Suricata eve.json + Zeek logs + Falco events -> JetStream (Phase B/C)
     build:
       context: .
       dockerfile: services/sensor-bridge/Dockerfile
@@ -56,9 +56,11 @@ services:
       NATS_URL: nats://nats:4222
       SURICATA_EVE: /var/log/suricata/eve.json
       ZEEK_LOG_DIR: /zeek-logs
+      FALCO_LOG: /falco/events.json
     volumes:
       - suricata_logs:/var/log/suricata:ro
       - zeek_logs:/zeek-logs:ro
+      - falco_logs:/falco:ro
 
   # ------------------------ Phase D: active scanning ------------------------
   trivy:                          # Container/image/fs CVE scanner (REST server mode)
@@ -95,6 +97,18 @@ services:
     volumes:
       - wazuh_data:/var/ossec/data
 
+  wazuh-bridge:                   # pulls FIM/SCA from the Wazuh Manager API -> JetStream (Phase C)
+    build:
+      context: .
+      dockerfile: services/wazuh-bridge/Dockerfile
+    profiles: ["hostmon", "tools"]
+    restart: "no"                 # poller; run on a schedule (make wazuh-pull) or as a cron
+    environment:
+      NATS_URL: nats://nats:4222
+      WAZUH_API_URL: https://wazuh-manager:55000
+      WAZUH_API_USER: ${WAZUH_API_USER:-wazuh-wui}
+      WAZUH_API_PASSWORD: ${WAZUH_API_PASSWORD:-wazuh-wui}
+
   falco:                          # Runtime (syscall) detection — OPTIONAL (DECISIONS D-031)
     image: falcosecurity/falco:0.39.0
     profiles: ["runtime", "tools"]
@@ -106,6 +120,7 @@ services:
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - /proc:/host/proc:ro
+      - falco_logs:/var/log/falco   # file_output -> events.json, tailed by sensor-bridge
 
   # ------------------------ Phase E: threat intel --------------------------
   misp-redis:
@@ -191,6 +206,7 @@ services:
 volumes:
   suricata_logs:
   zeek_logs:
+  falco_logs:
   trivy_cache:
   nuclei_templates:
   wazuh_data:

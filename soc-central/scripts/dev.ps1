@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','seed','test','agent-run')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -40,6 +40,11 @@ switch ($Target) {
   'risk-train' { Invoke-Expression "$Compose --profile ml run --rm risk-engine train" }
   'risk-score' { Invoke-Expression "$Compose --profile ml run --rm risk-engine score" }
   'clone-tools'  { bash scripts/clone-references-tools.sh }
+  'wazuh-pull'   {
+    $ct = "$Compose -f docker-compose.yml -f docker-compose.tools.yml"
+    Invoke-Expression "$ct build wazuh-bridge"
+    Invoke-Expression "$ct run --rm wazuh-bridge --from-fixtures"
+  }
   'sensors-test' {
     $ct = "$Compose -f docker-compose.yml -f docker-compose.tools.yml"
     docker run --rm -v "$Root\tools\sensors:/w" -w /w python:3.12-slim python make_test_pcap.py data/test.pcap
