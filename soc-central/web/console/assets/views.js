@@ -53,20 +53,19 @@ function toggleBtn(label, on, onclick) { return h('span', { class: 'toggle' + (o
 
 function decisionCard(r) {
   const c = band(r.risk_score);
+  const host = assetMeta(r.asset_id).hostname || r.asset_id;
   const meta = h('div', { class: 'meta' },
-    chip(assetMeta(r.asset_id).hostname || r.asset_id, ''),
-    exposureOf(r.asset_id) ? chip(exposureOf(r.asset_id), exposureOf(r.asset_id) === 'internet' ? 'warn' : '') : null,
-    r.cve_id ? chip(r.cve_id, 'mono') : null,
+    eAsset(host),
+    exposureOf(r.asset_id) ? chip(exposureOf(r.asset_id) + '-exposed', exposureOf(r.asset_id) === 'internet' ? 'warn' : '') : null,
+    r.cve_id ? eCode(r.cve_id) : null,
     consensusChip(r.consensus),
     r.kev ? chip('KEV', 'kev') : null,
     r.epss ? chip('EPSS ' + pct(r.epss), '') : null,
     r.attack ? chip(r.attack, 'attack') : null,
-    r.threat_intel ? chip('live IOC', 'intel') : null);
-  const action = (r.domain === 'network' || c === 'critical') ? `Isolate ${assetMeta(r.asset_id).hostname || r.asset_id}` : 'Investigate';
+    r.threat_intel ? chip('Live IOC', 'intel') : null);
   return h('div', { class: 'card', tabindex: '0', onclick: () => openFinding(r.id),
     onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
-    h('div', { class: 'accent ' + c }),
-    h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:7px' }, severity(r.severity)),
+    h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, severity(r.severity)),
       h('div', { class: 'concl' }, r.title), meta),
     h('div', { class: 'scorebox' }, h('div', { class: 'v ' + c }, n0(r.risk_score)), h('div', { class: 'lb' }, 'risk')));
 }
@@ -100,29 +99,35 @@ async function openFinding(id) {
 
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
 
-  // conclusion + big score
-  b.append(h('div', { class: 'block' },
-    h('div', { class: 'hero' }, h('div', { class: 'big ' + c }, n0(f.risk_score)), h('div', { class: 'of' }, '/ 100 composite'),
-      h('span', { style: 'flex:1' }), h('div', { style: 'text-align:right' },
-        h('div', { class: 'mono', style: 'font-size:15px' }, n1(f.ml_risk_score)), h('div', { class: 'faint', style: 'font-size:10px;text-transform:uppercase;letter-spacing:1px' }, 'XGBoost ML')))));
+  // big score
+  b.append(h('div', { class: 'hero' }, h('div', { class: 'big ' + c }, n0(f.risk_score)), h('div', { class: 'of' }, '/ 100 composite'),
+    h('span', { style: 'flex:1' }), h('div', { style: 'text-align:right' },
+      h('div', { class: 'mono', style: 'font-size:15px' }, n1(f.ml_risk_score)), h('div', { class: 'faint', style: 'font-size:10px' }, 'XGBoost ML'))));
 
-  // SHAP waterfall — the differentiator
-  if (Array.isArray(ml.waterfall) && ml.waterfall.length) {
-    b.append(block('Why this score — SHAP waterfall', h('div', {}, waterfall(ml.waterfall),
-      h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Base value → each of the 10 risk factors → final ML score. Risk-raising factors extend right (amber/red); risk-lowering left (green).'))));
-  } else if (Object.keys(comp).length) {
-    b.append(block('Composite factor contributions', factorBars(comp)));
-  }
+  // stat chips
+  b.append(statChips(f, con));
 
-  // multi-tool consensus
-  b.append(block('Multi-tool consensus', consensusPanel(con)));
+  // conclusion-first summary with entity highlighting
+  b.append(findingSummary(f, con));
+
+  // two columns: score factors (with expandable full waterfall) | consensus
+  const left = h('div', {}, h('div', { class: 'sec-label', style: 'margin-bottom:11px' }, 'Score factors (SHAP)'));
+  if (ml.shap) {
+    left.append(scoreFactorBars(ml.shap));
+    if (Array.isArray(ml.waterfall) && ml.waterfall.length)
+      left.append(h('details', { class: 'expander' }, h('summary', {}, 'Show full waterfall'),
+        waterfall(ml.waterfall),
+        h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Base → each factor → final ML score. Risk-raising right; risk-lowering left.')));
+  } else if (Object.keys(comp).length) { left.append(factorBars(comp)); }
+  const right = h('div', {}, h('div', { class: 'sec-label', style: 'margin-bottom:11px' }, 'Multi-tool consensus'), consensusPanel(con));
+  b.append(h('div', { class: 'cols2' }, left, right));
 
   // ATT&CK + threat intel
   const ctx = h('div', { class: 'kv' });
-  if (f.attack) ctx.append(h('div', { class: 'k' }, 'ATT&CK'), h('div', {}, h('span', { class: 'mono' }, f.attack), ' · ', attackName(f.attack)));
+  if (f.attack) ctx.append(h('div', { class: 'k' }, 'ATT&CK'), h('div', {}, eCode(f.attack), ' · ', attackName(f.attack)));
   if (f.cvss_score) ctx.append(h('div', { class: 'k' }, 'CVSS'), h('div', { class: 'mono' }, n1(f.cvss_score)));
-  if (f.epss) ctx.append(h('div', { class: 'k' }, 'EPSS'), h('div', { class: 'mono' }, pct(f.epss) + ' exploitation prob.'));
-  if (f.threat_intel) { const ti = f.threat_intel; ctx.append(h('div', { class: 'k' }, 'MISP IOC'), h('div', {}, h('span', { class: 'mono' }, ti.indicator || JSON.stringify(ti)), ti.type ? ` · ${ti.type}` : '', ti.confidence ? ` · conf ${ti.confidence}` : '')); }
+  if (f.epss) ctx.append(h('div', { class: 'k' }, 'EPSS'), h('div', {}, h('span', { class: 'mono' }, pct(f.epss)), ' exploitation probability'));
+  if (f.threat_intel) { const ti = f.threat_intel; ctx.append(h('div', { class: 'k' }, 'MISP IOC'), h('div', {}, eNet(ti.indicator || 'indicator'), ti.type ? ` · ${ti.type}` : '', ti.confidence ? ` · confidence ${ti.confidence}` : '')); }
   if (ctx.children.length) b.append(block('ATT&CK & threat intel', ctx));
 
   // counterfactuals
@@ -203,24 +208,36 @@ function compTable(results) {
 const statusChip = (s) => s === 'pass' ? chip('pass', 'ok') : s === 'fail' ? chip('fail', 'kev') : s === 'partial' ? chip('partial', 'warn') : chip(s || 'n/a');
 
 /* ---- 4.4 Incidents --------------------------------------------------- */
+const KCOLS = [
+  ['New', ['open', 'new']],
+  ['In progress', ['in_progress', 'triaged', 'investigating', 'acknowledged']],
+  ['Contained', ['contained']],
+  ['Remediated', ['resolved', 'closed', 'remediated']],
+];
 async function viewIncidents(root) {
   root.append(loading('Loading cases…'));
   const [incidents, actions, audit] = await Promise.all([API.incidents(), API.actions(), API.auditVerify()]);
   root.innerHTML = '';
-  if (!incidents.length) { root.append(h('div', { class: 'panel empty' }, 'No incidents open.')); return; }
-  const list = h('div', { class: 'panel fade' },
-    h('div', { class: 'panel-h' }, h('h2', {}, 'Cases'), h('span', { class: 'sub' }, `· ${incidents.length} · audit chain ${audit.ok ? 'verified ✓' : 'check'}`)),
-    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
-      h('thead', {}, h('tr', {}, ['ID', 'Incident', 'Severity', 'Status', 'SLA', 'Findings', 'Opened'].map(t => h('th', {}, t)))),
-      h('tbody', {}, incidents.map(i => h('tr', { onclick: () => openIncident(i, actions) },
-        h('td', { class: 'mono' }, '#' + i.id),
-        h('td', {}, i.title),
-        h('td', {}, severity(i.severity)),
-        h('td', {}, chip(i.status, i.status === 'open' ? 'warn' : 'ok')),
-        h('td', {}, i.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok')),
-        h('td', { class: 'mono' }, String(i.finding_count ?? 0)),
-        h('td', { class: 'faint' }, ago(i.created_at))))))));
-  root.append(list);
+  const colOf = (st) => { st = (st || '').toLowerCase(); const i = KCOLS.findIndex(c => c[1].includes(st)); return i < 0 ? 0 : i; };
+  root.append(h('div', { class: 'panel-h', style: 'border:none;padding:0 2px 14px' },
+    h('h2', {}, 'Cases'), h('span', { class: 'sub' }, `· ${incidents.length} open · audit chain ${audit.ok ? 'verified ✓' : 'needs check'}`)));
+  const board = h('div', { class: 'kanban fade' });
+  KCOLS.forEach((col, ci) => {
+    const items = incidents.filter(i => colOf(i.status) === ci);
+    const kc = h('div', { class: 'kcol' }, h('h3', {}, col[0], h('span', { class: 'ct' }, String(items.length))));
+    if (items.length) items.forEach(i => kc.append(kanbanCard(i, actions)));
+    else kc.append(h('div', { class: 'faint', style: 'font-size:11.5px;padding:4px 2px' }, 'None'));
+    board.append(kc);
+  });
+  root.append(board);
+}
+function kanbanCard(i, actions) {
+  return h('div', { class: 'kcard', tabindex: '0', onclick: () => openIncident(i, actions),
+    onkeydown: e => { if (e.key === 'Enter') openIncident(i, actions); } },
+    h('div', { class: 'row', style: 'justify-content:space-between' }, severity(i.severity), h('span', { class: 'faint mono', style: 'font-size:10.5px' }, '#' + i.id)),
+    h('div', { class: 't' }, i.title),
+    h('div', { class: 'row', style: 'gap:7px' }, i.sla_breached ? chip('SLA breached', 'kev') : chip('On track', 'ok'),
+      h('span', { class: 'faint', style: 'font-size:11px' }, `${i.finding_count ?? 0} findings`)));
 }
 function openIncident(inc, actions) {
   const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');

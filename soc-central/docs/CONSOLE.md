@@ -4,11 +4,30 @@
 (nginx; reverse-proxies `/api` → FastAPI `:8000`, same-origin, no CORS — D-044/D-045).
 
 An **intelligence workspace**, not a dashboard: decision-centric, explainable,
-human-in-the-loop. **CrowdStrike-Falcon-inspired** design language — graphite near-black
-canvas + signature crimson accent (D-049); **color = meaning only**, severity is encoded by
-**shape + label** (never hue alone) for WCAG AA. Dependency-free — vanilla HTML/CSS/JS, all
-charts hand-built in inline SVG/CSS, **zero external/network assets**, so it runs fully
-air-gapped. Deep-link a finding with `#f/<id>`.
+human-in-the-loop. **Charcoal + teal** design language (D-049, locked) — instrument-grade,
+flat (no gradients/glows/shadows), sentence case; **color = meaning only** (teal accent on
+interactive chrome only, never a status mark), and severity is encoded by **shape + label**
+(never hue alone) for WCAG AA. Dependency-free — vanilla HTML/CSS/JS, all charts hand-built
+in inline SVG/CSS, **zero external/network assets**, so it runs fully air-gapped. Deep-link a
+finding with `#f/<id>`.
+
+### Re-theming (one block)
+Every colour is a CSS custom property in `:root` (`assets/app.css`) — no component hardcodes
+a hex. Swap the palette by editing that block alone (neutrals, the single `--accent`, the
+status hues, and the three `--ent-*` entity tints).
+
+### Entity-token highlighting (the signature pattern)
+`ui.js` → `entityChip(text, kind)` + `findingSummary(finding, consensus)`. The finding view
+composes a **deterministic, conclusion-first summary** from structured fields (not an LLM)
+and renders entities as inline tinted chips — **assets/hosts** teal (`--ent-asset-*`),
+**IPs/ports/domains** amber (`--ent-net-*`), **CVEs/files/hashes** neutral mono
+(`--ent-code-*`). Each chip is clickable and **pivots** (`window.pivot()` filters the Triage
+queue by that entity). The same chips appear on Triage decision cards.
+
+### Fonts
+Inter / IBM Plex Sans (UI) + IBM Plex Mono (tokens) via `@font-face` with a system-stack
+fallback; nothing is fetched at runtime. Drop the `.woff2` into `assets/fonts/` to activate
+(see `assets/fonts/README.md`).
 
 ## Run & verify
 ```bash

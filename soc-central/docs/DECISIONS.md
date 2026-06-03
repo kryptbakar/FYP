@@ -6,21 +6,24 @@ alternatives considered**.
 
 ---
 
-## D-049 — Console design language: CrowdStrike-Falcon-inspired graphite + crimson
-**Context:** the console needed a credible, recognizable enterprise-SOC look; candidates
-reviewed were Torq (purple automation/SOAR), DropZone AI (AI-analyst narrative), SOCByte
-(niche), and CrowdStrike Falcon. **Decision:** adopt a **CrowdStrike-Falcon-inspired**
-design language — graphite near-black canvas (`#0A0B0E`), a signature **crimson** accent
-(`#F5384A`) for brand/interactive/critical, and an orange/gold/teal/green semantic scale,
-on the existing token-driven, dependency-free design system (so it was a `:root` retune, not
-a rewrite). **Why:** Falcon is the enterprise-SOC archetype — most credible for a gov/
-air-gapped product and most recognizable to evaluators; Torq's purple reads SOAR-playful,
-DropZone's identity is an AI investigator (which we deliberately do **not** fake), SOCByte
-has no strong language to anchor to. Severity stays encoded by **shape + label** (not hue)
-for WCAG AA; the `--faint` token was raised after a screenshot review showed it failed AA on
-the dark canvas. **Verified:** headless-Chromium screenshots of all five views; zero
-non-same-origin assets. **Alternatives:** keep the navy/blue (Lattice/Gotham) look — fine but
-less identifiable as a SOC; Torq purple — off-archetype for a defensive SOC console.
+## D-049 — Console design language: charcoal + teal "intelligence workspace" (locked)
+**Context:** the console's look went through navy/blue → CrowdStrike graphite+crimson → and
+was then **locked by a detailed brief** to **charcoal + teal**: an instrument-grade,
+conclusion-first intelligence workspace (calmer, DropZone/AI-SOC-style) rather than the
+crimson Falcon look. **Decision:** charcoal canvas (`--bg #0C0D0F`) with a single **teal**
+accent (`#3FB6A0`) used **only on interactive chrome** (never as a status mark); status hues
+are critical-red / warning-amber / success-teal; **all colour lives in `:root`** (no
+component hardcodes a hex — fully re-themable from one block); **flat** (no gradients/glows/
+shadows); **sentence case**; **severity by shape + label** (not hue) for WCAG AA. The
+signature pattern is **entity-token highlighting** (assets=teal, IPs/ports/domains=amber,
+CVEs/files/hashes=mono) inside a deterministic conclusion-first summary, each chip clickable
+to pivot. Self-hosted Inter/IBM Plex via `@font-face` with system fallback (no runtime
+fetch). **Why:** the brief locked it; the calmer charcoal+teal reads as a focused analyst
+instrument and the entity highlighting makes output read as *intelligence*, not a log dump.
+**Verified:** headless-Chromium screenshots of all five views (incl. the hero + Kanban);
+zero non-same-origin assets; JS `node --check` clean. **Alternatives:** CrowdStrike crimson
+(shipped previously, superseded by the brief); Torq purple (off-archetype); DropZone's
+AI-investigator identity (rejected — we don't fake autonomous agents).
 
 ## D-048 — Signed agent supply chain: cosign over a SHA-256 manifest, verified fail-closed on endpoints
 **Context:** the endpoint agent runs in hostile/remote places; a trojanized binary is a
