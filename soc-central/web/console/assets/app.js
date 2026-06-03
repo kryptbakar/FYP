@@ -40,6 +40,13 @@ function moveSel(d) {
 }
 function openSel() { const els = selectables(); if (selIdx >= 0 && els[selIdx]) els[selIdx].click(); }
 
+// Entity-chip pivot: filter the Triage queue by the clicked entity (asset/CVE/tool/IP).
+window.pivot = function (val) {
+  STATE.q = String(val); const q = $('#q'); if (q) q.value = STATE.q;
+  closeDrawer();
+  if (current !== 'triage') go('triage'); else if (window._renderCards) window._renderCards();
+};
+
 function updateLive(mode) {
   const el = $('#live'), lbl = $('#live-label');
   el.className = 'live ' + (mode === 'live' ? 'live' : mode === 'demo' ? 'demo' : '');

@@ -24,7 +24,7 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const SEVOF = { CRITICAL: 'critical', HIGH: 'high', MEDIUM: 'medium', LOW: 'low', INFO: 'info' };
 const sevClass = s => SEVOF[(s || 'INFO').toUpperCase()] || 'info';
 function band(score) { const n = +score; return n >= 80 ? 'critical' : n >= 60 ? 'high' : n >= 40 ? 'medium' : n >= 20 ? 'low' : 'info'; }
-const SEVLABEL = { critical: 'CRITICAL', high: 'HIGH', medium: 'MEDIUM', low: 'LOW', info: 'INFO' };
+const SEVLABEL = { critical: 'Critical', high: 'High', medium: 'Medium', low: 'Low', info: 'Info' };
 const n1 = (v) => (v == null || v === '' ? '—' : (+v).toFixed(1));
 const n0 = (v) => (v == null || v === '' ? '—' : Math.round(+v).toString());
 const pct = (v) => (v == null ? '—' : Math.round(+v * 100) + '%');
@@ -42,7 +42,9 @@ const PATHS = {
   triage: 'M4 6h16M4 12h10M4 18h7', detail: 'M9 3v18M3 9h18M3 3h18v18H3z', shield: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Z',
   cases: 'M3 7h18v13H3zM8 7V4h8v3', fusion: 'M12 3v4M12 17v4M3 12h4M17 12h4M7.5 7.5l2.8 2.8M13.7 13.7l2.8 2.8M16.5 7.5l-2.8 2.8M10.3 13.7l-2.8 2.8',
   shieldcheck: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Zm-3 9.5 2 2 4-4.5', lock: 'M6 10V7a6 6 0 0 1 12 0v3M5 10h14v11H5z',
-  chevron: 'm9 6 6 6-6 6', x: 'M6 6l12 12M18 6 6 18', shield2: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z' };
+  chevron: 'm9 6 6 6-6 6', x: 'M6 6l12 12M18 6 6 18', shield2: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z',
+  score: 'M3 12h3l3-8 4 16 3-8h5', layers: 'M12 3 3 8l9 5 9-5-9-5zM3 14l9 5 9-5', globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18',
+  clock: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', activity: 'M3 12h4l3-9 4 18 3-9h4' };
 const ic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${PATHS[k]}"/></svg>`;
 
 /* ---- atoms ----------------------------------------------------------- */
@@ -56,6 +58,69 @@ function consensusChip(con) {
   return chip(`${con.n_tools} tools agree`, 'consensus');
 }
 function toolChip(t, onclick) { const c = h('span', { class: 'chip tool', onclick }, t); return c; }
+
+/* ---- entity-highlight chips (the signature pattern) ------------------ */
+/* assets/hosts/identities = teal · IPs/ports/domains = amber · CVEs/files/hashes = mono.
+   Each chip pivots (filters Triage) to that entity via window.pivot(). */
+function entityChip(text, kind) {
+  return h('span', { class: 'ent ' + kind, role: 'button', tabindex: '0', title: 'pivot to ' + text,
+    onclick: (e) => { e.stopPropagation(); window.pivot && window.pivot(text); },
+    onkeydown: (e) => { if (e.key === 'Enter') { window.pivot && window.pivot(text); } } }, text);
+}
+const eAsset = (t) => entityChip(t, 'asset');
+const eNet = (t) => entityChip(t, 'net');
+const eCode = (t) => entityChip(t, 'code');
+
+/* Conclusion-first summary, composed deterministically from structured fields (NOT an
+   LLM) with the entities rendered as clickable chips. */
+function findingSummary(f, con) {
+  const host = (typeof assetMeta === 'function' ? assetMeta(f.asset_id).hostname : null) || f.asset_id || 'asset';
+  const exposure = (typeof exposureOf === 'function' ? exposureOf(f.asset_id) : null);
+  const verdict = f.kev && +f.epss >= 0.5 ? 'Actively-exploited' : f.kev ? 'Known-exploited' : f.threat_intel ? 'Intel-corroborated' : SEVLABEL[sevClass(f.severity)];
+  const lead = h('span', { class: 'lead' }, `${verdict} ${f.domain} risk`);
+  const div = h('div', { class: 'summary' }, lead, ' on ', eAsset(host),
+    exposure ? h('span', {}, ' (', exposure, '-exposed)') : null,
+    f.cve_id ? h('span', {}, ' — ', eCode(f.cve_id)) : null, '. ');
+  // evidence
+  if (con && con.n_tools > 1) div.append(`${con.n_tools} independent tools corroborate this (consensus weight ${(con.weight || 0).toFixed(1)}). `);
+  else div.append('Single-source detection. ');
+  if (f.threat_intel && f.threat_intel.indicator) div.append('A live MISP indicator ', eNet(f.threat_intel.indicator),
+    h('span', {}, ` matches (${f.threat_intel.type || 'ioc'}${f.threat_intel.confidence ? ', confidence ' + f.threat_intel.confidence : ''}). `));
+  if (f.attack) div.append('Mapped to ATT&CK ', eCode(f.attack), h('span', {}, ` — ${attackName(f.attack)}. `));
+  // recommendation
+  const act = (f.domain === 'network' || band(f.risk_score) === 'critical') ? 'isolating' : 'patching';
+  div.append(h('span', { class: 'lead' }, 'Recommend '), act + ' ', eAsset(host), '.');
+  return div;
+}
+
+/* Stat-chip row */
+function statChip(icon, label, value, crit) {
+  return h('div', { class: 'statchip' }, h('span', { html: ic(icon) }),
+    h('div', {}, h('div', { class: 'lb' }, label), h('div', { class: 'vl' + (crit ? ' crit' : '') }, value)));
+}
+function statChips(f, con) {
+  const exposure = (typeof exposureOf === 'function' ? exposureOf(f.asset_id) : null);
+  return h('div', { class: 'statchips' },
+    statChip('score', 'composite', n0(f.risk_score), band(f.risk_score) === 'critical'),
+    statChip('layers', 'corroboration', `${con ? con.n_tools : 1} tool${(con && con.n_tools > 1) ? 's' : ''}`),
+    f.epss ? statChip('activity', 'EPSS', pct(f.epss)) : null,
+    f.cvss_score ? statChip('shield2', 'CVSS', n1(f.cvss_score)) : null,
+    exposure ? statChip('globe', 'exposure', exposure) : null,
+    f.kev ? statChip('clock', 'KEV', 'listed', true) : null);
+}
+
+/* Compact score-factor bars (signed SHAP); the full waterfall lives in an expander. */
+function scoreFactorBars(shap, topN) {
+  const entries = Object.entries(shap || {}).filter(([k]) => k !== 'attack_phase')
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, topN || 6);
+  const max = Math.max(0.001, ...entries.map(([, v]) => Math.abs(+v)));
+  return h('div', { class: 'sfbars' }, entries.map(([k, v]) => {
+    const pos = (+v) >= 0; const w = (Math.abs(+v) / max) * 100;
+    return h('div', { class: 'sfbar' }, h('div', { class: 'k' }, k),
+      h('div', { class: 'tr' }, h('i', { class: pos ? 'pos' : 'neg', style: `left:0;width:${w}%` })),
+      h('div', { class: 'c' }, (pos ? '+' : '') + n1(v)));
+  }));
+}
 
 /* ---- SHAP waterfall (inline SVG/CSS, 0–100 x-domain) ----------------- */
 function waterfall(rows) {
