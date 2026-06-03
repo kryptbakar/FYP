@@ -6,19 +6,23 @@
    ===================================================================== */
 
 :root {
-  --bg:        #050A14;   /* app background */
-  --surface:   #0B1220;   /* panels */
-  --elevated:  #101A2B;   /* raised cards, popovers */
-  --text:      #E8EDF7;
-  --muted:     #8B98AE;
-  --faint:     #5C6982;
-  --accent:    #4F8CFF;   /* interactive / focus / links ONLY */
-  --success:   #16C47F;
-  --warning:   #F5A623;
-  --critical:  #E5484D;
-  --line:        rgba(232,237,247,0.10);
-  --line-strong: rgba(232,237,247,0.16);
-  --hover:       rgba(255,255,255,0.04);
+  /* CrowdStrike-Falcon-inspired: graphite near-black canvas + signature crimson.
+     color = meaning (~5% of pixels). Severity by SHAPE+LABEL, hue reinforces only. */
+  --bg:        #0A0B0E;   /* graphite near-black */
+  --surface:   #131418;   /* panels */
+  --elevated:  #1B1D23;   /* raised cards, popovers */
+  --text:      #F2F4F7;
+  --muted:     #A2AAB7;
+  --faint:     #818A9A;   /* raised for WCAG AA on the dark canvas */
+  --accent:    #F5384A;   /* crimson — brand / interactive / focus */
+  --success:   #1FD18C;
+  --warning:   #FF8A3D;   /* high = orange */
+  --medium:    #E0A93B;   /* medium = gold */
+  --intel:     #2BC0CE;   /* threat-intel = teal */
+  --critical:  #F5384A;   /* crimson */
+  --line:        rgba(242,244,247,0.08);
+  --line-strong: rgba(242,244,247,0.15);
+  --hover:       rgba(255,255,255,0.035);
 
   --mono: ui-monospace, "SF Mono", "IBM Plex Mono", "Cascadia Code", Menlo, Consolas, monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -29,7 +33,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body {
-  font-family: var(--sans); background: var(--bg); color: var(--text);
+  font-family: var(--sans);
+  /* faint crimson glow top-right for depth — the only ambient color on the canvas */
+  background: radial-gradient(900px 460px at 88% -10%, rgba(245,56,74,0.07), transparent 62%), var(--bg);
+  color: var(--text);
   font-size: var(--t-body); line-height: 1.5; -webkit-font-smoothing: antialiased;
   font-variant-numeric: tabular-nums;
 }
@@ -65,7 +72,7 @@ button { font: inherit; }
 .nav a svg { width: 16px; height: 16px; flex: none; opacity: .85; }
 .nav a .key { margin-left: auto; font-size: 10px; color: var(--faint); font-family: var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
 .nav a:hover { background: var(--hover); color: var(--text); }
-.nav a.active { background: var(--elevated); color: var(--text); }
+.nav a.active { background: var(--elevated); color: var(--text); box-shadow: inset 2px 0 0 var(--accent); }
 .nav a.active svg { color: var(--accent); opacity: 1; }
 .nav a .badge { margin-left: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: rgba(229,72,77,.16);
   color: #ffb3b6; font-size: 10.5px; font-weight: 700; display: grid; place-items: center; font-family: var(--mono); }
@@ -94,7 +101,7 @@ button { font: inherit; }
 .view { max-width: 1480px; }
 
 /* ---------------------------------------------------------------- panels */
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 1px 2px rgba(0,0,0,.3); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); box-shadow: inset 0 1px 0 rgba(255,255,255,.03), 0 1px 3px rgba(0,0,0,.4); }
 .panel-h { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
 .panel-h h2 { font-size: var(--t-emph); font-weight: 620; }
 .panel-h .sub { font-size: var(--t-micro); color: var(--faint); }
@@ -113,15 +120,15 @@ button { font: inherit; }
 /* shapes via clip-path: critical=square, high=triangle, medium=hollow circle, low/info=dash */
 .gl.s-critical { background: var(--critical); border-radius: 2px; }
 .gl.s-high { background: var(--warning); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
-.gl.s-medium { border: 1.6px solid var(--warning); border-radius: 50%; background: transparent; }
+.gl.s-medium { border: 1.6px solid var(--medium); border-radius: 50%; background: transparent; }
 .gl.s-low, .gl.s-info { height: 2px; background: var(--muted); align-self: center; border-radius: 2px; }
 
 /* chips */
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px; font-size: var(--t-micro); font-weight: 600;
   background: var(--elevated); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
 .chip.mono { font-family: var(--mono); font-size: 10.5px; }
-.chip.kev { color: #ff9ea1; border-color: rgba(229,72,77,.34); background: rgba(229,72,77,.10); }
-.chip.intel { color: #c9b6ff; border-color: rgba(123,97,255,.34); background: rgba(123,97,255,.10); }
+.chip.kev { color: #ff9aa3; border-color: rgba(245,56,74,.36); background: rgba(245,56,74,.11); }
+.chip.intel { color: #7fe3ec; border-color: rgba(43,192,206,.36); background: rgba(43,192,206,.10); }
 .chip.attack { color: #f7c277; border-color: rgba(245,166,35,.30); background: rgba(245,166,35,.09); }
 .chip.consensus { color: #8be6c0; border-color: rgba(22,196,127,.30); background: rgba(22,196,127,.08); }
 .chip.tool { font-family: var(--mono); font-size: 10.5px; cursor: pointer; }
@@ -134,7 +141,7 @@ button { font: inherit; }
   border: 1px solid var(--line-strong); background: var(--elevated); color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background .14s, border-color .14s; }
 .btn:hover { background: #14213a; }
 .btn svg { width: 14px; height: 14px; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #04101f; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 650; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.danger { border-color: rgba(229,72,77,.5); color: #ff9ea1; }
 .btn.danger:hover { background: rgba(229,72,77,.12); }
@@ -147,7 +154,7 @@ button { font: inherit; }
   border-radius: var(--r); overflow: hidden; cursor: pointer; transition: border-color .14s, background .14s; }
 .card:hover, .card.sel { border-color: var(--line-strong); background: var(--elevated); }
 .card .accent { background: var(--critical); }
-.card .accent.high { background: var(--warning); } .card .accent.medium { background: rgba(245,166,35,.45); }
+.card .accent.high { background: var(--warning); } .card .accent.medium { background: rgba(224,169,59,.55); }
 .card .accent.low, .card .accent.info { background: var(--faint); }
 .card .body { padding: 13px 16px; min-width: 0; }
 .card .concl { font-size: var(--t-emph); font-weight: 560; line-height: 1.35; margin-bottom: 8px; }
@@ -250,15 +257,15 @@ textarea:focus, input.txt:focus { outline: none; border-color: var(--accent); }
 .pipe .stage:last-child { border-right: none; }
 .pipe .stage .nm { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
 .pipe .stage .mv { font-family: var(--mono); font-size: 18px; font-weight: 650; margin-top: 8px; }
-.pipe .stage .ds { font-size: 10.5px; color: var(--faint); margin-top: 3px; }
+.pipe .stage .ds { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .sensors { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 12px; }
 .sensor { padding: 14px 15px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
 .sensor .top { display: flex; align-items: center; gap: 9px; padding: 0; border: none; background: none; margin-bottom: 8px; }
 .sensor .nm { font-size: 13px; font-weight: 620; }
-.sensor .role { font-size: 11px; color: var(--faint); }
+.sensor .role { font-size: 11px; color: var(--muted); }
 .sensor .stat { display: flex; align-items: center; gap: 7px; font-size: 11px; margin-top: 10px; }
 .statdot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.statdot.active { background: var(--success); } .statdot.monitoring { background: var(--accent); }
+.statdot.active { background: var(--success); } .statdot.monitoring { background: var(--intel); }
 .statdot.idle { background: var(--faint); } .statdot.optional { background: var(--warning); }
 
 /* states */

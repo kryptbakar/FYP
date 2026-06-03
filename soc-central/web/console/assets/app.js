@@ -74,8 +74,14 @@ async function boot() {
   // model version (best-effort from a finding explanation)
   try { const rk = await API.ranking(); if (rk[0]) { const ex = await API.explain(rk[0].id); $('#model-ver').textContent = ((ex.ml_explanation || {}).model_version || '—').replace('xgb-', ''); } } catch {}
 
-  const start = (location.hash || '#triage').slice(1);
-  go(ROUTES[start] ? start : 'triage');
+  routeFromHash(true);
 }
-window.addEventListener('hashchange', () => { const r = location.hash.slice(1); if (ROUTES[r] && r !== current) go(r); });
+// Hash routing, incl. deep-link to a finding: #f/<id> opens its detail drawer.
+function routeFromHash(initial) {
+  const hash = location.hash.slice(1);
+  if (hash.startsWith('f/')) { if (current !== 'triage' || initial) go('triage'); openFinding(hash.slice(2)); return; }
+  if (ROUTES[hash]) { if (hash !== current || initial) go(hash); }
+  else if (initial) go('triage');
+}
+window.addEventListener('hashchange', () => routeFromHash(false));
 boot();
