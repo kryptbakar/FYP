@@ -66,3 +66,6 @@ tools/suricata/rules/*.rules
 !tools/sensors/data/zeek/conn.log
 !tools/sensors/data/zeek/dns.log
 !tools/sensors/data/falco/events.json
+
+# dev screenshots (Phase G/console review)
+shots/

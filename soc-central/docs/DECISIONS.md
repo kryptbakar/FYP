@@ -6,6 +6,22 @@ alternatives considered**.
 
 ---
 
+## D-049 — Console design language: CrowdStrike-Falcon-inspired graphite + crimson
+**Context:** the console needed a credible, recognizable enterprise-SOC look; candidates
+reviewed were Torq (purple automation/SOAR), DropZone AI (AI-analyst narrative), SOCByte
+(niche), and CrowdStrike Falcon. **Decision:** adopt a **CrowdStrike-Falcon-inspired**
+design language — graphite near-black canvas (`#0A0B0E`), a signature **crimson** accent
+(`#F5384A`) for brand/interactive/critical, and an orange/gold/teal/green semantic scale,
+on the existing token-driven, dependency-free design system (so it was a `:root` retune, not
+a rewrite). **Why:** Falcon is the enterprise-SOC archetype — most credible for a gov/
+air-gapped product and most recognizable to evaluators; Torq's purple reads SOAR-playful,
+DropZone's identity is an AI investigator (which we deliberately do **not** fake), SOCByte
+has no strong language to anchor to. Severity stays encoded by **shape + label** (not hue)
+for WCAG AA; the `--faint` token was raised after a screenshot review showed it failed AA on
+the dark canvas. **Verified:** headless-Chromium screenshots of all five views; zero
+non-same-origin assets. **Alternatives:** keep the navy/blue (Lattice/Gotham) look — fine but
+less identifiable as a SOC; Torq purple — off-archetype for a defensive SOC console.
+
 ## D-048 — Signed agent supply chain: cosign over a SHA-256 manifest, verified fail-closed on endpoints
 **Context:** the endpoint agent runs in hostile/remote places; a trojanized binary is a
 real threat (Phase 8 "signed agent binaries with tamper detection").

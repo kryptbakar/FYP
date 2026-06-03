@@ -4,10 +4,11 @@
 (nginx; reverse-proxies `/api` → FastAPI `:8000`, same-origin, no CORS — D-044/D-045).
 
 An **intelligence workspace**, not a dashboard: decision-centric, explainable,
-human-in-the-loop. Austere/premium dark surface; **color = meaning only**, severity is
-encoded by **shape + label** (never hue alone) for WCAG AA. Dependency-free — vanilla
-HTML/CSS/JS, all charts hand-built in inline SVG/CSS, **zero external/network assets**, so
-it runs fully air-gapped.
+human-in-the-loop. **CrowdStrike-Falcon-inspired** design language — graphite near-black
+canvas + signature crimson accent (D-049); **color = meaning only**, severity is encoded by
+**shape + label** (never hue alone) for WCAG AA. Dependency-free — vanilla HTML/CSS/JS, all
+charts hand-built in inline SVG/CSS, **zero external/network assets**, so it runs fully
+air-gapped. Deep-link a finding with `#f/<id>`.
 
 ## Run & verify
 ```bash

@@ -79,6 +79,13 @@ async function openFinding(id) {
   const [data, detail] = await Promise.all([API.explain(id), API.finding(id)]);
   // /explain.finding lacks asset_id/cve_id/cvss/epss/kev — /findings/{id} fills them in.
   const f = Object.assign({}, detail || {}, data.finding || {});
+  if (!f.id && !f.title) {
+    inner.innerHTML = '';
+    inner.append(h('div', { class: 'drawer-h' }, h('div', { style: 'font-size:15px;font-weight:600' }, 'Finding not found'),
+      h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })),
+      h('div', { class: 'drawer-b' }, h('div', { class: 'empty' }, `No finding #${id} — it may have been resolved or not yet scored.`)));
+    return;
+  }
   const ml = data.ml_explanation || {}, comp = data.composite_components || {}, con = data.consensus || f.consensus || { n_tools: 1, weight: 0, tools: [f.source_tool || 'agent'] };
   const c = band(f.risk_score);
   inner.innerHTML = '';
