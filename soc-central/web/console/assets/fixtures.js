@@ -206,6 +206,19 @@ const FIX = (() => {
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 
+    // Live hunt (Velociraptor) — fleet collection tasks + results.
+    hunts: [
+      { id: 1, name: 'Hunt: processes named "beacon"', artifact: 'processes', query: null, target: 'all', status: 'completed', created_by: 'hamza', created_at: new Date(Date.now() - 20 * 60000).toISOString(), result_count: 2 },
+      { id: 2, name: 'Listening ports across the fleet', artifact: 'listening_ports', query: null, target: 'all', status: 'collecting', created_by: 'amina', created_at: new Date(Date.now() - 4 * 60000).toISOString(), result_count: 1 },
+    ],
+    huntDetail: (id) => ({ id: +id, name: 'Hunt: processes named "beacon"', artifact: 'processes', query: null, target: 'all', status: 'completed', created_by: 'hamza',
+      results: [
+        { id: 1, agent_id: 'agent-001', asset_id: 'web-prod-03', row_count: 2, collected_at: new Date(Date.now() - 19 * 60000).toISOString(),
+          rows: [{ pid: 4488, ppid: 1, comm: 'beacon', cmdline: '/tmp/.x/beacon' }, { pid: 5012, ppid: 4488, comm: 'sh', cmdline: 'sh -i' }] },
+        { id: 2, agent_id: 'agent-002', asset_id: 'db-core-01', row_count: 0, collected_at: new Date(Date.now() - 18 * 60000).toISOString(), rows: [] },
+      ] }),
+    createHunt: (b) => ({ id: Date.now(), name: b.name, artifact: b.artifact, query: b.query || null, target: b.target || 'all', status: 'queued', simulated: true }),
+
     // Case work (TheHive) — tasks + observables per incident.
     tasks: (incId) => ([
       { id: 1, title: 'Validate the detection / rule out false positive', status: 'done', assignee: 'hamza' },

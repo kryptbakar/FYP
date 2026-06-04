@@ -1008,6 +1008,61 @@ async function viewPlaybooks(root) {
         : [h('tr', {}, h('td', { colspan: '7', class: 'faint', style: 'padding:18px;text-align:center' }, 'No runs yet.'))])))));
 }
 
+/* ---- 4.16 Live Hunt (Velociraptor fleet collection) ----------------- */
+async function viewLiveHunt(root) {
+  root.append(loading('Loading hunts…'));
+  const hunts = await API.hunts();
+  root.innerHTML = '';
+  const ARTIFACTS = [['processes', 'running processes'], ['listening_ports', 'listening ports'], ['file_search', 'file search (glob)'], ['osquery', 'osquery SQL']];
+  const name = h('input', { class: 'txt', placeholder: 'Hunt name…' });
+  const art = h('select', {}, ARTIFACTS.map(([v, l]) => h('option', { value: v }, l)));
+  const query = h('input', { class: 'txt', placeholder: 'query — osquery SQL / file glob (optional)' });
+  const target = h('input', { class: 'txt', value: 'all', style: 'max-width:190px' });
+  const run = h('button', { class: 'btn primary', onclick: async () => {
+    if (!name.value.trim()) { toast('Name the hunt', false); return; }
+    await API.createHunt({ name: name.value.trim(), artifact: art.value, query: query.value || null, target: target.value || 'all' });
+    toast('Hunt queued — agents collect on next poll', true); go('livehunt');
+  } }, 'Launch hunt');
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Launch a live hunt (read-only fleet collection)'),
+    h('div', { class: 'huntbar' }, name, art, query, target, run),
+    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Collection-only — never executes a destructive action. Agents poll, collect the artifact, and return rows.')));
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Hunts'), h('span', { class: 'sub' }, `· ${hunts.length}`)),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Hunt', 'Artifact', 'Target', 'Status', 'Results', 'When'].map(t => h('th', {}, t)))),
+      h('tbody', {}, hunts.length ? hunts.map(hu => h('tr', { tabindex: '0', onclick: () => openHunt(hu.id), onkeydown: e => { if (e.key === 'Enter') openHunt(hu.id); } },
+        h('td', {}, h('span', { class: 'mono' }, '#' + hu.id), ' ', hu.name),
+        h('td', {}, chip(hu.artifact, 'mono')),
+        h('td', { class: 'mono' }, hu.target),
+        h('td', {}, chip(hu.status, hu.status === 'completed' ? 'ok' : hu.status === 'collecting' ? 'warn' : '')),
+        h('td', { class: 'mono' }, String(hu.result_count ?? 0)),
+        h('td', { class: 'mono', style: 'font-size:11px' }, ago(hu.created_at))))
+        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:18px;text-align:center' }, 'No hunts yet — launch one above.'))])))));
+}
+async function openHunt(id) {
+  const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
+  inner.innerHTML = ''; inner.append(loading('Loading hunt…'));
+  const hu = await API.hunt(id);
+  inner.innerHTML = '';
+  inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, chip(hu.artifact || 'artifact', 'mono'), chip(hu.status || 'queued', hu.status === 'completed' ? 'ok' : 'warn')),
+    h('div', { style: 'font-size:17px;font-weight:600' }, hu.name || ('Hunt #' + id)),
+    h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `target ${hu.target || 'all'} · by ${hu.created_by || '—'}`)),
+    h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
+  const b = h('div', { class: 'drawer-b' }); inner.append(b);
+  const results = hu.results || [];
+  if (!results.length) { b.append(h('div', { class: 'empty' }, 'No results collected yet — agents return rows as they poll.')); return; }
+  results.forEach(r => {
+    const rows = r.rows || [];
+    const box = h('div', { class: 'block' }, h('div', { class: 'sec-label', style: 'margin-bottom:8px' }, eAsset(r.asset_id || r.agent_id), ` · ${r.row_count} rows · ${ago(r.collected_at)}`));
+    if (rows.length) {
+      const cols = [...new Set(rows.flatMap(x => Object.keys(x)))].slice(0, 6);
+      box.append(h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+        h('thead', {}, h('tr', {}, cols.map(c => h('th', {}, c)))),
+        h('tbody', {}, rows.slice(0, 50).map(x => h('tr', {}, cols.map(c => h('td', { class: 'mono', style: 'font-size:11px' }, String(x[c] ?? '')))))))));
+    } else box.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'no rows from this host'));
+    b.append(box);
+  });
+}
+
 /* ---- 4.14 Dashboards (embedded Grafana) ----------------------------- */
 async function viewDashboards(root) {
   root.innerHTML = '';

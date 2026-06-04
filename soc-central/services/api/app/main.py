@@ -19,6 +19,7 @@ from .routers import (
     compliance,
     findings,
     health,
+    hunts,
     identity,
     incidents,
     insights,
@@ -74,6 +75,7 @@ app.include_router(triage.router)
 app.include_router(casework.router)
 app.include_router(playbooks.router)
 app.include_router(intel.router)
+app.include_router(hunts.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")
