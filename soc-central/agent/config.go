@@ -58,6 +58,10 @@ type Config struct {
 	ServerPubKey    string // base64 raw Ed25519 public key the agent verifies against
 	ResponsePoll    time.Duration
 	QuarantineDir   string
+
+	// Live hunting (Velociraptor pattern): the read-only fleet-collection channel.
+	HuntEnabled bool
+	HuntPoll    time.Duration
 }
 
 func loadConfig() Config {
@@ -103,6 +107,9 @@ func loadConfig() Config {
 		ServerPubKey:    env("SERVER_PUBKEY", "/certs/command_signing.pub.b64"),
 		ResponsePoll:    envSec("RESPONSE_POLL_SEC", 10),
 		QuarantineDir:   env("QUARANTINE_DIR", "/quarantine"),
+
+		HuntEnabled: envBool("HUNT_ENABLED", false),
+		HuntPoll:    envSec("HUNT_POLL_SEC", 15),
 	}
 }
 

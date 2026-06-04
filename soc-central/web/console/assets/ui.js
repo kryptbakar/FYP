@@ -63,7 +63,8 @@ const PATHS = {
   manager: 'M4 20V10M10 20V4M16 20v-7M20 20V13M3 20h18',
   gear: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8',
   download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
-  dash: 'M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z' };
+  dash: 'M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z',
+  target: 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z' };
 const ic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${PATHS[k]}"/></svg>`;
 
 /* ---- atoms ----------------------------------------------------------- */

@@ -178,6 +178,30 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     created_at   timestamptz DEFAULT now()
 );
 
+-- Live hunting (Velociraptor pattern): an analyst defines a read-only artifact to collect
+-- across the fleet; agents poll, collect, and return rows. Collection-only (never executes
+-- destructive actions), so it needs no two-person gate — but is still agent-token auth'd.
+CREATE TABLE IF NOT EXISTS hunts (
+    id          bigserial PRIMARY KEY,
+    name        text NOT NULL,
+    artifact    text NOT NULL,            -- processes | listening_ports | file_search | osquery
+    query       text,                     -- osquery SQL, or a file glob, depending on artifact
+    target      text DEFAULT 'all',       -- 'all' or a specific agent/host id
+    status      text DEFAULT 'queued',    -- queued | collecting | completed
+    created_by  text,
+    created_at  timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS hunt_results (
+    id           bigserial PRIMARY KEY,
+    hunt_id      bigint REFERENCES hunts(id) ON DELETE CASCADE,
+    agent_id     text,
+    asset_id     text,
+    rows         jsonb,
+    row_count    int,
+    collected_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS hunt_results_hunt ON hunt_results (hunt_id);
+
 -- Seed three default playbooks (idempotent).
 INSERT INTO playbooks (id, name, description, trigger, actions) VALUES
   ('pb-critical-triage', 'Critical finding fast-triage',

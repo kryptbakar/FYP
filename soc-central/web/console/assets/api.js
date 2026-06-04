@@ -100,6 +100,10 @@ const API = {
   intelGraph: (fid) => API._get(`/findings/${fid}/intel-graph`, () => FIX.intelGraph(fid)),
   attribution: () => API._get('/intel/attribution', () => FIX.attribution),
   sightings: () => API._get('/intel/sightings', () => FIX.sightings),
+  // live hunt (Velociraptor)
+  hunts: () => API._get('/hunts', () => FIX.hunts),
+  hunt: (id) => API._get(`/hunts/${id}`, () => FIX.huntDetail(id)),
+  createHunt: (body) => API._post('/hunts', body, FIX.createHunt(body)),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),

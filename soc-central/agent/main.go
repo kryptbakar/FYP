@@ -71,6 +71,13 @@ func main() {
 		}
 	}
 
+	// Live-hunt channel (read-only fleet collection; Velociraptor pattern).
+	if cfg.HuntEnabled {
+		hunter := newHunter(cfg, log)
+		wg.Add(1)
+		go func() { defer wg.Done(); hunter.Run(ctx) }()
+	}
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
