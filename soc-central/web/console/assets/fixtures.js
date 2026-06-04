@@ -59,6 +59,7 @@ const FIX = (() => {
   const findingDetail = (id) => {
     const f = ranking.find(r => r.id === +id) || ranking[0];
     return { ...f, package_name: f.cve_id ? 'glibc' : null, raw_ref: f.source_tool === 'suricata' ? 'eve.json#alert.signature_id=2024897' : f.cve_id,
+      exploit_refs: f.exploit_available ? [{ source: 'exploit-db', ref: 'EDB-51884', type: 'exploit' }, { source: 'metasploit', ref: 'exploit/linux/local/glibc_tunables_priv_esc', type: 'metasploit' }] : [],
       evidence: { source_tool: f.source_tool, signal: f.domain === 'network' ? 'ET MALWARE Cobalt Strike Beacon Observed' : `${f.cve_id} matched package inventory`, observed_at: '2026-06-02T09:38:58Z', port: f.domain === 'network' ? 4444 : null } };
   };
 

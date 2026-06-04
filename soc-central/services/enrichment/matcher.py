@@ -33,6 +33,7 @@ class Match:
     kev: bool
     kev_due_date: Any | None
     extra: dict = field(default_factory=dict)
+    exploit_refs: list = field(default_factory=list)
 
 
 class Matcher:
@@ -40,6 +41,7 @@ class Matcher:
         self.by_product: dict[str, list[dict]] = {}
         self.epss: dict[str, dict] = {}
         self.kev: dict[str, dict] = {}
+        self.exploit: dict[str, list] = {}
         self.alias: dict[str, str] = {}
 
     @classmethod
@@ -67,11 +69,20 @@ class Matcher:
             cur.execute("SELECT cve_id, due_date FROM kev")
             for cve_id, due in cur.fetchall():
                 m.kev[cve_id] = {"due_date": due}
+            # exploit availability (Exploit-DB / Metasploit / PoC). Table may not exist on a
+            # cold stack (feed-sync not run yet) — degrade to "no exploit data" rather than fail.
+            try:
+                cur.execute("SELECT cve_id, source, ref, type, title FROM exploit_refs")
+                for cve_id, source, ref, typ, title in cur.fetchall():
+                    m.exploit.setdefault(cve_id, []).append(
+                        {"source": source, "ref": ref, "type": typ, "title": title})
+            except psycopg.errors.UndefinedTable:
+                conn.rollback()
             cur.execute("SELECT deb_name, product FROM pkg_product_alias")
             for deb, product in cur.fetchall():
                 m.alias[deb.lower()] = product.lower()
-        log.info("mirror loaded: products=%d epss=%d kev=%d aliases=%d",
-                 len(m.by_product), len(m.epss), len(m.kev), len(m.alias))
+        log.info("mirror loaded: products=%d epss=%d kev=%d exploit=%d aliases=%d",
+                 len(m.by_product), len(m.epss), len(m.kev), len(m.exploit), len(m.alias))
         return m
 
     def products_for(self, deb_name: str) -> set[str]:
@@ -105,6 +116,7 @@ class Matcher:
             epss_percentile=e.get("percentile"),
             kev=k is not None,
             kev_due_date=k["due_date"] if k else None,
+            exploit_refs=self.exploit.get(c["cve_id"], []),
         )
 
 

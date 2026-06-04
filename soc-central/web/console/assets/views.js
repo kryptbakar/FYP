@@ -189,6 +189,8 @@ async function openFinding(id) {
   if (f.attack) ctx.append(h('div', { class: 'k' }, 'ATT&CK'), h('div', {}, eCode(f.attack), ' · ', attackName(f.attack)));
   if (f.cvss_score) ctx.append(h('div', { class: 'k' }, 'CVSS'), h('div', { class: 'mono' }, n1(f.cvss_score)));
   if (f.epss) ctx.append(h('div', { class: 'k' }, 'EPSS'), h('div', {}, h('span', { class: 'mono' }, pct(f.epss)), ' exploitation probability'));
+  if (f.exploit_refs && f.exploit_refs.length) ctx.append(h('div', { class: 'k' }, 'Public exploit'),
+    h('div', { class: 'wrap' }, f.exploit_refs.slice(0, 4).map(r => chip(`${r.source}: ${r.ref}`, 'mono'))));
   if (f.threat_intel) { const ti = f.threat_intel; ctx.append(h('div', { class: 'k' }, 'MISP IOC'), h('div', {}, eNet(ti.indicator || 'indicator'), ti.type ? ` · ${ti.type}` : '', ti.confidence ? ` · confidence ${ti.confidence}` : '')); }
   if (ctx.children.length) b.append(block('ATT&CK & threat intel', ctx));
 

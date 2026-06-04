@@ -57,6 +57,19 @@ CREATE TABLE IF NOT EXISTS kev (
     notes              text
 );
 
+-- Exploit availability mirror (Exploit-DB / Metasploit / public PoC). Turns a CVE id into
+-- "is there a working exploit?" — a stronger prioritisation signal than CVSS alone, and the
+-- piece the Cve-Extractor reference contributes. One CVE can have several refs.
+CREATE TABLE IF NOT EXISTS exploit_refs (
+    cve_id  text NOT NULL,
+    source  text NOT NULL,            -- exploit-db | metasploit | github-poc | nuclei
+    ref     text NOT NULL,            -- EDB-id / msf module path / PoC URL
+    type    text,                     -- exploit | metasploit | poc
+    title   text,
+    PRIMARY KEY (cve_id, source, ref)
+);
+CREATE INDEX IF NOT EXISTS exploit_refs_cve ON exploit_refs (cve_id);
+
 -- Maps a distro package name (what osquery reports) to the upstream product
 -- name used in NVD CPEs (what CVEs are keyed on). The hard part of CVE matching.
 CREATE TABLE IF NOT EXISTS pkg_product_alias (
@@ -157,6 +170,22 @@ def upsert_kev(conn: psycopg.Connection, rows: list[dict[str, Any]]) -> int:
             ON CONFLICT (cve_id) DO UPDATE SET
                 name = EXCLUDED.name, due_date = EXCLUDED.due_date,
                 known_ransomware = EXCLUDED.known_ransomware, notes = EXCLUDED.notes
+            """,
+            rows,
+        )
+    return len(rows)
+
+
+def upsert_exploit_refs(conn: psycopg.Connection, rows: list[dict[str, Any]]) -> int:
+    if not rows:
+        return 0
+    with conn.cursor() as cur:
+        cur.executemany(
+            """
+            INSERT INTO exploit_refs (cve_id, source, ref, type, title)
+            VALUES (%(cve_id)s, %(source)s, %(ref)s, %(type)s, %(title)s)
+            ON CONFLICT (cve_id, source, ref) DO UPDATE SET
+                type = EXCLUDED.type, title = EXCLUDED.title
             """,
             rows,
         )
