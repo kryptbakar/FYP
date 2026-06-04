@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Query
+from pydantic import BaseModel, Field
 
 from .. import db
 
@@ -17,8 +18,49 @@ router = APIRouter(tags=["assessment"])
 @router.get("/assets", summary="List monitored assets")
 async def list_assets() -> list[dict]:
     return await db.fetch(
-        "SELECT host_id, hostname, os, ip, first_seen, last_seen FROM assets ORDER BY last_seen DESC NULLS LAST"
+        "SELECT host_id, hostname, os, ip, criticality, first_seen, last_seen "
+        "FROM assets ORDER BY last_seen DESC NULLS LAST"
     )
+
+
+@router.get("/assets/{host_id}", summary="Asset detail + its findings & compliance rollup")
+async def get_asset(host_id: str) -> dict:
+    """The host hub: asset metadata plus a rollup of its findings (by severity) and
+    compliance posture, so the console can render a single host page."""
+    asset = await db.fetch_one(
+        "SELECT host_id, hostname, os, ip, criticality, first_seen, last_seen "
+        "FROM assets WHERE host_id = %(id)s",
+        {"id": host_id},
+    )
+    if not asset:
+        return {}
+    findings = await db.fetch(
+        "SELECT id, domain, title, severity, cve_id, source_tool, risk_score, kev, attack "
+        "FROM findings WHERE asset_id = %(id)s ORDER BY risk_score DESC NULLS LAST LIMIT 100",
+        {"id": host_id},
+    )
+    compliance = await db.fetch(
+        "SELECT rule_id, benchmark, title, status FROM compliance_results "
+        "WHERE asset_id = %(id)s ORDER BY (status='fail') DESC, rule_id LIMIT 100",
+        {"id": host_id},
+    )
+    return {"asset": asset, "findings": findings, "compliance": compliance}
+
+
+class AssetPatch(BaseModel):
+    criticality: float = Field(ge=0.0, le=1.0)
+
+
+@router.patch("/assets/{host_id}", summary="Update asset business criticality (drives risk scoring)")
+async def patch_asset(host_id: str, body: AssetPatch) -> dict:
+    """Lets the customer tune the platform to their business: criticality feeds the
+    composite risk score (the next scoring run picks it up)."""
+    row = await db.execute(
+        "UPDATE assets SET criticality = %(c)s WHERE host_id = %(id)s "
+        "RETURNING host_id, hostname, criticality",
+        {"c": body.criticality, "id": host_id},
+    )
+    return row or {}
 
 
 @router.get("/findings", summary="List findings (filterable)")

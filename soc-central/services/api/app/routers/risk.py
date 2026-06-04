@@ -82,3 +82,63 @@ async def list_feedback(finding_id: int) -> list[dict]:
         "FROM analyst_feedback WHERE finding_id = %(id)s ORDER BY created_at DESC",
         {"id": finding_id},
     )
+
+
+# The composite weights are the *primary, defensible* signal (ml/scoring.py). They sum to 1.0.
+# The ML layer is a feedback-adaptive re-ranker over these same factors — surfaced here, with
+# its training provenance and limitations stated openly, so the model is a glass box not a
+# black box (see the Model view in the console).
+COMPOSITE_WEIGHTS = {
+    "cvss": 0.18, "epss": 0.16, "kev": 0.15, "exposure": 0.12, "threat_intel": 0.10,
+    "consensus": 0.09, "attack_ctx": 0.07, "compliance_impact": 0.05, "age": 0.04, "criticality": 0.04,
+}
+
+
+@router.get("/risk/model/metadata", summary="Model card: version, scope, training provenance, limitations")
+async def model_metadata() -> dict:
+    """Transparency endpoint for the risk model. Reports the version actually in use,
+    the volume of findings scored and analyst labels captured, the composite weights
+    (the primary signal), and an explicit statement of how the ML layer is trained and
+    where its current limitations lie. Everything is derived from the live DB."""
+    ver = await db.fetch_one(
+        "SELECT model_version FROM finding_explanations WHERE model_version IS NOT NULL "
+        "ORDER BY created_at DESC NULLS LAST LIMIT 1"
+    )
+    scored = await db.fetch_one("SELECT count(*) AS n FROM findings WHERE ml_risk_score IS NOT NULL")
+    composite = await db.fetch_one("SELECT count(*) AS n FROM findings WHERE risk_score IS NOT NULL")
+    fb = await db.fetch_one("SELECT count(*) AS n FROM analyst_feedback")
+    fb_actions = await db.fetch(
+        "SELECT action, count(*) AS n FROM analyst_feedback GROUP BY action ORDER BY n DESC"
+    )
+    n_feedback = (fb or {}).get("n", 0)
+    return {
+        "model_version": (ver or {}).get("model_version") or "untrained",
+        "algorithm": "XGBoost regressor (gradient-boosted trees)",
+        "explainer": "TreeSHAP (exact per-feature attribution) + counterfactuals",
+        "primary_signal": "composite weighted score (sums to 1.0)",
+        "composite_weights": COMPOSITE_WEIGHTS,
+        "features": list(COMPOSITE_WEIGHTS.keys()) + ["attack_phase"],
+        "scope": {
+            "findings_scored_by_ml": (scored or {}).get("n", 0),
+            "findings_scored_by_composite": (composite or {}).get("n", 0),
+            "analyst_labels_captured": n_feedback,
+            "feedback_by_action": fb_actions,
+        },
+        "training": {
+            "label_source": "composite priority score, plus analyst feedback weighted 5x",
+            "bootstrap": "synthetic dataset until field labels accumulate",
+            "retrain_cadence": "monthly (CronJob) and on demand",
+        },
+        "limitations": [
+            "Bootstrapped on synthetic data, so until enough analyst labels and real outcomes "
+            "accumulate the ML score largely reproduces the composite formula — it is a "
+            "re-ranker, not an independent oracle.",
+            "Real-outcome labels (exploited / patched / dismissed) are the path to the model "
+            "learning signal the formula does not already encode.",
+        ],
+        "honest_status": (
+            "feedback-adaptive re-ranker"
+            if n_feedback > 0 else
+            "tracking the composite score (no analyst labels yet)"
+        ),
+    }

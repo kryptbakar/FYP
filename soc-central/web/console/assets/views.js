@@ -5,7 +5,7 @@
    ===================================================================== */
 'use strict';
 
-const STATE = { ranking: [], assets: {}, filters: { domain: '', severity: '', tool: '', kev: false }, q: '' };
+const STATE = { ranking: [], assets: {}, filters: { domain: '', severity: '', tool: '', kev: false, sort: 'risk' }, q: '', selected: new Set() };
 
 function assetMeta(id) { return STATE.assets[id] || { hostname: id }; }
 function exposureOf(id) { const a = assetMeta(id); return a.exposure || null; }
@@ -17,30 +17,69 @@ async function viewTriage(root) {
   STATE.ranking = ranking; STATE.assets = {}; (assets || []).forEach(a => STATE.assets[a.host_id] = a);
   root.innerHTML = '';
 
+  STATE.selected = new Set();
   const tools = [...new Set(ranking.map(f => f.source_tool || 'agent'))].sort();
+  const SEVRANK = { CRITICAL: 4, HIGH: 3, MEDIUM: 2, LOW: 1, INFO: 0 };
   const bar = h('div', { class: 'panel-h' },
     h('h2', {}, 'Decision queue'), h('span', { class: 'sub' }, '· ranked by composite risk'), h('span', { class: 'spring' }),
     h('div', { class: 'filters', id: 'filters' },
+      sortSel(),
       sel('domain', ['', 'application', 'system', 'network'], STATE.filters.domain, 'domain'),
       sel('severity', ['', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], STATE.filters.severity, 'severity'),
       sel('tool', ['', ...tools], STATE.filters.tool, 'source_tool'),
       toggleBtn('KEV only', STATE.filters.kev, () => { STATE.filters.kev = !STATE.filters.kev; renderCards(); })));
+  const bulk = h('div', { class: 'bulkbar', id: 'bulkbar', hidden: true });
   const list = h('div', { class: 'cards', id: 'cards' });
-  root.append(h('div', { class: 'panel fade' }, bar, h('div', { style: 'padding:14px 16px' }, list)));
+  root.append(h('div', { class: 'panel fade' }, bar, bulk, h('div', { style: 'padding:14px 16px' }, list)));
   renderCards();
 
-  function renderCards() {
-    $$('.toggle', bar).forEach(t => t.classList.toggle('on', t.textContent === 'KEV only' && STATE.filters.kev));
+  function filteredRows() {
     const f = STATE.filters, q = STATE.q.toLowerCase();
-    const rows = STATE.ranking.filter(r =>
+    let rows = STATE.ranking.filter(r =>
       (!f.domain || r.domain === f.domain) &&
       (!f.severity || (r.severity || '').toUpperCase() === f.severity) &&
       (!f.tool || (r.source_tool || 'agent') === f.tool) &&
       (!f.kev || r.kev) &&
       (!q || `${r.title} ${r.asset_id} ${r.cve_id || ''} ${r.attack || ''}`.toLowerCase().includes(q)));
+    const s = f.sort || 'risk';
+    rows = rows.slice().sort((a, b) =>
+      s === 'cvss' ? (+b.cvss_score || 0) - (+a.cvss_score || 0) :
+      s === 'epss' ? (+b.epss || 0) - (+a.epss || 0) :
+      s === 'asset' ? String(a.asset_id).localeCompare(String(b.asset_id)) :
+      s === 'severity' ? (SEVRANK[(b.severity || '').toUpperCase()] || 0) - (SEVRANK[(a.severity || '').toUpperCase()] || 0) :
+      (+b.risk_score || 0) - (+a.risk_score || 0));
+    return rows;
+  }
+  function renderCards() {
+    $$('.toggle', bar).forEach(t => t.classList.toggle('on', t.textContent === 'KEV only' && STATE.filters.kev));
+    const rows = filteredRows();
     list.innerHTML = '';
-    if (!rows.length) { list.append(h('div', { class: 'empty' }, 'No findings match the current filters.')); return; }
+    if (!rows.length) { list.append(h('div', { class: 'empty' }, 'No findings match the current filters.')); renderBulk(); return; }
     rows.forEach(r => list.append(decisionCard(r)));
+    renderBulk();
+  }
+  function renderBulk() {
+    const n = STATE.selected.size;
+    bulk.hidden = n === 0;
+    if (!n) return;
+    bulk.innerHTML = '';
+    bulk.append(h('span', { class: 'bk-n' }, `${n} selected`),
+      h('span', { class: 'spring', style: 'flex:1' }),
+      h('button', { class: 'btn sm', onclick: () => bulkAct('escalate') }, 'Escalate'),
+      h('button', { class: 'btn sm', onclick: () => bulkAct('confirm_tp') }, 'Confirm TP'),
+      h('button', { class: 'btn sm', onclick: () => bulkAct('mark_fp') }, 'Dismiss (FP)'),
+      h('button', { class: 'btn sm', onclick: () => { STATE.selected.clear(); renderCards(); } }, 'Clear'));
+  }
+  async function bulkAct(action) {
+    const ids = [...STATE.selected];
+    for (const id of ids) { try { await API.feedback(id, { analyst: 'analyst', action, comment: 'bulk action' }); } catch {} }
+    toast(`${ids.length} finding(s) — ${action.replace('_', ' ')} submitted`, true);
+    STATE.selected.clear(); renderCards();
+  }
+  function sortSel() {
+    return h('select', { onchange: e => { STATE.filters.sort = e.target.value; renderCards(); } },
+      [['risk', 'sort: risk'], ['severity', 'sort: severity'], ['cvss', 'sort: CVSS'], ['epss', 'sort: EPSS'], ['asset', 'sort: asset']]
+        .map(([v, l]) => h('option', { value: v, selected: (STATE.filters.sort || 'risk') === v ? 'selected' : null }, l)));
   }
   function sel(id, opts, val, label) {
     const s = h('select', { onchange: e => { STATE.filters[id] = e.target.value; renderCards(); } },
@@ -48,6 +87,12 @@ async function viewTriage(root) {
     return s;
   }
   window._renderCards = renderCards;
+  window._renderBulk = renderBulk;
+}
+function selCheck(r) {
+  return h('input', { type: 'checkbox', class: 'cbx', title: 'select', checked: STATE.selected.has(r.id) ? 'checked' : null,
+    onclick: e => e.stopPropagation(),
+    onchange: e => { if (e.target.checked) STATE.selected.add(r.id); else STATE.selected.delete(r.id); if (window._renderBulk) window._renderBulk(); } });
 }
 function toggleBtn(label, on, onclick) { return h('span', { class: 'toggle' + (on ? ' on' : ''), onclick }, label); }
 
@@ -65,7 +110,7 @@ function decisionCard(r) {
     r.threat_intel ? chip('Live IOC', 'intel') : null);
   return h('div', { class: 'card', tabindex: '0', onclick: () => openFinding(r.id),
     onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
-    h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, severity(r.severity)),
+    h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, selCheck(r), severity(r.severity)),
       h('div', { class: 'concl' }, r.title), meta),
     h('div', { class: 'scorebox' }, h('div', { class: 'v ' + c }, n0(r.risk_score)), h('div', { class: 'lb' }, 'risk')));
 }
@@ -102,7 +147,8 @@ async function openFinding(id) {
   // big score
   b.append(h('div', { class: 'hero' }, h('div', { class: 'big ' + c }, n0(f.risk_score)), h('div', { class: 'of' }, '/ 100 composite'),
     h('span', { style: 'flex:1' }), h('div', { style: 'text-align:right' },
-      h('div', { class: 'mono', style: 'font-size:15px' }, n1(f.ml_risk_score)), h('div', { class: 'faint', style: 'font-size:10px' }, 'XGBoost ML'))));
+      h('div', { class: 'mono', style: 'font-size:15px' }, n1(f.ml_risk_score)),
+      h('div', { class: 'linklike', style: 'font-size:10px', title: 'open the model card', onclick: () => go('model') }, 'XGBoost re-ranker ›'))));
 
   // stat chips
   b.append(statChips(f, con));
@@ -111,7 +157,11 @@ async function openFinding(id) {
   b.append(findingSummary(f, con));
 
   // two columns: score factors (with expandable full waterfall) | consensus
-  const left = h('div', {}, h('div', { class: 'sec-label', style: 'margin-bottom:11px' }, 'Score factors (SHAP)'));
+  const left = h('div', {},
+    h('div', { class: 'sec-label', style: 'margin-bottom:4px' }, 'Score factors (SHAP)'),
+    h('div', { class: 'faint', style: 'font-size:10.5px;margin-bottom:11px' },
+      'Composite weights are the primary signal; the ML layer re-ranks. ',
+      h('span', { class: 'linklike', onclick: () => go('model') }, 'Model card ›')));
   if (ml.shap) {
     left.append(scoreFactorBars(ml.shap));
     if (Array.isArray(ml.waterfall) && ml.waterfall.length)
@@ -202,7 +252,11 @@ function compTable(results) {
       h('td', {}, statusChip(r.status)),
       h('td', { class: 'mono' }, r.asset_id),
       h('td', {}, h('span', { class: 'faint mono', style: 'font-size:10.5px' }, 'hash-linked'))))));
-  return h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'CIS controls'), h('span', { class: 'sub' }, `· ${(results || []).length} evaluated`)),
+  return h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'CIS controls'), h('span', { class: 'sub' }, `· ${(results || []).length} evaluated`),
+    h('span', { class: 'spring', style: 'flex:1' }),
+    pdfBtn('PDF'),
+    csvBtn('CSV', 'soc-compliance.csv', () => [['control', 'title', 'status', 'host'],
+      ...(results || []).map(r => [r.rule_id, r.title || '', r.status, r.asset_id])])),
     h('div', { style: 'overflow-x:auto' }, tbl));
 }
 const statusChip = (s) => s === 'pass' ? chip('pass', 'ok') : s === 'fail' ? chip('fail', 'kev') : s === 'partial' ? chip('partial', 'warn') : chip(s || 'n/a');
@@ -242,18 +296,62 @@ function kanbanCard(i, actions) {
 function openIncident(inc, actions) {
   const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
   const acts = (actions || []).filter(a => a.incident_id === inc.id);
+  const evidence = (STATE.ranking || []).filter(r => r.asset_id === inc.asset_id);
   inner.innerHTML = '';
   inner.append(h('div', { class: 'drawer-h' },
-    h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, severity(inc.severity), chip(inc.status, 'warn')),
+    h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, severity(inc.severity), chip(inc.status, 'warn'),
+      inc.asset_id ? eAsset(assetMeta(inc.asset_id).hostname || inc.asset_id) : null),
       h('div', { style: 'font-size:17px;font-weight:600' }, inc.title),
       h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `case #${inc.id} · owner ${inc.assignee || inc.created_by || '—'} · opened ${ago(inc.created_at)}`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
-  b.append(block('SLA', h('div', { class: 'row' }, inc.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok'), h('span', { class: 'faint mono', style: 'font-size:11px' }, 'due ' + (inc.sla_due || '—')))));
-  b.append(block('Audit timeline (hash-chained)', acts.length ? h('div', {}, acts.map(a =>
+
+  b.append(block('SLA', h('div', { class: 'row' }, inc.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok'),
+    h('span', { class: 'faint mono', style: 'font-size:11px' }, 'due ' + (inc.sla_due || '—')))));
+
+  // attack chain (kill-chain order over the linked findings' ATT&CK techniques)
+  const chain = killChain(evidence);
+  if (chain) b.append(block('Attack chain (MITRE ATT&CK)', chain));
+
+  // linked evidence
+  b.append(block(`Linked evidence (${evidence.length})`, evidence.length
+    ? h('div', {}, evidence.map(r => h('div', { class: 'evrow', tabindex: '0', onclick: () => openFinding(r.id), onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
+        h('span', { class: 'sc ' + band(r.risk_score) }, n0(r.risk_score)),
+        h('span', { style: 'flex:1;min-width:0' }, r.title),
+        r.cve_id ? eCode(r.cve_id) : null, r.attack ? chip(r.attack, 'attack') : null)))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings linked to this case yet.')));
+
+  b.append(block('Response & audit timeline (hash-chained)', acts.length ? h('div', {}, acts.map(a =>
     h('div', { class: 'cf' }, h('span', {}, h('span', { class: 'mono' }, a.action), ` → ${a.target || ''}`),
-      h('span', { class: 'chip ' + (a.status && a.status.includes('contain') ? 'ok' : 'warn') }, a.status || 'proposed'))))
+      h('span', { class: 'chip ' + (a.status && (a.status.includes('contain') || a.status.includes('complet')) ? 'ok' : 'warn') }, a.status || 'proposed'))))
     : h('div', { class: 'faint', style: 'font-size:12px' }, 'No actions recorded for this case.')));
+}
+
+/* Kill-chain ordering of ATT&CK techniques present in a finding set. */
+const KILLCHAIN = [
+  ['Initial access', ['T1190', 'T1133', 'T1566', 'T1078']],
+  ['Execution', ['T1059', 'T1203', 'T1204']],
+  ['Privilege escalation', ['T1068', 'T1548']],
+  ['Defense evasion', ['T1562', 'T1070']],
+  ['Command & control', ['T1071', 'T1071.001', 'T1090', 'T1571']],
+  ['Exfiltration', ['T1041', 'T1048']],
+  ['Impact', ['T1486']],
+];
+function killChain(findings) {
+  const present = new Set((findings || []).map(f => f.attack).filter(Boolean));
+  if (!present.size) return null;
+  const phases = KILLCHAIN.map(([name, techs]) => {
+    const hit = techs.filter(t => present.has(t) || present.has(String(t).split('.')[0]));
+    return { name, hit };
+  }).filter(p => p.hit.length);
+  if (!phases.length) return null;
+  const row = h('div', { class: 'killchain' });
+  phases.forEach((p, i) => {
+    row.append(h('div', { class: 'kphase' }, h('div', { class: 'pn' }, p.name),
+      h('div', { class: 'pt' }, p.hit.map(t => chip(t, 'attack')))));
+    if (i < phases.length - 1) row.append(h('div', { class: 'karr', html: ic('chevron') }));
+  });
+  return row;
 }
 
 /* ---- 4.5 Sensors & Fusion ------------------------------------------- */
@@ -304,4 +402,474 @@ function sensorsGrid(byTool) {
         h('span', { style: 'flex:1' }), h('span', { class: 'mono faint' }, cnt ? `${cnt} findings` : '')),
       h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:7px' }, t.env));
   }));
+}
+
+/* ---- 4.6 Overview (executive landing — the default route) ------------ */
+async function viewOverview(root) {
+  root.append(loading('Loading security posture…'));
+  const [ranking, stats, comp, incidents, chain, recent] = await Promise.all([
+    API.ranking(), API.stats(), API.compSummary(), API.incidents(), API.chain(), API.recent(30)]);
+  STATE.ranking = ranking;
+  const assets = await API.assets(); STATE.assets = {}; (assets || []).forEach(a => STATE.assets[a.host_id] = a);
+  root.innerHTML = '';
+
+  const bands = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  ranking.forEach(r => bands[band(r.risk_score)]++);
+  const kev = stats.kev_findings ?? ranking.filter(r => r.kev).length;
+  const openInc = incidents.filter(i => !/resolved|closed|remediated/i.test(i.status || '')).length;
+  const breaches = incidents.filter(i => i.sla_breached).length;
+  const by = {}; (comp.by_status || []).forEach(s => by[s.status] = s.count);
+  const graded = (by.pass || 0) + (by.fail || 0) + (by.partial || 0) || 1;
+  const cis = Math.round(((by.pass || 0) / graded) * 100);
+  const techniques = [...new Set(ranking.map(r => r.attack).filter(Boolean))];
+
+  root.append(h('div', { class: 'kpis fade' },
+    kpiCard('Critical exposure', String(bands.critical), `${bands.high} high · ${ranking.length} ranked`, bands.critical ? 'crit' : 'ok'),
+    kpiCard('Known-exploited (KEV)', String(kev), 'CISA KEV-listed findings', kev ? 'warn' : 'ok'),
+    kpiCard('Active incidents', String(openInc), breaches ? `${breaches} SLA breached` : 'all within SLA', breaches ? 'crit' : 'ok'),
+    kpiCard('CIS posture', cis + '%', `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok')));
+
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Risk distribution'),
+    riskBandBar(bands, ranking.length)));
+
+  const topRisks = h('div', { class: 'panel' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Top risks now'), h('span', { class: 'sub' }, '· click to investigate'),
+      h('span', { class: 'spring', style: 'flex:1' }),
+      pdfBtn('PDF'),
+      csvBtn('CSV', 'soc-top-risks.csv', () => [['rank', 'score', 'severity', 'asset', 'cve', 'title', 'attack'],
+        ...ranking.map((r, i) => [i + 1, r.risk_score, r.severity, assetMeta(r.asset_id).hostname || r.asset_id, r.cve_id || '', r.title, r.attack || ''])])),
+    h('div', {}, ranking.slice(0, 6).map(r => overviewRiskRow(r))));
+  const side = h('div', { class: 'stack' },
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'ATT&CK coverage'),
+      h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(`${t} · ${attackName(t)}`, 'attack'))
+        : h('span', { class: 'faint', style: 'font-size:12px' }, 'No techniques mapped yet.'))),
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'Evidence integrity'),
+      h('div', { class: 'row' }, chip(chain.ok ? 'chain intact ✓' : 'chain check', chain.ok ? 'ok' : 'kev'),
+        h('span', { class: 'faint mono', style: 'font-size:10.5px' }, `${chain.length ?? 0} records`))));
+  root.append(h('div', { class: 'cols2 fade', style: 'align-items:start' }, topRisks, side));
+
+  const feed = h('div', {});
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'sec-label' }, 'Live detections'),
+      h('span', { class: 'spring', style: 'flex:1' }), h('span', { class: 'live-dot' }),
+      h('span', { class: 'faint', style: 'font-size:11px' }, 'near-real-time · polling')),
+    feed));
+  const seen = new Set();
+  const paint = (items) => { feed.innerHTML = ''; (items || []).slice(0, 12).forEach(d => feed.append(detectionRow(d, seen))); };
+  paint(recent);
+  const t = setInterval(async () => { try { paint(await API.recent(30)); } catch {} }, 6000);
+  window._viewCleanup = () => clearInterval(t);
+}
+function kpiCard(label, value, sub, tone) {
+  return h('div', { class: 'kpi ' + (tone || '') },
+    h('div', { class: 'lb' }, label), h('div', { class: 'vv' }, value), h('div', { class: 'sb' }, sub));
+}
+function riskBandBar(bands, total) {
+  const order = ['critical', 'high', 'medium', 'low', 'info'];
+  const t = total || order.reduce((a, k) => a + bands[k], 0) || 1;
+  const bar = h('div', { class: 'rbar' }, order.filter(k => bands[k]).map(k =>
+    h('div', { class: 'seg ' + k, style: `width:${(bands[k] / t) * 100}%`, title: `${SEVLABEL[k]}: ${bands[k]}` })));
+  const legend = h('div', { class: 'rlegend' }, order.map(k =>
+    h('span', {}, h('i', { class: 'ldot ' + k }), `${SEVLABEL[k]} `, h('b', { class: 'mono' }, String(bands[k])))));
+  return h('div', {}, bar, legend);
+}
+function overviewRiskRow(r) {
+  const c = band(r.risk_score);
+  return h('div', { class: 'orow', tabindex: '0', onclick: () => openFinding(r.id), onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
+    h('div', { class: 'sc ' + c }, n0(r.risk_score)),
+    h('div', { style: 'min-width:0;flex:1' }, h('div', { class: 'tt' }, r.title),
+      h('div', { class: 'wrap', style: 'margin-top:5px' }, severity(r.severity), eAsset(assetMeta(r.asset_id).hostname || r.asset_id),
+        r.cve_id ? eCode(r.cve_id) : null, r.kev ? chip('KEV', 'kev') : null, consensusChip(r.consensus))));
+}
+function detectionRow(d, seen) {
+  const isNew = seen && !seen.has(d.id); if (seen) seen.add(d.id);
+  const c = band(d.risk_score);
+  return h('div', { class: 'drow' + (isNew ? ' new' : ''), tabindex: '0', onclick: () => openFinding(d.id), onkeydown: e => { if (e.key === 'Enter') openFinding(d.id); } },
+    h('span', { class: 'tm mono' }, ago(d.observed_at)),
+    h('span', { class: 'tl mono' }, d.source_tool || 'agent'),
+    severity(d.severity),
+    h('span', { class: 'tx' }, d.title),
+    h('span', { class: 'sc ' + c }, n0(d.risk_score)));
+}
+
+/* ---- 4.7 Hunt (full-text search over raw telemetry) ------------------ */
+async function viewHunt(root) {
+  root.innerHTML = '';
+  const KINDS = ['', 'ids_alert', 'network_flow', 'fim_event', 'runtime_alert', 'traffic_metadata', 'osquery_result', 'scan_finding'];
+  let kind = '', minutes = 1440;
+  const input = h('input', { class: 'txt', placeholder: 'Lucene query — e.g. payload.dest_port:4444 or "Cobalt Strike"  ·  blank = all', onkeydown: e => { if (e.key === 'Enter') run(); } });
+  const kindSel = h('select', { onchange: e => { kind = e.target.value; run(); } }, KINDS.map(k => h('option', { value: k }, k || 'all kinds')));
+  const timeSel = h('select', { onchange: e => { minutes = +e.target.value; run(); } },
+    [['60', 'last hour'], ['1440', 'last 24h'], ['10080', 'last 7d'], ['43200', 'last 30d']].map(([v, l]) => h('option', { value: v, selected: v === '1440' ? 'selected' : null }, l)));
+  const results = h('div', { class: 'stack', style: 'gap:8px' });
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Search raw telemetry (OpenSearch)'),
+    h('div', { class: 'huntbar' }, input, kindSel, timeSel, h('button', { class: 'btn primary', onclick: () => run() }, 'Search'))),
+    h('div', { class: 'panel', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Results'),
+      h('span', { class: 'sub', id: 'huntcount' }, '')), h('div', { style: 'padding:8px 14px 14px' }, results)));
+  run();
+  async function run() {
+    results.innerHTML = ''; results.append(loading('Searching…'));
+    const r = await API.logs(input.value.trim(), kind, minutes);
+    results.innerHTML = '';
+    const cnt = $('#huntcount'); if (cnt) cnt.textContent = r.available === false ? '· OpenSearch unavailable (showing none)' : `· ${r.total} event(s)`;
+    if (!r.hits || !r.hits.length) { results.append(h('div', { class: 'empty' }, 'No events match this query.')); return; }
+    r.hits.forEach(hit => results.append(logRow(hit)));
+  }
+}
+function logRow(hit) {
+  const box = h('div', { class: 'prov' });
+  const body = h('div', { class: 'prov-b' }, h('pre', {}, JSON.stringify(hit.payload || {}, null, 2)));
+  const head = h('div', { class: 'prov-h', onclick: () => box.classList.toggle('open') },
+    h('span', { html: ic('chevron'), style: 'width:13px;height:13px;color:var(--faint)' }),
+    h('span', { class: 'mono faint', style: 'font-size:10.5px;min-width:64px' }, ago(hit.ingested_at)),
+    chip(hit.kind || 'event', 'tool'),
+    hit.hostname ? eAsset(hit.hostname) : null,
+    h('span', { class: 'logline' }, logLine(hit)));
+  box.append(head, body); return box;
+}
+function logLine(hit) {
+  const p = hit.payload || {};
+  if (hit.kind === 'ids_alert') return `${p.signature || 'alert'} — ${p.src_ip || ''}→${p.dest_ip || ''}:${p.dest_port || ''}`;
+  if (hit.kind === 'network_flow') return `${p.direction || ''} ${p.local_ip || ''}:${p.local_port || ''} → ${p.remote_ip || ''}:${p.remote_port || ''}`;
+  if (hit.kind === 'fim_event') return `${p.change || ''} ${p.path || ''}`;
+  if (hit.kind === 'runtime_alert') return `${p.rule || ''} ${p.proc || ''}`;
+  if (hit.kind === 'traffic_metadata') return `${p.service || ''} ${p['ssl.server_name'] || p['id.resp_h'] || ''}`;
+  if (hit.kind === 'scan_finding') return `${p.check || p.policy || ''} — ${p.result || ''}`;
+  return JSON.stringify(p).slice(0, 140);
+}
+
+/* ---- 4.8 Trust Center (audit integrity + air-gap assurance) ---------- */
+async function viewTrust(root) {
+  root.append(loading('Loading trust & audit state…'));
+  const [resp, comp, events, actions, access] = await Promise.all([API.auditVerify(), API.chain(), API.auditEvents(40), API.actions(), API.accessAudit(50)]);
+  root.innerHTML = '';
+
+  root.append(h('div', { class: 'kpis fade' },
+    integrityCard('Response audit chain', resp),
+    integrityCard('Compliance evidence chain', comp),
+    kpiCard('Air-gap egress', 'sealed', 'only feed-sync may reach the internet', 'ok')));
+
+  const EGRESS = [
+    ['feed-sync', 'NVD · EPSS · KEV mirror', 'allowed (sole egress)', true],
+    ['api', 'analyst & integration traffic', 'denied', false],
+    ['workers', 'enrichment & fan-out', 'denied', false],
+    ['ingest-edge', 'agent mTLS ingest', 'denied', false],
+    ['console', 'analyst UI', 'denied', false],
+    ['opensearch · postgres · nats', 'data plane', 'denied', false],
+  ];
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Air-gap egress matrix'), h('span', { class: 'sub' }, '· default-deny; enforced by K3s NetworkPolicy / verify-egress')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Service', 'Role', 'Outbound', ''].map(t => h('th', {}, t)))),
+      h('tbody', {}, EGRESS.map(([s, role, state, eg]) => h('tr', {},
+        h('td', { class: 'mono' }, s), h('td', {}, role), h('td', {}, chip(state, eg ? 'warn' : 'ok')),
+        h('td', {}, eg ? chip('egress', 'warn') : chip('contained', 'ok')))))))));
+
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'sec-label', style: 'margin-bottom:14px' }, 'Response-action audit timeline (hash-chained)'),
+    events.length ? h('div', { class: 'timeline' }, events.map(e => auditEventRow(e, actions)))
+      : h('div', { class: 'empty' }, 'No response actions recorded.')));
+
+  // access audit — who viewed/changed what
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Access audit'), h('span', { class: 'sub' }, '· who viewed or changed what'),
+      h('span', { class: 'spring', style: 'flex:1' }),
+      csvBtn('Export', 'soc-access-audit.csv', () => [['time', 'actor', 'role', 'tenant', 'method', 'path', 'status'],
+        ...(access || []).map(a => [a.created_at, a.actor, a.role || '', a.tenant || '', a.method, a.path, a.status])])),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Time', 'Actor', 'Role', 'Method', 'Path', 'Status'].map(t => h('th', {}, t)))),
+      h('tbody', {}, (access || []).length ? access.map(a => h('tr', {},
+        h('td', { class: 'mono', style: 'font-size:11px' }, ago(a.created_at)),
+        h('td', {}, a.actor === 'anonymous' ? h('span', { class: 'faint' }, 'anonymous') : eAsset(a.actor)),
+        h('td', {}, a.role ? chip(a.role, '') : '—'),
+        h('td', { class: 'mono' }, a.method),
+        h('td', { class: 'mono', style: 'font-size:11px' }, a.path),
+        h('td', {}, chip(String(a.status), String(a.status).startsWith('2') ? 'ok' : 'warn'))))
+        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:20px;text-align:center' }, 'No access recorded yet.'))])))));
+}
+function integrityCard(label, v) {
+  const ok = v && v.ok;
+  return h('div', { class: 'kpi ' + (ok ? 'ok' : 'crit') },
+    h('div', { class: 'lb' }, label),
+    h('div', { class: 'vv', style: 'font-size:20px' }, ok ? 'intact ✓' : 'check ✗'),
+    h('div', { class: 'sb mono' }, `${v && v.length != null ? v.length : '—'} records · head ${((v && v.head_hash) || '—').slice(0, 12)}`));
+}
+function auditEventRow(e, actions) {
+  const act = (actions || []).find(a => a.id === e.action_id);
+  const rec = e.record || {};
+  const detail = rec.target ? `${rec.action_type || ''} → ${rec.target}`
+    : (rec.output || (rec.approvals != null ? `${rec.approvals} approval(s)` : (rec.pubkey || '')));
+  const tone = /(completed|signed|contained)/.test(e.event) ? 'ok' : /reject|fail/.test(e.event) ? 'bad' : '';
+  return h('div', { class: 'tl-row' },
+    h('span', { class: 'tl-dot ' + tone }),
+    h('div', { style: 'flex:1;min-width:0' },
+      h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'tl-ev' }, e.event), chip('action #' + e.action_id, 'mono'),
+        act ? h('span', { class: 'faint', style: 'font-size:11px' }, act.target || '') : null),
+      h('div', { class: 'faint', style: 'font-size:11.5px;margin-top:2px' }, detail)),
+    h('div', { style: 'text-align:right' }, h('div', { class: 'faint mono', style: 'font-size:10.5px' }, e.actor || ''),
+      h('div', { class: 'faint mono', style: 'font-size:10px' }, ago(e.created_at))));
+}
+
+/* ---- 4.9 Model card (risk-model transparency) ------------------------ */
+async function viewModel(root) {
+  root.append(loading('Loading model card…'));
+  const m = await API.modelCard();
+  root.innerHTML = '';
+
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'row', style: 'gap:10px;margin-bottom:6px' }, h('h2', { style: 'font-size:16px;font-weight:560' }, 'Risk model'),
+      h('span', { class: 'spring', style: 'flex:1' }), chip(m.honest_status || 're-ranker', 'consensus')),
+    h('div', { class: 'kv', style: 'margin-top:10px' },
+      h('div', { class: 'k' }, 'Version'), h('div', { class: 'mono' }, m.model_version || '—'),
+      h('div', { class: 'k' }, 'Algorithm'), h('div', {}, m.algorithm || '—'),
+      h('div', { class: 'k' }, 'Explainer'), h('div', {}, m.explainer || '—'),
+      h('div', { class: 'k' }, 'Primary signal'), h('div', {}, m.primary_signal || '—'))));
+
+  const w = m.composite_weights || {};
+  const maxW = Math.max(0.001, ...Object.values(w).map(Number));
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'sec-label', style: 'margin-bottom:4px' }, 'Composite weights — the primary, defensible signal'),
+    h('div', { class: 'faint', style: 'font-size:11px;margin-bottom:12px' }, 'Hand-set, sum to 1.0. The ML layer re-ranks over these same factors.'),
+    h('div', { class: 'sfbars' }, Object.entries(w).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+      h('div', { class: 'sfbar' }, h('div', { class: 'k' }, k),
+        h('div', { class: 'tr' }, h('i', { class: 'pos', style: `left:0;width:${(v / maxW) * 100}%;background:var(--accent)` })),
+        h('div', { class: 'c' }, (+v).toFixed(2)))))));
+
+  const sc = m.scope || {};
+  root.append(h('div', { class: 'kpis fade', style: 'margin-top:14px' },
+    kpiCard('Findings scored (ML)', String(sc.findings_scored_by_ml ?? '—'), 'by the XGBoost re-ranker', ''),
+    kpiCard('Findings scored (composite)', String(sc.findings_scored_by_composite ?? '—'), 'by the weighted formula', ''),
+    kpiCard('Analyst labels', String(sc.analyst_labels_captured ?? 0), 'feedback weighted 5× in retrain', (sc.analyst_labels_captured ? 'ok' : 'warn'))));
+
+  const lims = m.limitations || [];
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'Training provenance & known limitations'),
+    h('div', { class: 'kv', style: 'margin-bottom:12px' },
+      h('div', { class: 'k' }, 'Label source'), h('div', {}, (m.training || {}).label_source || '—'),
+      h('div', { class: 'k' }, 'Bootstrap'), h('div', {}, (m.training || {}).bootstrap || '—'),
+      h('div', { class: 'k' }, 'Retrain'), h('div', {}, (m.training || {}).retrain_cadence || '—')),
+    h('div', { class: 'callout' }, h('strong', {}, 'Stated honestly: '),
+      lims.length ? h('ul', { class: 'lims' }, lims.map(l => h('li', {}, l))) : 'No limitations recorded.')));
+}
+
+/* ---- 4.10 Assets (inventory + host detail) --------------------------- */
+async function viewAssets(root) {
+  root.append(loading('Loading asset inventory…'));
+  const [assets, ranking] = await Promise.all([API.assets(), API.ranking()]);
+  STATE.ranking = ranking; STATE.assets = {}; (assets || []).forEach(a => STATE.assets[a.host_id] = a);
+  root.innerHTML = '';
+  const cnt = {}, top = {};
+  ranking.forEach(r => { cnt[r.asset_id] = (cnt[r.asset_id] || 0) + 1; top[r.asset_id] = Math.max(top[r.asset_id] || 0, +r.risk_score); });
+
+  const tbl = h('table', { class: 'tbl' },
+    h('thead', {}, h('tr', {}, ['Host', 'OS', 'IP', 'Exposure', 'Criticality', 'Findings', 'Top risk'].map(t => h('th', {}, t)))),
+    h('tbody', {}, (assets || []).map(a => h('tr', { tabindex: '0', onclick: () => openAsset(a.host_id), onkeydown: e => { if (e.key === 'Enter') openAsset(a.host_id); } },
+      h('td', {}, eAsset(a.hostname || a.host_id)),
+      h('td', {}, a.os || '—'),
+      h('td', { class: 'mono' }, a.ip || '—'),
+      h('td', {}, a.exposure ? chip(a.exposure, a.exposure === 'internet' ? 'warn' : '') : '—'),
+      h('td', {}, critBar(a.criticality)),
+      h('td', { class: 'mono' }, String(cnt[a.host_id] || 0)),
+      h('td', {}, top[a.host_id] ? h('span', { class: 'sc ' + band(top[a.host_id]), style: 'font-family:var(--mono)' }, n0(top[a.host_id])) : '—')))));
+  root.append(h('div', { class: 'panel fade' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Asset inventory'),
+    h('span', { class: 'sub' }, `· ${(assets || []).length} hosts`), h('span', { class: 'spring', style: 'flex:1' }),
+    csvBtn('Export', 'soc-assets.csv', () => [['host', 'os', 'ip', 'exposure', 'criticality', 'findings'],
+      ...(assets || []).map(a => [a.hostname || a.host_id, a.os || '', a.ip || '', a.exposure || '', a.criticality, cnt[a.host_id] || 0])])),
+    h('div', { style: 'overflow-x:auto' }, tbl)));
+}
+function critBar(v) {
+  const n = v == null ? 0.5 : +v;
+  return h('span', { class: 'crit' }, h('span', { class: 'cbar' }, h('i', { style: `width:${n * 100}%` })), h('span', { class: 'mono faint', style: 'font-size:10.5px' }, n.toFixed(2)));
+}
+async function openAsset(id) {
+  const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
+  inner.innerHTML = ''; inner.append(loading('Loading host…'));
+  const [data, flows] = await Promise.all([API.asset(id), API.logs(`host.host_id:${id} OR host.hostname:${id}`, 'network_flow', 10080)]);
+  const a = (data && data.asset) || { host_id: id, hostname: id }; const findings = (data && data.findings) || []; const comp = (data && data.compliance) || [];
+  inner.innerHTML = '';
+  inner.append(h('div', { class: 'drawer-h' },
+    h('div', {}, h('div', { style: 'font-size:17px;font-weight:600' }, a.hostname || a.host_id),
+      h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${a.os || '—'} · ${a.ip || '—'} · ${a.exposure || 'internal'}-exposed`)),
+    h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
+  const b = h('div', { class: 'drawer-b' }); inner.append(b);
+
+  // editable criticality (drives the composite score)
+  let crit = a.criticality == null ? 0.5 : +a.criticality;
+  const val = h('span', { class: 'mono', style: 'min-width:34px;text-align:right' }, crit.toFixed(2));
+  const slider = h('input', { type: 'range', min: '0', max: '1', step: '0.05', value: String(crit), oninput: e => { crit = +e.target.value; val.textContent = crit.toFixed(2); } });
+  const save = h('button', { class: 'btn primary sm', onclick: async () => { save.disabled = true; save.textContent = 'Saving…'; await API.patchAsset(id, crit); toast('Criticality updated — applied on the next scoring run', true); save.disabled = false; save.textContent = 'Save'; } }, 'Save');
+  b.append(block('Business criticality', h('div', { class: 'stack', style: 'gap:8px' },
+    h('div', { class: 'faint', style: 'font-size:11px' }, 'Feeds the composite risk score (4% weight). Tune to your business.'),
+    h('div', { class: 'row' }, slider, val, h('span', { class: 'spring', style: 'flex:1' }), save))));
+
+  b.append(block(`Findings (${findings.length})`, findings.length
+    ? h('div', {}, findings.map(r => h('div', { class: 'evrow', tabindex: '0', onclick: () => openFinding(r.id), onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
+        h('span', { class: 'sc ' + band(r.risk_score) }, n0(r.risk_score)),
+        h('span', { style: 'flex:1;min-width:0' }, r.title),
+        r.cve_id ? eCode(r.cve_id) : null, r.kev ? chip('KEV', 'kev') : null)))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings on this host.')));
+
+  const flist = (flows && flows.hits) || [];
+  b.append(block(`Network flows (${flist.length})`, flist.length
+    ? h('div', {}, flist.map(hit => h('div', { class: 'cf' }, h('span', { class: 'mono', style: 'font-size:11.5px' }, logLine(hit)),
+        h('span', { class: 'faint mono', style: 'font-size:10.5px' }, ago(hit.ingested_at)))))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No recent flows recorded.')));
+
+  b.append(block(`Compliance (${comp.length})`, comp.length
+    ? h('table', { class: 'tbl' }, h('tbody', {}, comp.slice(0, 30).map(c => h('tr', {},
+        h('td', { class: 'mono' }, c.rule_id), h('td', {}, c.title || ''), h('td', {}, statusChip(c.status))))))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No compliance results.')));
+}
+
+/* ---- 4.11 Operations (SOC-manager view) ------------------------------ */
+async function viewManager(root) {
+  root.append(loading('Loading operations…'));
+  const [ranking, incidents, stats] = await Promise.all([API.ranking(), API.incidents(), API.stats()]);
+  root.innerHTML = '';
+  const bands = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  ranking.forEach(r => bands[band(r.risk_score)]++);
+  const open = incidents.filter(i => !/resolved|closed|remediated/i.test(i.status || ''));
+  const breaches = incidents.filter(i => i.sla_breached);
+
+  root.append(h('div', { class: 'kpis fade' },
+    kpiCard('Queue depth', String(ranking.length), `${bands.critical} critical · ${bands.high} high`, bands.critical ? 'crit' : 'ok'),
+    kpiCard('Open incidents', String(open.length), `${incidents.length} total`, ''),
+    kpiCard('SLA breaches', String(breaches.length), breaches.length ? 'attention required' : 'all within SLA', breaches.length ? 'crit' : 'ok'),
+    kpiCard('Assets monitored', String(stats.assets ?? '—'), 'across the estate', '')));
+
+  // analyst workload
+  const byAssignee = {}; incidents.forEach(i => { const k = i.assignee || 'unassigned'; byAssignee[k] = byAssignee[k] || { open: 0, total: 0 }; byAssignee[k].total++; if (!/resolved|closed|remediated/i.test(i.status || '')) byAssignee[k].open++; });
+  const workload = h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Analyst workload')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Analyst', 'Open', 'Total'].map(t => h('th', {}, t)))),
+      h('tbody', {}, Object.entries(byAssignee).map(([k, v]) => h('tr', {},
+        h('td', {}, k === 'unassigned' ? h('span', { class: 'faint' }, 'unassigned') : eAsset(k)),
+        h('td', { class: 'mono' }, String(v.open)), h('td', { class: 'mono' }, String(v.total))))))));
+
+  // detection coverage by tool
+  const byTool = {}; ranking.forEach(r => { const t = r.source_tool || 'agent'; byTool[t] = (byTool[t] || 0) + 1; });
+  const maxT = Math.max(1, ...Object.values(byTool));
+  const coverage = h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Detection coverage by tool'),
+    h('div', { class: 'sfbars' }, Object.entries(byTool).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+      h('div', { class: 'sfbar' }, h('div', { class: 'k' }, k),
+        h('div', { class: 'tr' }, h('i', { class: 'pos', style: `left:0;width:${(v / maxT) * 100}%;background:var(--accent)` })),
+        h('div', { class: 'c' }, String(v))))));
+  root.append(h('div', { class: 'cols2 fade', style: 'align-items:start' }, workload, coverage));
+
+  // SLA table
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'SLA tracking'),
+    h('span', { class: 'spring', style: 'flex:1' }), csvBtn('Export', 'soc-sla.csv', () => [['case', 'title', 'severity', 'status', 'assignee', 'due', 'breached'],
+      ...incidents.map(i => [i.id, i.title, i.severity, i.status, i.assignee || '', i.sla_due || '', i.sla_breached ? 'yes' : 'no'])])),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Case', 'Severity', 'Status', 'Owner', 'Due', 'SLA'].map(t => h('th', {}, t)))),
+      h('tbody', {}, incidents.map(i => h('tr', {},
+        h('td', {}, h('span', { class: 'mono' }, '#' + i.id), ' ', i.title),
+        h('td', {}, severity(i.severity)), h('td', {}, chip(i.status, 'warn')),
+        h('td', {}, i.assignee || h('span', { class: 'faint' }, 'unassigned')),
+        h('td', { class: 'mono', style: 'font-size:11px' }, (i.sla_due || '—').slice(0, 16).replace('T', ' ')),
+        h('td', {}, i.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok')))))))));
+}
+
+/* ---- 4.12 Settings (identity, integrations, retention, model loop) --- */
+async function viewSettings(root) {
+  root.append(loading('Loading settings…'));
+  const [me, fb, dets] = await Promise.all([API.whoami(), API.feedbackStats(), API.detections()]);
+  root.innerHTML = '';
+
+  // identity & access
+  const ROLES = [['admin', 'Full control — request & approve containment, manage settings'],
+    ['analyst', 'Triage, investigate, request actions, submit feedback'],
+    ['viewer', 'Read-only access to dashboards and findings']];
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Identity & access (SSO)'),
+    h('div', { class: 'kv' },
+      h('div', { class: 'k' }, 'Signed in as'), h('div', {}, me.user ? eAsset(me.user) : h('span', { class: 'faint' }, 'not authenticated')),
+      h('div', { class: 'k' }, 'Role'), h('div', {}, chip(me.role || 'viewer', 'consensus')),
+      h('div', { class: 'k' }, 'Email'), h('div', { class: 'mono' }, me.email || '—'),
+      h('div', { class: 'k' }, 'SSO'), h('div', {}, me.sso || 'none')),
+    h('div', { class: 'sec-label', style: 'margin:18px 0 10px' }, 'Roles (Keycloak realm → RBAC)'),
+    h('table', { class: 'tbl' }, h('tbody', {}, ROLES.map(([r, d]) => h('tr', {},
+      h('td', {}, chip(r, me.role === r ? 'consensus' : '')), h('td', {}, d)))))));
+
+  // integrations health
+  const byTool = {}; dets.forEach(d => byTool[d.source_tool] = (byTool[d.source_tool] || 0) + (+d.hits || 0));
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Integration health'),
+    sensorsGrid(byTool)));
+
+  // detection catalog
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Detection catalog'),
+    h('span', { class: 'sub' }, '· sources & rules with hit counts'), h('span', { class: 'spring', style: 'flex:1' }),
+    csvBtn('Export', 'soc-detections.csv', () => [['source_tool', 'domain', 'hits', 'kev_hits'], ...dets.map(d => [d.source_tool, d.domain, d.hits, d.kev_hits])])),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Source', 'Domain', 'Hits', 'KEV', 'Top risk'].map(t => h('th', {}, t)))),
+      h('tbody', {}, dets.map(d => h('tr', {},
+        h('td', {}, chip(d.source_tool, 'tool')), h('td', {}, d.domain),
+        h('td', { class: 'mono' }, String(d.hits)), h('td', { class: 'mono' }, String(d.kev_hits || 0)),
+        h('td', {}, d.top_risk_score ? h('span', { class: 'sc ' + band(d.top_risk_score), style: 'font-family:var(--mono)' }, n0(d.top_risk_score)) : '—'))))))));
+
+  // model feedback loop
+  root.append(h('div', { class: 'cols2 fade', style: 'margin-top:14px;align-items:start' },
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Analyst feedback loop'),
+      h('div', { class: 'kv' },
+        h('div', { class: 'k' }, 'Total labels'), h('div', { class: 'mono' }, String(fb.total ?? 0)),
+        ...(fb.by_action || []).flatMap(x => [h('div', { class: 'k' }, x.action), h('div', { class: 'mono' }, String(x.n))])),
+      h('div', { class: 'faint', style: 'font-size:11px;margin-top:10px' }, 'Folded into: ' + ((fb.incorporated_in_models || []).join(', ') || '—'))),
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Data retention'),
+      h('div', { class: 'kv' },
+        h('div', { class: 'k' }, 'Telemetry (JetStream)'), h('div', {}, '7 days'),
+        h('div', { class: 'k' }, 'Logs (OpenSearch)'), h('div', {}, '90 days'),
+        h('div', { class: 'k' }, 'Findings & audit'), h('div', {}, 'retained (append-only)'),
+        h('div', { class: 'k' }, 'Backups (Velero)'), h('div', {}, 'daily 30d · weekly 90d')),
+      h('div', { class: 'faint', style: 'font-size:11px;margin-top:10px' }, 'Configured per deployment; shown for transparency.'))));
+}
+
+/* ---- 4.13 Alerts inbox (topbar bell) -------------------------------- */
+let ALERTS = [];
+async function loadAlerts() {
+  try { await API.notificationsRefresh(); } catch {}
+  try { ALERTS = await API.notifications(); } catch { ALERTS = []; }
+  const un = (ALERTS || []).filter(a => !a.acknowledged).length;
+  const badge = $('#bell-badge');
+  if (badge) { badge.textContent = String(un); badge.hidden = !un; }
+}
+function toggleAlerts() {
+  const pop = $('#alerts-pop'); if (!pop) return;
+  if (!pop.hidden) { pop.hidden = true; return; }
+  renderAlerts(pop); pop.hidden = false;
+}
+function closeAlerts() { const p = $('#alerts-pop'); if (p) p.hidden = true; }
+function renderAlerts(pop) {
+  pop.innerHTML = '';
+  pop.append(h('div', { class: 'ap-h' }, h('span', { style: 'font-weight:500' }, 'Alerts'), h('span', { class: 'spring', style: 'flex:1' }),
+    h('span', { class: 'linklike', style: 'font-size:11px', onclick: async () => { for (const a of (ALERTS || []).filter(x => !x.acknowledged)) { try { await API.ackNotification(a.id); } catch {} } await loadAlerts(); renderAlerts(pop); } }, 'Mark all read')));
+  if (!ALERTS || !ALERTS.length) { pop.append(h('div', { class: 'empty', style: 'padding:24px' }, 'No alerts.')); return; }
+  ALERTS.slice(0, 14).forEach(a => pop.append(alertRow(a, pop)));
+}
+function alertRow(a, pop) {
+  const sev = a.severity === 'critical' ? 'critical' : a.severity === 'high' ? 'high' : 'medium';
+  return h('div', { class: 'ap-row' + (a.acknowledged ? ' ack' : ''), onclick: () => { closeAlerts(); if (a.ref_type === 'finding') openFinding(a.ref_id); else go('cases'); } },
+    h('span', { class: 'gl s-' + sev, style: 'margin-top:5px;flex:none' }),
+    h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'ap-t' }, a.title), h('div', { class: 'ap-b' }, a.body || ''),
+      h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:3px' }, ago(a.created_at))),
+    a.acknowledged ? null : h('button', { class: 'btn sm', onclick: async (e) => { e.stopPropagation(); try { await API.ackNotification(a.id); } catch {} await loadAlerts(); renderAlerts(pop); } }, 'Ack'));
+}
+
+/* ---- 4.14 Dashboards (embedded Grafana) ----------------------------- */
+async function viewDashboards(root) {
+  root.innerHTML = '';
+  const base = location.protocol + '//' + location.hostname + ':' + (window.GRAFANA_PORT || 3000);
+  const DASH = [
+    ['SOC overview', '/d/soc-overview', 'findings, risk bands & compliance — from PostgreSQL'],
+    ['API metrics', '/d/soc-api-metrics', 'request rate, latency & errors — from Prometheus'],
+  ];
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'sec-label' }, 'Grafana dashboards'),
+      h('span', { class: 'spring', style: 'flex:1' }),
+      h('a', { class: 'btn sm', href: base, target: '_blank', rel: 'noopener', html: ic('hunt') + '<span style="margin-left:6px">Open Grafana</span>' })),
+    h('div', { class: 'dashgrid' }, DASH.map(([t, p, d]) => h('a', { class: 'dashcard', href: base + p, target: '_blank', rel: 'noopener' },
+      h('div', { class: 'dt' }, t), h('div', { class: 'dd' }, d), h('div', { class: 'linklike', style: 'font-size:11px;margin-top:8px' }, 'Open ›'))))));
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Embedded preview'), h('span', { class: 'sub' }, '· live Grafana — needs GF_SECURITY_ALLOW_EMBEDDING')),
+    h('iframe', { class: 'gframe', src: base + '/d/soc-overview?theme=dark&kiosk', loading: 'lazy', referrerpolicy: 'no-referrer' })));
 }

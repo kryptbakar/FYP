@@ -8,3 +8,5 @@ psycopg[binary]==3.2.3
 httpx==0.28.1
 # Ed25519 signing of active-response commands (Phase 6).
 cryptography==44.0.0
+# Prometheus instrumentation (/metrics) for the observability stack.
+prometheus-client==0.21.1
