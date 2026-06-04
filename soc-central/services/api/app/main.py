@@ -24,6 +24,7 @@ from .routers import (
     notifications,
     response,
     risk,
+    triage,
 )
 
 
@@ -66,6 +67,7 @@ app.include_router(response.router)
 app.include_router(insights.router)
 app.include_router(identity.router)
 app.include_router(notifications.router)
+app.include_router(triage.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")

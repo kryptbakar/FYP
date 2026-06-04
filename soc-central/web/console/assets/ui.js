@@ -65,6 +65,17 @@ function consensusChip(con) {
   if (!con || (con.n_tools || 0) < 2) return null;
   return chip(`${con.n_tools} tools agree`, 'consensus');
 }
+/* derived 'a working exploit exists' signal (KEV in-the-wild or a Nuclei template fired) */
+function exploitChip(f) { return f && f.exploit_available ? chip('exploit', 'exploit') : null; }
+/* finding lifecycle state, only when it has left the default 'open' (DefectDojo pattern) */
+const TRIAGE_LABEL = { triaged: 'triaged', investigating: 'investigating', false_positive: 'false positive',
+  risk_accepted: 'risk accepted', mitigated: 'mitigated', resolved: 'resolved' };
+function triageChip(status) {
+  if (!status || status === 'open') return null;
+  const cls = status === 'false_positive' ? 'warn' : status === 'risk_accepted' ? 'warn'
+    : (status === 'mitigated' || status === 'resolved') ? 'ok' : '';
+  return chip(TRIAGE_LABEL[status] || status, cls);
+}
 function toolChip(t, onclick) { const c = h('span', { class: 'chip tool', onclick }, t); return c; }
 
 /* ---- entity-highlight chips (the signature pattern) ------------------ */
