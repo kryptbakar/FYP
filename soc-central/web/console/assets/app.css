@@ -1,5 +1,5 @@
 /* =====================================================================
-   SOC Central — analyst console design system (charcoal + teal, locked).
+   VYREX — analyst console design system (premium black + wine red, locked).
    Instrument-grade: soft cards on a dark field, color only where it means
    something (~5% of pixels). Dependency-free; flat (no gradients/glows/shadows).
    RE-THEME: edit :root only — no component hardcodes a hex. Severity is carried
@@ -17,34 +17,35 @@
   src: local('IBM Plex Mono'), url('fonts/IBMPlexMono.woff2') format('woff2'); }
 
 :root {
-  /* neutrals */
-  --bg:        #0C0D0F;
-  --surface:   #101317;
-  --elevated:  #14161A;
-  --text:      #E7EAE8;
-  --text-2:    #C5CCCA;
-  --muted:     #8A9290;
-  --faint:     #79817E;
-  --line:        rgba(231,234,232,0.09);
-  --line-strong: rgba(231,234,232,0.16);
-  --hover:       rgba(231,234,232,0.045);
+  /* neutrals — premium near-black with a faint wine undertone */
+  --bg:        #0A0809;
+  --surface:   #130F13;
+  --elevated:  #1B151B;
+  --text:      #EDE8EB;
+  --text-2:    #CEC3CA;
+  --muted:     #988D94;
+  --faint:     #82777F;
+  --line:        rgba(237,228,233,0.09);
+  --line-strong: rgba(237,228,233,0.17);
+  --hover:       rgba(237,228,233,0.05);
 
-  /* interaction (single accent — interactive chrome only, never a status mark) */
-  --accent:      #3FB6A0;
-  --accent-text: #5FC9B5;
-  --on-accent:   #0C0D0F;
+  /* interaction — wine red (single accent; interactive chrome only, never a status mark) */
+  --accent:      #A82A47;
+  --accent-text: #E47C90;
+  --accent-soft: rgba(168,42,71,0.18);
+  --on-accent:   #FFF0F3;
 
   /* status / meaning */
-  --critical: #E0544A;  --critical-soft: rgba(224,84,74,0.16);  --critical-text: #F19C95;
+  --critical: #EF5350;  --critical-soft: rgba(239,83,80,0.17);  --critical-text: #F59A90;
   --warning:  #E0A93C;  --warning-soft:  rgba(224,169,60,0.15);
-  --success:  #3FB6A0;  --success-soft:  rgba(63,182,160,0.14);
-  --neutral-soft: rgba(138,146,144,0.14);
-  --risk-bar: #C76A53;
+  --success:  #34C08C;  --success-soft:  rgba(52,192,140,0.14);  --success-text: #6CD6AC;
+  --neutral-soft: rgba(152,141,148,0.14);
+  --risk-bar: #B23A52;
 
-  /* entity-highlight tints */
-  --ent-asset-bg: rgba(63,182,160,0.14);  --ent-asset-fg: #7FD8C6;
+  /* entity-highlight tints — asset = wine-rose, net = amber, code = neutral */
+  --ent-asset-bg: rgba(168,42,71,0.17);   --ent-asset-fg: #E78EA0;
   --ent-net-bg:   rgba(224,169,60,0.15);  --ent-net-fg:   #E6C079;
-  --ent-code-bg:  rgba(231,234,232,0.07); --ent-code-fg:  #C9D0CE;
+  --ent-code-bg:  rgba(237,228,233,0.07); --ent-code-fg:  #CEC5CC;
 
   /* radii */
   --r-sm: 7px; --r-md: 10px; --r-lg: 12px; --r-screen: 14px; --r-pill: 999px;
@@ -63,7 +64,7 @@ button { font: inherit; }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); } .faint { color: var(--faint); } .prose { color: var(--text-2); }
-::selection { background: var(--success-soft); }
+::selection { background: var(--accent-soft); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }
 *::-webkit-scrollbar-thumb { background: #1c2024; border-radius: 6px; border: 2px solid transparent; background-clip: content-box; }
@@ -135,8 +136,8 @@ button { font: inherit; }
 .chip.exploit { color: var(--critical-text); border-color: var(--critical); background: var(--critical-soft); }
 .chip.intel { color: var(--ent-net-fg); border-color: var(--warning-soft); background: var(--warning-soft); }
 .chip.attack { color: var(--ent-net-fg); border-color: var(--warning-soft); }
-.chip.consensus { color: var(--accent-text); border-color: var(--success-soft); background: var(--success-soft); }
-.chip.ok { color: var(--accent-text); border-color: var(--success-soft); background: var(--success-soft); }
+.chip.consensus { color: var(--success-text); border-color: var(--success-soft); background: var(--success-soft); }
+.chip.ok { color: var(--success-text); border-color: var(--success-soft); background: var(--success-soft); }
 .chip.warn { color: var(--warning); border-color: var(--warning-soft); }
 .chip.tool { font-family: var(--mono); font-size: 10.5px; cursor: pointer; }
 .chip.tool:hover { border-color: var(--accent); color: var(--text); }
@@ -238,7 +239,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .wfbar.neg { background: var(--success); }
 .wfbar.anchor { background: var(--accent); }
 .wfr .c { font-size: 11px; font-family: var(--mono); text-align: right; }
-.wfr .c.pos { color: var(--risk-bar); } .wfr .c.neg { color: var(--accent-text); }
+.wfr .c.pos { color: var(--risk-bar); } .wfr .c.neg { color: var(--success-text); }
 .wf .check { margin: 8px 0 0 124px; font-size: 10.5px; color: var(--faint); }
 
 /* consensus */
@@ -249,7 +250,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 /* counterfactuals */
 .cf { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 13px; border: 1px solid var(--line); border-radius: var(--r-sm); margin-bottom: 7px; font-size: 12.5px; }
 .cf .d { font-family: var(--mono); }
-.cf .d.down { color: var(--accent-text); } .cf .d.up { color: var(--critical-text); }
+.cf .d.down { color: var(--success-text); } .cf .d.up { color: var(--critical-text); }
 
 /* kv */
 .kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 14px; font-size: 12.5px; }
@@ -279,7 +280,7 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .seg { display: flex; gap: 6px; flex-wrap: wrap; }
 .seg button { flex: 1; min-width: 96px; padding: 9px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--elevated); color: var(--muted); font-size: 12px; font-weight: 500; cursor: pointer; }
 .seg button:hover { color: var(--text); }
-.seg button.sel { border-color: var(--accent); color: var(--text); background: var(--success-soft); }
+.seg button.sel { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
 textarea, input.txt { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--text); font: inherit; font-size: 12.5px; padding: 9px 11px; resize: vertical; }
 textarea:focus, input.txt:focus { outline: none; border-color: var(--accent); }
 
@@ -392,7 +393,7 @@ textarea:focus, input.txt:focus { outline: none; border-color: var(--accent); }
 .nav-sec { font-size: 9.5px; letter-spacing: .6px; text-transform: uppercase; color: var(--faint); padding: 14px 10px 5px; }
 .nav-sec:first-child { padding-top: 4px; }
 .userchip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border: 1px solid var(--line-strong); border-radius: var(--r-pill); }
-.userchip .av { width: 24px; height: 24px; border-radius: 50%; background: var(--success-soft); color: var(--accent-text); display: grid; place-items: center; font-size: 11px; font-weight: 500; flex: none; }
+.userchip .av { width: 24px; height: 24px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); display: grid; place-items: center; font-size: 11px; font-weight: 500; flex: none; }
 .userchip .un { font-size: 11.5px; font-weight: 500; line-height: 1.1; }
 .userchip .rl { font-size: 9.5px; color: var(--faint); text-transform: capitalize; }
 
@@ -457,7 +458,7 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 .task:last-of-type { border-bottom: none; }
 .task .tk { width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--line-strong); display: grid; place-items: center; font-size: 11px; cursor: pointer; flex: none; color: var(--muted); }
 .task .tk.in_progress { color: var(--warning); border-color: var(--warning-soft); }
-.task .tk.done { color: var(--accent); border-color: var(--accent); background: var(--success-soft); }
+.task .tk.done { color: var(--success); border-color: var(--success); background: var(--success-soft); }
 .task .tl { flex: 1; font-size: 12.5px; }
 .task .tl.done { color: var(--faint); text-decoration: line-through; }
 .obs { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--r-sm); }

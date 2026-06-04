@@ -39,9 +39,9 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="SOC Central API",
+    title="VYREX API",
     version=settings.soc_version,
-    summary="Centralized SOC & vulnerability-intelligence backend",
+    summary="VYREX — centralized SOC & vulnerability-intelligence backend",
     docs_url="/docs",
     openapi_url="/openapi.json",
     lifespan=lifespan,
