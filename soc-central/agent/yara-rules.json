@@ -1,0 +1,18 @@
+[
+  {
+    "name": "EICAR_test_file",
+    "strings": ["X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*"]
+  },
+  {
+    "name": "ELF_dropped_in_tmp",
+    "hex": ["7f454c46"]
+  },
+  {
+    "name": "reverse_shell_marker",
+    "strings": ["bash -i >& /dev/tcp/", "/dev/tcp/", "nc -e /bin/sh"]
+  },
+  {
+    "name": "cobalt_strike_beacon_marker",
+    "strings": ["beacon.dll", "ReflectiveLoader"]
+  }
+]

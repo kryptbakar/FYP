@@ -96,10 +96,11 @@ func buildCollectors(cfg Config, log *slog.Logger) []Collector {
 		cs = append(cs, &FIMCollector{every: cfg.FIMEvery, paths: cfg.FIMPaths, maxFiles: cfg.FIMMaxFiles})
 	}
 	if cfg.EnableEBPF {
-		cs = append(cs, newEBPFCollector(cfg.SysinfoEvery, log))
+		// Dependency-free /proc process observation (real eBPF is the prod upgrade; see col_procmon.go).
+		cs = append(cs, &ProcmonCollector{every: cfg.SysinfoEvery})
 	}
 	if cfg.EnableYARA {
-		cs = append(cs, newYARACollector(cfg.OsqueryEvery, log))
+		cs = append(cs, newYARACollector(cfg.OsqueryEvery, cfg.YARAPaths, cfg.YARAMaxFiles, cfg.YARARulesPath, log))
 	}
 	return cs
 }
