@@ -132,6 +132,7 @@ button { font: inherit; }
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: var(--r-pill); font-size: var(--t-micro); font-weight: 500; background: transparent; color: var(--muted); border: 1px solid var(--line-strong); white-space: nowrap; }
 .chip.mono { font-family: var(--mono); font-size: 10.5px; }
 .chip.kev { color: var(--critical-text); border-color: var(--critical-soft); background: var(--critical-soft); }
+.chip.exploit { color: var(--critical-text); border-color: var(--critical); background: var(--critical-soft); }
 .chip.intel { color: var(--ent-net-fg); border-color: var(--warning-soft); background: var(--warning-soft); }
 .chip.attack { color: var(--ent-net-fg); border-color: var(--warning-soft); }
 .chip.consensus { color: var(--accent-text); border-color: var(--success-soft); background: var(--success-soft); }

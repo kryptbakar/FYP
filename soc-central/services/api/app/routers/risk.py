@@ -16,14 +16,26 @@ router = APIRouter(tags=["risk"])
 
 
 @router.get("/risk/ranking", summary="Findings ranked by composite risk")
-async def ranking(limit: Annotated[int, Query(ge=1, le=500)] = 25) -> list[dict]:
+async def ranking(
+    limit: Annotated[int, Query(ge=1, le=500)] = 25,
+    include_closed: Annotated[bool, Query(description="include triaged-away findings")] = False,
+) -> list[dict]:
+    # exploit_available: a derived 'a working exploit exists' signal (KEV = exploited in the
+    # wild; a Nuclei detection means a weaponised template fired). A full Exploit-DB mirror is
+    # the richer follow-on, but this surfaces the signal the references emphasise today.
+    closed = "" if include_closed else (
+        "AND COALESCE(triage_status,'open') NOT IN "
+        "('false_positive','risk_accepted','mitigated','resolved')"
+    )
     return await db.fetch(
-        """
+        f"""
         SELECT risk_rank, id, asset_id, domain, title, severity, cve_id, source_tool,
                risk_score, ml_risk_score, kev, cvss_score, epss,
-               attack, threat_intel, consensus
+               attack, threat_intel, consensus,
+               COALESCE(triage_status,'open') AS triage_status,
+               (kev OR source_tool = 'nuclei') AS exploit_available
         FROM findings
-        WHERE risk_score IS NOT NULL
+        WHERE risk_score IS NOT NULL {closed}
         ORDER BY risk_score DESC
         LIMIT %(limit)s
         """,

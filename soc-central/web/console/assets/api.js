@@ -83,6 +83,8 @@ const API = {
   ackNotification: (id) => API._post(`/notifications/${id}/ack`, {}, { id, acknowledged: true, simulated: true }),
   accessAudit: (n = 50) => API._get(`/access/audit?limit=${n}`, () => FIX.accessAudit),
   tenants: () => API._get('/tenants', () => FIX.tenants),
+  triage: (id, body) => API._post(`/findings/${id}/triage`, body, { id, triage_status: body.status, simulated: true }),
+  correlate: (body) => API._post('/incidents/correlate', body || { min_score: 60, window_hours: 24 }, { correlated_groups: 1, created: [{ incident_id: 99, findings: 3 }], simulated: true }),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),

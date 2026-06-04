@@ -68,6 +68,7 @@ async def list_incidents(
         SELECT i.id, i.title, i.severity, i.status, i.assignee, i.created_by,
                i.sla_due, (i.status NOT IN ('resolved','closed') AND now() > i.sla_due) AS sla_breached,
                i.created_at, i.resolved_at,
+               COALESCE(i.auto_created, false) AS auto_created, i.correlation_uid,
                (SELECT count(*) FROM incident_findings f WHERE f.incident_id = i.id) AS finding_count
         FROM incidents i {where}
         ORDER BY (i.status NOT IN ('resolved','closed')) DESC, i.sla_due

@@ -90,7 +90,9 @@ async def list_findings(
         f"""
         SELECT id, asset_id, domain, rule_id, title, severity, cve_id, source_tool, package_name,
                package_version, port, proto, cvss_score, cvss_severity, epss, epss_percentile,
-               kev, kev_due_date, risk_score, ml_risk_score, risk_rank, status, first_seen, last_seen
+               kev, kev_due_date, risk_score, ml_risk_score, risk_rank, status, first_seen, last_seen,
+               COALESCE(triage_status,'open') AS triage_status,
+               (kev OR source_tool = 'nuclei') AS exploit_available
         FROM findings {where}
         ORDER BY risk_score DESC NULLS LAST, (cvss_score IS NULL), cvss_score DESC
         LIMIT %(limit)s OFFSET %(offset)s

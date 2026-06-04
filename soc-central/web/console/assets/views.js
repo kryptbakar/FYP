@@ -6,6 +6,8 @@
 'use strict';
 
 const STATE = { ranking: [], assets: {}, filters: { domain: '', severity: '', tool: '', kev: false, sort: 'risk' }, q: '', selected: new Set() };
+// triaged-away lifecycle states that leave the active queue (DefectDojo pattern)
+const CLOSED_STATES = new Set(['false_positive', 'risk_accepted', 'mitigated', 'resolved']);
 
 function assetMeta(id) { return STATE.assets[id] || { hostname: id }; }
 function exposureOf(id) { const a = assetMeta(id); return a.exposure || null; }
@@ -36,6 +38,7 @@ async function viewTriage(root) {
   function filteredRows() {
     const f = STATE.filters, q = STATE.q.toLowerCase();
     let rows = STATE.ranking.filter(r =>
+      !CLOSED_STATES.has(r.triage_status || 'open') &&
       (!f.domain || r.domain === f.domain) &&
       (!f.severity || (r.severity || '').toUpperCase() === f.severity) &&
       (!f.tool || (r.source_tool || 'agent') === f.tool) &&
@@ -66,14 +69,20 @@ async function viewTriage(root) {
     bulk.append(h('span', { class: 'bk-n' }, `${n} selected`),
       h('span', { class: 'spring', style: 'flex:1' }),
       h('button', { class: 'btn sm', onclick: () => bulkAct('escalate') }, 'Escalate'),
-      h('button', { class: 'btn sm', onclick: () => bulkAct('confirm_tp') }, 'Confirm TP'),
-      h('button', { class: 'btn sm', onclick: () => bulkAct('mark_fp') }, 'Dismiss (FP)'),
+      h('button', { class: 'btn sm', onclick: () => bulkTriage('false_positive') }, 'False positive'),
+      h('button', { class: 'btn sm', onclick: () => bulkTriage('resolved') }, 'Resolve'),
       h('button', { class: 'btn sm', onclick: () => { STATE.selected.clear(); renderCards(); } }, 'Clear'));
   }
   async function bulkAct(action) {
     const ids = [...STATE.selected];
     for (const id of ids) { try { await API.feedback(id, { analyst: 'analyst', action, comment: 'bulk action' }); } catch {} }
     toast(`${ids.length} finding(s) — ${action.replace('_', ' ')} submitted`, true);
+    STATE.selected.clear(); renderCards();
+  }
+  async function bulkTriage(status) {
+    const ids = [...STATE.selected];
+    for (const id of ids) { try { await API.triage(id, { status }); } catch {} const r = STATE.ranking.find(x => x.id === id); if (r) r.triage_status = status; }
+    toast(`${ids.length} finding(s) — ${status.replace('_', ' ')}`, true);
     STATE.selected.clear(); renderCards();
   }
   function sortSel() {
@@ -105,9 +114,11 @@ function decisionCard(r) {
     r.cve_id ? eCode(r.cve_id) : null,
     consensusChip(r.consensus),
     r.kev ? chip('KEV', 'kev') : null,
+    exploitChip(r),
     r.epss ? chip('EPSS ' + pct(r.epss), '') : null,
     r.attack ? chip(r.attack, 'attack') : null,
-    r.threat_intel ? chip('Live IOC', 'intel') : null);
+    r.threat_intel ? chip('Live IOC', 'intel') : null,
+    triageChip(r.triage_status));
   return h('div', { class: 'card', tabindex: '0', onclick: () => openFinding(r.id),
     onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
     h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, selCheck(r), severity(r.severity)),
@@ -123,6 +134,7 @@ async function openFinding(id) {
   const [data, detail] = await Promise.all([API.explain(id), API.finding(id)]);
   // /explain.finding lacks asset_id/cve_id/cvss/epss/kev — /findings/{id} fills them in.
   const f = Object.assign({}, detail || {}, data.finding || {});
+  if (f.exploit_available == null) f.exploit_available = !!(f.kev || f.source_tool === 'nuclei');
   if (!f.id && !f.title) {
     inner.innerHTML = '';
     inner.append(h('div', { class: 'drawer-h' }, h('div', { style: 'font-size:15px;font-weight:600' }, 'Finding not found'),
@@ -137,7 +149,7 @@ async function openFinding(id) {
   inner.append(h('div', { class: 'drawer-h' },
     h('div', { style: 'min-width:0' },
       h('div', { class: 'wrap', style: 'margin-bottom:9px' }, severity(f.severity), chip(f.source_tool || 'agent', 'tool'), consensusChip(con),
-        f.kev ? chip('KEV', 'kev') : null, f.threat_intel ? chip('live IOC', 'intel') : null),
+        f.kev ? chip('KEV', 'kev') : null, exploitChip(f), f.threat_intel ? chip('live IOC', 'intel') : null, triageChip(f.triage_status)),
       h('div', { style: 'font-size:17px;font-weight:600;line-height:1.35' }, f.title),
       h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${f.domain} · ${assetMeta(f.asset_id).hostname || f.asset_id} · finding #${f.id}`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
@@ -192,8 +204,36 @@ async function openFinding(id) {
   const proposed = { id: 'act-' + f.id, action: destructive ? 'isolate_host' : 'apply_patch', target: assetMeta(f.asset_id).hostname || f.asset_id, status: 'proposed', approvals: [] };
   b.append(block('Response — containment', approvalGate(proposed, {})));
 
+  // lifecycle / risk acceptance (DefectDojo pattern)
+  b.append(block('Lifecycle & risk acceptance', lifecyclePanel(f)));
+
   // feedback
   b.append(block('Analyst feedback', feedbackForm(f.id)));
+}
+function lifecyclePanel(f) {
+  const cur = f.triage_status || 'open';
+  const wrap = h('div', { class: 'stack', style: 'gap:11px' });
+  const state = h('div', { class: 'row' }, h('span', { class: 'faint', style: 'font-size:12px' }, 'Current: '),
+    triageChip(cur) || chip('open', ''));
+  const seg = h('div', { class: 'seg' });
+  const opts = [['investigating', 'Investigating'], ['mitigated', 'Mitigated'], ['resolved', 'Resolved'], ['false_positive', 'False positive']];
+  opts.forEach(([v, l]) => seg.append(h('button', { class: cur === v ? 'sel' : '', onclick: () => setStatus(v) }, l)));
+  // risk acceptance with expiry
+  const until = h('input', { class: 'txt', type: 'date', style: 'max-width:170px' });
+  const raRow = h('div', { class: 'row', style: 'gap:8px' },
+    h('span', { class: 'faint', style: 'font-size:12px;flex:1' }, 'Accept risk until'),
+    until, h('button', { class: 'btn sm', onclick: () => { if (!until.value) { toast('Pick an expiry date', false); return; } setStatus('risk_accepted', until.value); } }, 'Accept risk'));
+  wrap.append(state, seg, raRow,
+    h('div', { class: 'faint', style: 'font-size:11px' }, 'Triaged-away findings (false positive / risk accepted / mitigated / resolved) leave the active queue.'));
+  async function setStatus(status, rau) {
+    await API.triage(f.id, { status, risk_accepted_until: rau || null, note: null });
+    f.triage_status = status;
+    toast(`Finding marked ${TRIAGE_LABEL[status] || status}`, true);
+    state.innerHTML = ''; state.append(h('span', { class: 'faint', style: 'font-size:12px' }, 'Current: '), triageChip(status) || chip('open', ''));
+    $$('button', seg).forEach(btn => btn.classList.toggle('sel', btn.textContent.toLowerCase().replace(' ', '_') === status));
+    if (STATE.ranking) { const row = STATE.ranking.find(x => x.id === f.id); if (row) row.triage_status = status; if (window._renderCards) window._renderCards(); }
+  }
+  return wrap;
 }
 function block(label, body) { return h('div', { class: 'block' }, h('div', { class: 'sec-label' }, label), body); }
 function factorBars(comp) {
@@ -274,7 +314,12 @@ async function viewIncidents(root) {
   root.innerHTML = '';
   const colOf = (st) => { st = (st || '').toLowerCase(); const i = KCOLS.findIndex(c => c[1].includes(st)); return i < 0 ? 0 : i; };
   root.append(h('div', { class: 'panel-h', style: 'border:none;padding:0 2px 14px' },
-    h('h2', {}, 'Cases'), h('span', { class: 'sub' }, `· ${incidents.length} open · audit chain ${audit.ok ? 'verified ✓' : 'needs check'}`)));
+    h('h2', {}, 'Cases'), h('span', { class: 'sub' }, `· ${incidents.length} open · audit chain ${audit.ok ? 'verified ✓' : 'needs check'}`),
+    h('span', { class: 'spring', style: 'flex:1' }),
+    h('button', { class: 'btn sm primary', title: 'group correlated high-risk findings into incidents',
+      onclick: async (e) => { const btn = e.target.closest('button'); btn.disabled = true; btn.textContent = 'Correlating…';
+        const r = await API.correlate({ min_score: 60, window_hours: 24 });
+        toast(`${r.correlated_groups || 0} correlated case(s) created`, true); go('cases'); } }, 'Correlate findings')));
   const board = h('div', { class: 'kanban fade' });
   KCOLS.forEach((col, ci) => {
     const items = incidents.filter(i => colOf(i.status) === ci);
@@ -288,7 +333,8 @@ async function viewIncidents(root) {
 function kanbanCard(i, actions) {
   return h('div', { class: 'kcard', tabindex: '0', onclick: () => openIncident(i, actions),
     onkeydown: e => { if (e.key === 'Enter') openIncident(i, actions); } },
-    h('div', { class: 'row', style: 'justify-content:space-between' }, severity(i.severity), h('span', { class: 'faint mono', style: 'font-size:10.5px' }, '#' + i.id)),
+    h('div', { class: 'row', style: 'justify-content:space-between' }, severity(i.severity),
+      h('div', { class: 'row', style: 'gap:6px' }, i.auto_created ? chip('auto-correlated', 'consensus') : null, h('span', { class: 'faint mono', style: 'font-size:10.5px' }, '#' + i.id))),
     h('div', { class: 't' }, i.title),
     h('div', { class: 'row', style: 'gap:7px' }, i.sla_breached ? chip('SLA breached', 'kev') : chip('On track', 'ok'),
       h('span', { class: 'faint', style: 'font-size:11px' }, `${i.finding_count ?? 0} findings`)));
@@ -480,7 +526,7 @@ function overviewRiskRow(r) {
     h('div', { class: 'sc ' + c }, n0(r.risk_score)),
     h('div', { style: 'min-width:0;flex:1' }, h('div', { class: 'tt' }, r.title),
       h('div', { class: 'wrap', style: 'margin-top:5px' }, severity(r.severity), eAsset(assetMeta(r.asset_id).hostname || r.asset_id),
-        r.cve_id ? eCode(r.cve_id) : null, r.kev ? chip('KEV', 'kev') : null, consensusChip(r.consensus))));
+        r.cve_id ? eCode(r.cve_id) : null, r.kev ? chip('KEV', 'kev') : null, exploitChip(r), consensusChip(r.consensus), triageChip(r.triage_status))));
 }
 function detectionRow(d, seen) {
   const isNew = seen && !seen.has(d.id); if (seen) seen.add(d.id);

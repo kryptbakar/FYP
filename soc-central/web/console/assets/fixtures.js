@@ -29,6 +29,9 @@ const FIX = (() => {
       attack: null, threat_intel: null, consensus: { tools: ['agent'], n_tools: 1, weight: 0.0, members: [60], primary: 60, dedup_key: 'c3d4e5' } },
   ];
 
+  // lifecycle + derived exploit-availability signal (mirrors the live API fields)
+  ranking.forEach(r => { r.triage_status = r.triage_status || 'open'; r.exploit_available = !!(r.kev || r.source_tool === 'nuclei'); });
+
   const explain = (id) => {
     const f = ranking.find(r => r.id === +id) || ranking[0];
     const comp = { cvss: 14.0, epss: 11.3, kev: 15.0, exposure: 8.2, threat_intel: f.threat_intel ? 9.0 : 0, consensus: (f.consensus.weight || 0) * 9, attack_ctx: f.attack ? 4.9 : 0, compliance_impact: 2.5, age: 4.0, criticality: 6.0 };

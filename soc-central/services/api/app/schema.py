@@ -112,6 +112,24 @@ INSERT INTO tenants (id, name) VALUES ('default', 'Default organization')
     ON CONFLICT (id) DO NOTHING;
 ALTER TABLE incidents     ADD COLUMN IF NOT EXISTS tenant text DEFAULT 'default';
 ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant text DEFAULT 'default';
+
+-- Alert correlation (agentic-soc-platform pattern): a deterministic correlation key groups
+-- related findings (same asset + technique, same time bucket) into one auto-created incident.
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS correlation_uid text;
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS auto_created boolean DEFAULT false;
+CREATE UNIQUE INDEX IF NOT EXISTS incidents_correlation_uid ON incidents (correlation_uid)
+    WHERE correlation_uid IS NOT NULL;
+"""
+
+# Finding lifecycle / risk-acceptance (DefectDojo pattern). findings is owned by the
+# enrichment service, so these are applied in a separate guarded step that no-ops if the
+# table doesn't exist yet (cold start) instead of aborting the core schema.
+FINDINGS_AUGMENT = """
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS triage_status text DEFAULT 'open';
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS triage_note text;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS triaged_by text;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS triaged_at timestamptz;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_accepted_until date;
 """
 
 
@@ -123,3 +141,11 @@ def ensure_schema() -> None:
         log.info("incident/response schema ready")
     except Exception as e:  # don't crash the API if the DB is briefly unavailable at boot
         log.warning("schema ensure deferred: %s", e)
+    # findings table belongs to enrichment; augment it best-effort (separate txn).
+    try:
+        with psycopg.connect(settings.postgres_dsn, autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute(FINDINGS_AUGMENT)
+        log.info("findings lifecycle columns ready")
+    except Exception as e:
+        log.info("findings augment deferred (table not present yet): %s", e)
