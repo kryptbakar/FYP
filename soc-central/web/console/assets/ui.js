@@ -44,7 +44,15 @@ const PATHS = {
   shieldcheck: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Zm-3 9.5 2 2 4-4.5', lock: 'M6 10V7a6 6 0 0 1 12 0v3M5 10h14v11H5z',
   chevron: 'm9 6 6 6-6 6', x: 'M6 6l12 12M18 6 6 18', shield2: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z',
   score: 'M3 12h3l3-8 4 16 3-8h5', layers: 'M12 3 3 8l9 5 9-5-9-5zM3 14l9 5 9-5', globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM3 12h18M12 3c2.6 3 2.6 15 0 18M12 3c-2.6 3-2.6 15 0 18',
-  clock: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', activity: 'M3 12h4l3-9 4 18 3-9h4' };
+  clock: 'M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', activity: 'M3 12h4l3-9 4 18 3-9h4',
+  overview: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z',
+  hunt: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20.5 20.5 16.7 16.7',
+  model: 'M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3M6 6h12v12H6zM9.5 9.5h5v5h-5z',
+  assets: 'M3 5h18v5H3zM3 14h18v5H3zM6.5 7.5h.01M6.5 16.5h.01',
+  manager: 'M4 20V10M10 20V4M16 20v-7M20 20V13M3 20h18',
+  gear: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8',
+  download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
+  dash: 'M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z' };
 const ic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${PATHS[k]}"/></svg>`;
 
 /* ---- atoms ----------------------------------------------------------- */
@@ -257,6 +265,31 @@ function approvalGate(action, opts) {
       steps(), controls());
   }
   render(); return el;
+}
+
+/* ---- CSV export (client-side; air-gap clean — a Blob, never a network call) ---- */
+function toCSV(rows) {
+  return rows.map(r => r.map(c => {
+    const s = (c == null ? '' : String(c));
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }).join(',')).join('\r\n');
+}
+function downloadCSV(filename, rows) {
+  const blob = new Blob([toCSV(rows)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = h('a', { href: url, download: filename });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Exported ' + filename, true);
+}
+function csvBtn(label, filename, rowsFn) {
+  return h('button', { class: 'btn sm noprint', onclick: () => downloadCSV(filename, rowsFn()),
+    html: ic('download') + `<span style="margin-left:6px">${label}</span>` });
+}
+/* PDF = the browser's print-to-PDF over a print stylesheet (air-gap clean; no library). */
+function pdfBtn(label) {
+  return h('button', { class: 'btn sm noprint', title: 'print / save as PDF', onclick: () => window.print(),
+    html: ic('detail') + `<span style="margin-left:6px">${label || 'PDF'}</span>` });
 }
 
 /* ---- misc ------------------------------------------------------------ */

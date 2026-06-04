@@ -70,8 +70,11 @@ const FIX = (() => {
       { domain: 'network', severity: 'HIGH', count: 3 }, { domain: 'network', severity: 'MEDIUM', count: 2 }, { domain: 'network', severity: 'LOW', count: 2 },
       { domain: 'system', severity: 'MEDIUM', count: 12 }, { domain: 'system', severity: 'LOW', count: 6 } ],
       top_cves: [ { cve_id: 'CVE-2023-4911', cvss: '7.8', epss: '0.71', kev: true, occurrences: 6 }, { cve_id: 'CVE-2021-44228', cvss: '10.0', epss: '0.94', kev: true, occurrences: 2 } ] },
-    assets: [ { host_id: 'web-prod-03', hostname: 'web-prod-03', os: 'Debian GNU/Linux', ip: '10.4.2.13', exposure: 'internet', criticality: 1.0 },
-      { host_id: 'db-core-01', hostname: 'db-core-01', os: 'Debian GNU/Linux', ip: '10.4.9.2', exposure: 'internal', criticality: 1.0 } ],
+    assets: [
+      { host_id: 'web-prod-03', hostname: 'web-prod-03', os: 'Debian GNU/Linux 12', ip: '10.4.2.13', exposure: 'internet', criticality: 1.0 },
+      { host_id: 'scan-target-01', hostname: 'app-gw-02', os: 'Ubuntu 22.04 LTS', ip: '10.4.2.21', exposure: 'internet', criticality: 0.85 },
+      { host_id: 'db-core-01', hostname: 'db-core-01', os: 'Debian GNU/Linux 12', ip: '10.4.9.2', exposure: 'internal', criticality: 0.9 },
+      { host_id: 'sensor-01', hostname: 'cache-01', os: 'Debian GNU/Linux 12', ip: '10.4.9.7', exposure: 'internal', criticality: 0.5 } ],
     compSummary: { by_status: [ { status: 'pass', count: 22 }, { status: 'fail', count: 38 }, { status: 'not_applicable', count: 6 } ],
       per_asset: [ { asset_id: 'web-prod-03', pass: 5, fail: 5, partial: 0, not_applicable: 1, score_pct: '50.0' }, { asset_id: 'db-core-01', pass: 3, fail: 7, partial: 0, not_applicable: 1, score_pct: '30.0' } ] },
     compResults: [
@@ -82,8 +85,119 @@ const FIX = (() => {
     ],
     compEvidence: [ { id: 18370, rule_id: 'CIS 4.1.1', asset_id: 'web-prod-03', status: 'fail', prev_hash: 'a1b2c3d4e5f6', hash: 'e39b4dc20b97e2125e1a', recorded_at: '2026-06-02T09:38:59Z' } ],
     chain: { ok: true, length: 19294, head_hash: 'e39b4dc20b97e2125e1a1849b4de29a0dfd76dbb6ccb12fbbf0b0c8b7a7f2df2' },
-    incidents: [ { id: 1, title: 'Active C2 beacon on web-prod-03', severity: 'critical', status: 'open', assignee: 'hamza', created_by: 'hamza', sla_due: '2026-06-03T18:02:31Z', sla_breached: false, created_at: '2026-06-02T18:02:31Z', finding_count: 2 } ],
-    actions: [ { id: 1, incident_id: 1, action: 'isolate_host', target: 'web-prod-03', status: 'awaiting_second_approver', requested_by: 'hamza', approvals: ['hamza'], created_at: '2026-06-02T18:10:00Z' } ],
+    // One threaded breach story: internet-facing exploit → C2 beacon → attempted lateral move.
+    incidents: [
+      { id: 1, asset_id: 'web-prod-03', title: 'Active C2 beacon on web-prod-03 (Cobalt Strike)', severity: 'critical', status: 'in_progress', assignee: 'hamza', created_by: 'soc-auto', sla_due: '2026-06-03T18:02:31Z', sla_breached: false, created_at: '2026-06-02T18:02:31Z', finding_count: 3 },
+      { id: 2, asset_id: 'scan-target-01', title: 'Log4Shell exploitation on app-gw-02', severity: 'critical', status: 'contained', assignee: 'amina', created_by: 'soc-auto', sla_due: '2026-06-03T09:40:00Z', sla_breached: false, created_at: '2026-06-02T07:55:00Z', finding_count: 2 },
+      { id: 3, asset_id: 'db-core-01', title: 'Lateral-movement attempt toward db-core-01', severity: 'high', status: 'open', assignee: null, created_by: 'soc-auto', sla_due: '2026-06-02T16:00:00Z', sla_breached: true, created_at: '2026-06-02T19:20:00Z', finding_count: 1 },
+    ],
+    actions: [
+      { id: 1, incident_id: 1, action: 'isolate_host', target: 'web-prod-03', status: 'awaiting_second_approver', requested_by: 'hamza', approvals: ['hamza'], created_at: '2026-06-02T18:10:00Z' },
+      { id: 2, incident_id: 2, action: 'isolate_host', target: 'app-gw-02', status: 'contained', requested_by: 'amina', approvals: ['amina', 'hamza'], created_at: '2026-06-02T08:05:00Z' },
+      { id: 3, incident_id: 2, action: 'kill_process', target: 'app-gw-02', status: 'completed', requested_by: 'amina', approvals: ['amina', 'hamza'], created_at: '2026-06-02T08:09:00Z' },
+    ],
     auditVerify: { ok: true, length: 12, head_hash: '7f3a9c2e1d8b4a60' },
+
+    // Model card — mirrors GET /risk/model/metadata. States provenance + limitations honestly.
+    modelCard: {
+      model_version: 'xgb-20260602T093946Z',
+      algorithm: 'XGBoost regressor (gradient-boosted trees)',
+      explainer: 'TreeSHAP (exact per-feature attribution) + counterfactuals',
+      primary_signal: 'composite weighted score (sums to 1.0)',
+      composite_weights: { cvss: 0.18, epss: 0.16, kev: 0.15, exposure: 0.12, threat_intel: 0.10, consensus: 0.09, attack_ctx: 0.07, compliance_impact: 0.05, age: 0.04, criticality: 0.04 },
+      features: ['cvss', 'epss', 'kev', 'exposure', 'threat_intel', 'consensus', 'attack_ctx', 'compliance_impact', 'age', 'criticality', 'attack_phase'],
+      scope: { findings_scored_by_ml: 214, findings_scored_by_composite: 214, analyst_labels_captured: 11,
+        feedback_by_action: [ { action: 'confirm_tp', n: 6 }, { action: 'mark_fp', n: 3 }, { action: 'escalate', n: 2 } ] },
+      training: { label_source: 'composite priority score, plus analyst feedback weighted 5x', bootstrap: 'synthetic dataset until field labels accumulate', retrain_cadence: 'monthly (CronJob) and on demand' },
+      limitations: [
+        'Bootstrapped on synthetic data, so until enough analyst labels and real outcomes accumulate the ML score largely reproduces the composite formula — it is a re-ranker, not an independent oracle.',
+        'Real-outcome labels (exploited / patched / dismissed) are the path to the model learning signal the formula does not already encode.' ],
+      honest_status: 'feedback-adaptive re-ranker',
+    },
+
+    // Near-real-time detections feed — mirrors GET /detections/recent.
+    recent: ranking.map((r, i) => ({ id: r.id, asset_id: r.asset_id, domain: r.domain, title: r.title, severity: r.severity,
+      cve_id: r.cve_id, source_tool: r.source_tool, risk_score: r.risk_score, kev: r.kev, attack: r.attack, threat_intel: r.threat_intel,
+      consensus: r.consensus, observed_at: new Date(Date.now() - (i * 7 + 2) * 60000).toISOString() })),
+
+    // Multi-tool fusion clusters — mirrors GET /findings/clusters.
+    clusters: ranking.filter(r => r.consensus && r.consensus.n_tools >= 2).map(r => ({
+      dedup_key: r.consensus.dedup_key, n_tools: r.consensus.n_tools, tools: r.consensus.tools,
+      top_risk_score: r.risk_score, severity: r.severity, primary_id: r.id, title: r.title, asset_id: r.asset_id })),
+
+    // Response-action audit timeline — mirrors GET /response/audit/events (hash-chained lifecycle).
+    auditEvents: [
+      { seq: 12, action_id: 1, event: 'requested', actor: 'hamza', record: { action_type: 'network_isolate', target: 'web-prod-03' }, hash: '7f3a9c2e1d8b4a60', created_at: '2026-06-02T18:10:00Z' },
+      { seq: 11, action_id: 1, event: 'approved', actor: 'hamza', record: { approvals: 1 }, hash: 'b21cc9e4f0a18d33', created_at: '2026-06-02T18:11:00Z' },
+      { seq: 10, action_id: 3, event: 'completed', actor: 'agent', record: { output: 'process 4488 terminated' }, hash: 'c0ffee1234ab55de', created_at: '2026-06-02T08:09:40Z' },
+      { seq: 9, action_id: 3, event: 'dispatched', actor: 'agent:app-gw-02', record: {}, hash: 'a9b8c7d6e5f40312', created_at: '2026-06-02T08:09:10Z' },
+      { seq: 8, action_id: 2, event: 'completed', actor: 'agent', record: { output: 'iface eth0 isolated via nftables' }, hash: 'de1c0de900112233', created_at: '2026-06-02T08:06:20Z' },
+      { seq: 7, action_id: 2, event: 'signed', actor: 'system', record: { pubkey: 'ed25519:9f12…c4' }, hash: '44aa55bb66cc77dd', created_at: '2026-06-02T08:05:40Z' },
+      { seq: 6, action_id: 2, event: 'approved', actor: 'hamza', record: { approvals: 2 }, hash: '1122334455667788', created_at: '2026-06-02T08:05:30Z' },
+      { seq: 5, action_id: 2, event: 'approved', actor: 'amina', record: { approvals: 1 }, hash: '8877665544332211', created_at: '2026-06-02T08:05:10Z' },
+      { seq: 4, action_id: 2, event: 'requested', actor: 'amina', record: { action_type: 'network_isolate', target: 'app-gw-02' }, hash: '0f0e0d0c0b0a0908', created_at: '2026-06-02T08:05:00Z' },
+    ],
+
+    // Offline full-text log search — mirrors GET /logs/search (q + kind filter over telemetry).
+    logSearch: (q, kind) => {
+      const base = [
+        { id: 'ev-7734', kind: 'ids_alert', agent_id: 'suricata-01', hostname: 'web-prod-03', ingested_at: '2026-06-02T18:01:55Z', payload: { signature: 'ET MALWARE Cobalt Strike Beacon Observed', src_ip: '10.4.2.13', dest_ip: '185.220.101.45', dest_port: 4444, severity: 1, proto: 'TCP' } },
+        { id: 'ev-7720', kind: 'network_flow', agent_id: 'agent-web-prod-03', hostname: 'web-prod-03', ingested_at: '2026-06-02T18:01:40Z', payload: { direction: 'outbound', local_ip: '10.4.2.13', local_port: 51344, remote_ip: '185.220.101.45', remote_port: 4444 } },
+        { id: 'ev-6611', kind: 'fim_event', agent_id: 'agent-web-prod-03', hostname: 'web-prod-03', ingested_at: '2026-06-02T17:58:02Z', payload: { path: '/tmp/.x/beacon', change: 'created', sha256: '9c1e…7a', size: 284160 } },
+        { id: 'ev-5521', kind: 'runtime_alert', agent_id: 'falco-01', hostname: 'app-gw-02', ingested_at: '2026-06-02T07:54:31Z', payload: { rule: 'Shell spawned by Java process', proc: 'java→/bin/sh', fields: { 'fd.sip': '185.220.101.45' } } },
+        { id: 'ev-5510', kind: 'ids_alert', agent_id: 'suricata-01', hostname: 'app-gw-02', ingested_at: '2026-06-02T07:54:10Z', payload: { signature: 'ET EXPLOIT Apache log4j RCE Attempt (jndi:ldap)', src_ip: '203.0.113.9', dest_ip: '10.4.2.21', dest_port: 443, severity: 1, proto: 'TCP' } },
+        { id: 'ev-4400', kind: 'osquery_result', agent_id: 'agent-db-core-01', hostname: 'db-core-01', ingested_at: '2026-06-02T19:19:50Z', payload: { query_name: 'logged_in_users', user: 'svc-web', tty: 'pts/3', host: '10.4.2.13' } },
+        { id: 'ev-4012', kind: 'traffic_metadata', agent_id: 'zeek-01', hostname: 'web-prod-03', ingested_at: '2026-06-02T18:00:12Z', payload: { 'id.resp_h': '185.220.101.45', service: 'ssl', 'ssl.server_name': 'updates.cdn-sync.net' } },
+        { id: 'ev-3301', kind: 'scan_finding', agent_id: 'wazuh-01', hostname: 'db-core-01', ingested_at: '2026-06-02T06:00:00Z', payload: { policy: 'CIS Debian 12', check: 'auditd installed', result: 'failed' } },
+      ];
+      const ql = (q || '').toLowerCase();
+      const hits = base.filter(h => (!kind || h.kind === kind) &&
+        (!ql || JSON.stringify(h).toLowerCase().includes(ql)));
+      return { total: hits.length, hits, available: true };
+    },
+
+    // Asset hub + per-asset filters (mirror /assets/{id}, /findings?asset_id, /compliance/results?asset_id).
+    assetDetail: (id) => {
+      const a = (FIX.assets || []).find(x => x.host_id === id) || { host_id: id, hostname: id, os: '—', ip: '—', criticality: 0.5 };
+      const findings = ranking.filter(r => r.asset_id === id).map(r => ({ id: r.id, domain: r.domain, title: r.title, severity: r.severity, cve_id: r.cve_id, source_tool: r.source_tool, risk_score: r.risk_score, kev: r.kev, attack: r.attack }));
+      const compliance = (FIX.compResults || []).filter(c => c.asset_id === id);
+      return { asset: a, findings, compliance };
+    },
+    findingsBy: (id) => ranking.filter(r => r.asset_id === id),
+    compResultsBy: (id) => (FIX.compResults || []).filter(c => c.asset_id === id),
+
+    // Feedback impact loop (mirror /analysts/feedback-stats).
+    feedbackStats: { total: 11,
+      by_action: [ { action: 'confirm_tp', n: 6 }, { action: 'mark_fp', n: 3 }, { action: 'escalate', n: 2 } ],
+      by_analyst: [ { analyst: 'hamza', n: 7 }, { analyst: 'amina', n: 4 } ],
+      incorporated_in_models: ['xgb-20260602T093946Z', 'xgb-20260501T030010Z'] },
+
+    // Detection catalog (mirror /detections) — derived from the ranked findings.
+    detections: (() => { const m = {}; ranking.forEach(r => { const k = (r.source_tool || 'agent') + '|' + r.domain;
+      m[k] = m[k] || { source_tool: r.source_tool || 'agent', domain: r.domain, hits: 0, kev_hits: 0, top_risk_score: 0 };
+      m[k].hits++; if (r.kev) m[k].kev_hits++; m[k].top_risk_score = Math.max(m[k].top_risk_score, +r.risk_score); });
+      return Object.values(m).sort((a, b) => b.hits - a.hits); })(),
+
+    // Current user (mirror /whoami) — demo identity when no SSO proxy is in front.
+    whoami: { authenticated: true, user: 'hamza', email: 'hamza@soc.local', roles: ['soc-analyst'], role: 'analyst', sso: 'keycloak / oauth2-proxy (demo)' },
+
+    // Alerting inbox (mirror /notifications).
+    notifications: [
+      { id: 1, kind: 'critical_finding', severity: 'critical', title: 'Critical risk on web-prod-03', body: 'CVE-2023-4911 (Looney Tunables) — local privilege escalation in glibc', ref_type: 'finding', ref_id: '10', acknowledged: false, created_at: new Date(Date.now() - 9 * 60000).toISOString() },
+      { id: 2, kind: 'critical_finding', severity: 'critical', title: 'Critical risk on web-prod-03', body: 'Suspicious C2 egress on tcp/4444 to a known Cobalt Strike node', ref_type: 'finding', ref_id: '21', acknowledged: false, created_at: new Date(Date.now() - 14 * 60000).toISOString() },
+      { id: 3, kind: 'sla_breach', severity: 'high', title: 'SLA breached', body: 'Lateral-movement attempt toward db-core-01', ref_type: 'incident', ref_id: '3', acknowledged: false, created_at: new Date(Date.now() - 41 * 60000).toISOString() },
+      { id: 4, kind: 'critical_finding', severity: 'critical', title: 'Critical risk on app-gw-02', body: 'Apache Log4Shell (CVE-2021-44228) RCE exposed on an internet-facing service', ref_type: 'finding', ref_id: '33', acknowledged: true, created_at: new Date(Date.now() - 70 * 60000).toISOString() },
+    ],
+
+    // Access audit (mirror /access/audit) — who viewed/changed what.
+    accessAudit: [
+      { seq: 42, actor: 'hamza', role: 'analyst', tenant: 'default', method: 'POST', path: '/findings/10/feedback', status: 200, created_at: new Date(Date.now() - 6 * 60000).toISOString() },
+      { seq: 41, actor: 'hamza', role: 'analyst', tenant: 'default', method: 'PATCH', path: '/assets/db-core-01', status: 200, created_at: new Date(Date.now() - 22 * 60000).toISOString() },
+      { seq: 40, actor: 'amina', role: 'admin', tenant: 'default', method: 'POST', path: '/actions/2/approve', status: 200, created_at: new Date(Date.now() - 95 * 60000).toISOString() },
+      { seq: 39, actor: 'hamza', role: 'analyst', tenant: 'default', method: 'GET', path: '/whoami', status: 200, created_at: new Date(Date.now() - 130 * 60000).toISOString() },
+    ],
+
+    // Organizations (mirror /tenants).
+    tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
   };
 })();

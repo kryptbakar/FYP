@@ -12,9 +12,19 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import schema
+from . import access_audit, metrics, schema
 from .config import settings
-from .routers import compliance, findings, health, incidents, response, risk
+from .routers import (
+    compliance,
+    findings,
+    health,
+    identity,
+    incidents,
+    insights,
+    notifications,
+    response,
+    risk,
+)
 
 
 @asynccontextmanager
@@ -43,12 +53,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Observability + governance middlewares (outermost runs first).
+app.middleware("http")(metrics.metrics_middleware)
+app.middleware("http")(access_audit.access_audit_middleware)
+
 app.include_router(health.router)
 app.include_router(findings.router)
 app.include_router(compliance.router)
 app.include_router(risk.router)
 app.include_router(incidents.router)
 app.include_router(response.router)
+app.include_router(insights.router)
+app.include_router(identity.router)
+app.include_router(notifications.router)
+
+
+@app.get("/metrics", tags=["system"], summary="Prometheus metrics")
+async def prometheus_metrics():
+    return metrics.metrics_endpoint()
 
 
 @app.get("/", tags=["system"], summary="Service banner")

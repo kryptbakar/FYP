@@ -1,0 +1,88 @@
+name: ci
+
+# Lint, test, build and scan on every push / PR to main.
+# These gates are what a Fortune-500 vendor assessment expects to see green.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    name: python unit tests (ml + api)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: soc-central
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install -r services/api/requirements.txt pytest
+      - name: Run tests
+        run: python -m pytest -q ml/tests services/api/tests
+
+  js-check:
+    name: console JS syntax check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: soc-central/web/console/assets
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: node --check all console scripts
+        run: for f in *.js; do node --check "$f"; done
+
+  go-build:
+    name: go vet + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - name: ingest-edge
+        working-directory: soc-central/services/ingest-edge
+        run: go vet ./... && go build ./...
+      - name: agent
+        working-directory: soc-central/agent
+        run: go vet ./... && go build ./...
+
+  image-scan:
+    name: build api image + Trivy scan
+    runs-on: ubuntu-latest
+    needs: [python-tests]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build API image
+        run: docker build -t soc-central/api:ci soc-central/services/api
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: soc-central/api:ci
+          format: table
+          exit-code: "0" # report-only for now; flip to "1" to gate on findings
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+  k3s-smoke:
+    name: k3d cluster + Helm validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install k3d
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      - uses: azure/setup-helm@v4
+      - name: Helm chart smoke test on a live K3s cluster
+        working-directory: soc-central
+        run: bash deploy/smoke/k3d-smoke.sh

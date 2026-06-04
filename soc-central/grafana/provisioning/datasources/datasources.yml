@@ -39,3 +39,19 @@ datasources:
     secureJsonData:
       password: ${TIMESCALE_PASSWORD:-soc}
     editable: true
+
+  # Observability stack (only reachable when docker-compose.observability.yml is up).
+  # Prometheus scrapes the API /metrics; Loki holds container logs via promtail.
+  - name: Prometheus
+    uid: soc-prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    editable: true
+
+  - name: Loki
+    uid: soc-loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: true

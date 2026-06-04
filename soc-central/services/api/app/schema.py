@@ -69,6 +69,49 @@ CREATE TABLE IF NOT EXISTS action_audit (
     hash       text NOT NULL,
     created_at timestamptz DEFAULT now()
 );
+
+-- Notifications / alerting: rule-driven alerts an analyst should see (critical detections,
+-- SLA breaches). Generated from the live findings/incidents on demand (no extra worker).
+CREATE TABLE IF NOT EXISTS notifications (
+    id           bigserial PRIMARY KEY,
+    dedup_key    text UNIQUE,                -- so re-runs don't duplicate the same alert
+    kind         text NOT NULL,             -- critical_finding | sla_breach | system
+    severity     text DEFAULT 'info',
+    title        text NOT NULL,
+    body         text,
+    ref_type     text,                      -- finding | incident
+    ref_id       text,
+    acknowledged bool DEFAULT false,
+    created_at   timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS notifications_ack ON notifications (acknowledged, created_at DESC);
+
+-- Access audit: who viewed/changed what (distinct from the action hash-chain, which is
+-- about destructive response actions). Closes the "audit access, not just actions" gap.
+CREATE TABLE IF NOT EXISTS access_audit (
+    seq        bigserial PRIMARY KEY,
+    actor      text,
+    role       text,
+    tenant     text,
+    method     text,
+    path       text,
+    status     int,
+    created_at timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS access_audit_time ON access_audit (created_at DESC);
+
+-- Multi-tenancy foundation (modelled, non-breaking): every record defaults to the
+-- 'default' org; reads scope by the X-Tenant context when provided. Full enforcement
+-- across enrichment-owned tables is the documented next step.
+CREATE TABLE IF NOT EXISTS tenants (
+    id          text PRIMARY KEY,
+    name        text NOT NULL,
+    created_at  timestamptz DEFAULT now()
+);
+INSERT INTO tenants (id, name) VALUES ('default', 'Default organization')
+    ON CONFLICT (id) DO NOTHING;
+ALTER TABLE incidents     ADD COLUMN IF NOT EXISTS tenant text DEFAULT 'default';
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS tenant text DEFAULT 'default';
 """
 
 

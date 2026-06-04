@@ -9,7 +9,7 @@ COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 COMPOSE_AIRGAP = $(COMPOSE) -f docker-compose.yml -f docker-compose.airgap.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
+.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -109,5 +109,23 @@ clone-refs: ## Shallow-clone all reference repos into reference/ (study only)
 seed: ## (Phase 1+) Seed databases / feed mirror — placeholder
 	@echo "seed: not implemented until Phase 1"
 
-test: ## (Phase 1+) Run test suites — placeholder
-	@echo "test: not implemented until Phase 1"
+test: ## Run unit tests: Python (ml + api) and JS syntax check
+	docker run --rm -v "$(CURDIR):/src" -w /src python:3.12-slim \
+		sh -c "pip install -q -r services/api/requirements.txt pytest && python -m pytest -q ml/tests services/api/tests"
+	docker run --rm -v "$(CURDIR)/web/console/assets:/a" -w /a node:22-alpine \
+		sh -c 'for f in *.js; do node --check "$$f" || exit 1; done; echo "console JS OK"'
+
+lint: ## Vet/build the Go modules (no live cluster needed)
+	docker run --rm -v "$(CURDIR):/src" -w /src/services/ingest-edge golang:1.23 sh -c "go vet ./... && go build ./..."
+	docker run --rm -v "$(CURDIR):/src" -w /src/agent golang:1.23 sh -c "go vet ./... && go build ./..."
+
+observability-up: ## Start Prometheus + Loki + promtail alongside the core stack
+	$(COMPOSE) -f docker-compose.yml -f docker-compose.observability.yml up -d
+	@echo "Prometheus: http://localhost:$${PROMETHEUS_PORT:-9090}   Grafana 'API metrics' dashboard is provisioned"
+
+loadtest: ## Run the k6 API load test (stack must be up)
+	docker run --rm -i --network host -e BASE=http://localhost:$${API_PORT:-8000} \
+		-v "$(CURDIR)/tools/load:/s" grafana/k6 run /s/k6-api.js
+
+k3d-smoke: ## Stand up a throwaway k3d cluster and validate the Helm chart end-to-end
+	bash deploy/smoke/k3d-smoke.sh
