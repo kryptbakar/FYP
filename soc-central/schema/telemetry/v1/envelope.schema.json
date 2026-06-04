@@ -48,7 +48,7 @@
       "description": "Telemetry category; also the last token of the JetStream subject telemetry.v1.<kind>. Tool-integration kinds (ids_alert, traffic_metadata, scan_finding, ioc_match, runtime_alert) are added by the tool-integration expansion; their payloads stay generic until each tool's phase tightens them.",
       "type": "string",
       "enum": ["system_info", "process_event", "network_flow", "fim_event", "osquery_result",
-               "ids_alert", "traffic_metadata", "scan_finding", "ioc_match", "runtime_alert"]
+               "ids_alert", "traffic_metadata", "scan_finding", "ioc_match", "runtime_alert", "yara_match"]
     },
     "source_tool": {
       "description": "Which producer emitted this (e.g. agent, suricata, zeek, nuclei, trivy, wazuh, falco, sigma). Defaults to the agent when absent.",

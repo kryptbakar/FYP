@@ -43,6 +43,11 @@ type Config struct {
 	FIMPaths    []string
 	FIMMaxFiles int
 
+	// YARA IOC scanning (col_yara.go): rule file + paths to scan.
+	YARARulesPath string
+	YARAPaths     []string
+	YARAMaxFiles  int
+
 	// Resource caps (the agent must be a polite guest on monitored hosts).
 	MaxProcs   int
 	MemLimitMB int
@@ -85,6 +90,10 @@ func loadConfig() Config {
 
 		FIMPaths:    splitCSV(env("FIM_PATHS", "/etc,/usr/bin")),
 		FIMMaxFiles: envInt("FIM_MAX_FILES", 2000),
+
+		YARARulesPath: env("YARA_RULES_PATH", "/etc/soc-agent/yara-rules.json"),
+		YARAPaths:     splitCSV(env("YARA_PATHS", "/tmp,/var/tmp,/dev/shm")),
+		YARAMaxFiles:  envInt("YARA_MAX_FILES", 1000),
 
 		MaxProcs:   envInt("AGENT_MAX_PROCS", 1),
 		MemLimitMB: envInt("AGENT_MEM_LIMIT_MB", 128),
