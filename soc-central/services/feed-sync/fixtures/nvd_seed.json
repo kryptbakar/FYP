@@ -6,6 +6,7 @@
     "cvss_score": 7.8,
     "cvss_severity": "HIGH",
     "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+    "cwe": "CWE-787",
     "description": "A buffer overflow in the GNU C Library's dynamic loader ld.so while processing the GLIBC_TUNABLES environment variable (\"Looney Tunables\") allows local privilege escalation to root.",
     "affected": [
       {"vendor": "gnu", "product": "glibc", "version_start": "2.34", "version_start_incl": true, "version_end": "2.39", "version_end_excl": true}
@@ -18,6 +19,7 @@
     "cvss_score": 7.8,
     "cvss_severity": "HIGH",
     "cvss_vector": "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H",
+    "cwe": "CWE-787",
     "description": "A heap-buffer-overflow flaw was found in GNU Bash in the valid_parameter_transform function.",
     "affected": [
       {"vendor": "gnu", "product": "bash", "version_start": null, "version_start_incl": true, "version_end": "5.3", "version_end_excl": true}
@@ -30,6 +32,7 @@
     "cvss_score": 7.4,
     "cvss_severity": "HIGH",
     "cvss_vector": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:H/I:N/A:H",
+    "cwe": "CWE-843",
     "description": "There is a type confusion vulnerability relating to X.400 address processing inside an X.509 GeneralName in OpenSSL.",
     "affected": [
       {"vendor": "openssl", "product": "openssl", "version_start": "3.0.0", "version_start_incl": true, "version_end": "3.0.8", "version_end_excl": true}
@@ -42,6 +45,7 @@
     "cvss_score": 9.8,
     "cvss_severity": "CRITICAL",
     "cvss_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+    "cwe": "CWE-787",
     "description": "zlib through 1.2.12 has a heap-based buffer over-read or buffer overflow in inflate() in inflate.c via a large gzip header extra field. NOTE: kept here to demonstrate version-range filtering (bookworm ships zlib 1.2.13, so this must NOT match).",
     "affected": [
       {"vendor": "zlib", "product": "zlib", "version_start": null, "version_start_incl": true, "version_end": "1.2.12", "version_end_excl": true}

@@ -150,6 +150,15 @@ def _parse_nvd_cve(cve: dict[str, Any]) -> dict[str, Any]:
             desc = d.get("value", "")
             break
     score, severity, vector = _best_cvss(cve.get("metrics", {}))
+    cwe = None
+    for w in cve.get("weaknesses", []):
+        for d in w.get("description", []):
+            v = d.get("value", "")
+            if v.startswith("CWE-"):
+                cwe = v
+                break
+        if cwe:
+            break
     return {
         "cve_id": cve.get("id"),
         "published": cve.get("published"),
@@ -157,6 +166,7 @@ def _parse_nvd_cve(cve: dict[str, Any]) -> dict[str, Any]:
         "cvss_score": score,
         "cvss_severity": severity,
         "cvss_vector": vector,
+        "cwe": cwe,
         "description": desc,
         "affected": _parse_configs(cve.get("configurations", [])),
     }

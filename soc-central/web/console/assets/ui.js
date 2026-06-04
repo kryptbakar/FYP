@@ -37,6 +37,17 @@ const ATTACK = { T1190: 'Exploit Public-Facing Application', T1133: 'External Re
   T1041: 'Exfiltration Over C2', T1048: 'Exfiltration Over Alternative Protocol', T1486: 'Data Encrypted for Impact', T1547: 'Boot/Logon Autostart', T1543: 'Create/Modify System Process' };
 const attackName = (t) => t ? (ATTACK[t] || ATTACK[String(t).split('.')[0]] || 'technique') : '';
 
+/* CWE weakness-class names — static reference data (air-gap clean) */
+const CWE = { 'CWE-787': 'Out-of-bounds Write', 'CWE-843': 'Type Confusion', 'CWE-79': 'Cross-site Scripting',
+  'CWE-89': 'SQL Injection', 'CWE-22': 'Path Traversal', 'CWE-502': 'Deserialization of Untrusted Data',
+  'CWE-416': 'Use After Free', 'CWE-125': 'Out-of-bounds Read', 'CWE-78': 'OS Command Injection',
+  'CWE-918': 'Server-Side Request Forgery', 'CWE-287': 'Improper Authentication', 'CWE-269': 'Improper Privilege Management',
+  'CWE-94': 'Code Injection', 'CWE-200': 'Information Exposure', 'CWE-352': 'Cross-Site Request Forgery',
+  'CWE-77': 'Command Injection', 'CWE-862': 'Missing Authorization', 'CWE-119': 'Memory Buffer Error' };
+const cweName = (c) => c ? (CWE[c] || 'weakness') : '';
+function cweChip(f) { return f && f.cwe ? chip(f.cwe, 'mono') : null; }
+function predictedChip(f) { return f && f.cvss_predicted ? chip('predicted', 'warn') : null; }
+
 /* ---- icons (line, 1.6px) -------------------------------------------- */
 const PATHS = {
   triage: 'M4 6h16M4 12h10M4 18h7', detail: 'M9 3v18M3 9h18M3 3h18v18H3z', shield: 'M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Z',
