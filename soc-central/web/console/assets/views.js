@@ -192,6 +192,17 @@ async function openFinding(id) {
   if (f.threat_intel) { const ti = f.threat_intel; ctx.append(h('div', { class: 'k' }, 'MISP IOC'), h('div', {}, eNet(ti.indicator || 'indicator'), ti.type ? ` · ${ti.type}` : '', ti.confidence ? ` · confidence ${ti.confidence}` : '')); }
   if (ctx.children.length) b.append(block('ATT&CK & threat intel', ctx));
 
+  // threat attribution + knowledge graph (OpenCTI)
+  if (f.threat_intel || f.attack) {
+    const gbox = h('div', {}, loading('Building graph…'));
+    b.append(block('Attribution & knowledge graph', gbox));
+    API.intelGraph(f.id).then(g => { gbox.innerHTML = ''; gbox.append(intelGraphView(g)); })
+      .catch(() => { gbox.innerHTML = ''; gbox.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'No attribution available.')); });
+  }
+
+  // automation (SOAR playbooks)
+  b.append(block('Automation (SOAR)', playbookRunner(f)));
+
   // counterfactuals
   if (Array.isArray(ml.counterfactuals) && ml.counterfactuals.length)
     b.append(block('What-if (counterfactuals)', counterfactuals(ml.counterfactuals)));
@@ -371,6 +382,38 @@ function openIncident(inc, actions) {
     h('div', { class: 'cf' }, h('span', {}, h('span', { class: 'mono' }, a.action), ` → ${a.target || ''}`),
       h('span', { class: 'chip ' + (a.status && (a.status.includes('contain') || a.status.includes('complet')) ? 'ok' : 'warn') }, a.status || 'proposed'))))
     : h('div', { class: 'faint', style: 'font-size:12px' }, 'No actions recorded for this case.')));
+
+  // case tasks + observables (TheHive)
+  const tasksBox = h('div', {}, loading('Loading tasks…')); b.append(block('Tasks', tasksBox));
+  const obsBox = h('div', {}, loading('Loading observables…')); b.append(block('Observables', obsBox));
+  loadCasework(inc.id, tasksBox, obsBox);
+}
+const TASK_NEXT = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
+async function loadCasework(incId, tasksBox, obsBox) {
+  renderTasks(incId, tasksBox, await API.tasks(incId).catch(() => []));
+  renderObs(incId, obsBox, await API.observables(incId).catch(() => []));
+}
+function renderTasks(incId, box, tasks) {
+  box.innerHTML = '';
+  (tasks || []).forEach(t => box.append(h('div', { class: 'task' },
+    h('span', { class: 'tk ' + t.status, title: 'cycle status', onclick: async () => {
+      const ns = TASK_NEXT[t.status] || 'todo'; await API.patchTask(t.id, { status: ns }); t.status = ns; renderTasks(incId, box, tasks); } },
+      t.status === 'done' ? '✓' : t.status === 'in_progress' ? '◐' : ''),
+    h('span', { class: 'tl' + (t.status === 'done' ? ' done' : '') }, t.title),
+    t.assignee ? chip(t.assignee, '') : h('span', { class: 'faint', style: 'font-size:10.5px' }, 'unassigned'))));
+  const inp = h('input', { class: 'txt', placeholder: 'Add a task…', onkeydown: async e => {
+    if (e.key === 'Enter' && inp.value.trim()) { const t = await API.addTask(incId, { title: inp.value.trim() }); tasks.push({ id: t.id, title: inp.value.trim(), status: 'todo' }); inp.value = ''; renderTasks(incId, box, tasks); } } });
+  box.append(h('div', { class: 'row', style: 'margin-top:8px' }, inp));
+}
+function renderObs(incId, box, obs) {
+  box.innerHTML = '';
+  const TYPECLS = { ip: 'net', domain: 'net', url: 'net', host: 'asset', cve: 'code', hash: 'code' };
+  if (obs && obs.length) box.append(h('div', { class: 'wrap' }, obs.map(o =>
+    h('span', { class: 'obs' }, chip(o.type, ''), entityChip(o.value, TYPECLS[o.type] || 'code'),
+      o.is_ioc ? chip('IOC', 'kev') : null, o.tlp ? chip('TLP:' + o.tlp, 'mono') : null))));
+  else box.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'No observables yet.'));
+  box.append(h('div', { class: 'row', style: 'margin-top:10px;gap:8px' },
+    h('button', { class: 'btn sm', onclick: async () => { await API.autoObservables(incId); toast('Observables seeded from linked findings', true); renderObs(incId, box, await API.observables(incId).catch(() => obs)); } }, 'Auto-seed from findings')));
 }
 
 /* Kill-chain ordering of ATT&CK techniques present in a finding set. */
@@ -899,6 +942,64 @@ function alertRow(a, pop) {
     h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'ap-t' }, a.title), h('div', { class: 'ap-b' }, a.body || ''),
       h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:3px' }, ago(a.created_at))),
     a.acknowledged ? null : h('button', { class: 'btn sm', onclick: async (e) => { e.stopPropagation(); try { await API.ackNotification(a.id); } catch {} await loadAlerts(); renderAlerts(pop); } }, 'Ack'));
+}
+
+/* ---- threat attribution + knowledge graph (OpenCTI) ----------------- */
+function intelGraphView(g) {
+  const a = g.attribution || {};
+  const chain = h('div', { class: 'wrap', style: 'gap:6px' });
+  const parts = [['indicator', a.indicator, 'net'], ['technique', a.technique, 'code'],
+    ['malware', a.malware, null], ['actor', a.actor, null], ['campaign', a.campaign, null]].filter(p => p[1]);
+  parts.forEach((p, i) => { chain.append(p[2] ? entityChip(p[1], p[2]) : chip(p[1], 'attack')); if (i < parts.length - 1) chain.append(h('span', { class: 'faint', style: 'font-size:12px' }, '→')); });
+  const nodes = h('div', { class: 'wrap', style: 'margin-top:6px' }, (g.nodes || []).map(n =>
+    chip(`${n.type}: ${n.label}`, (n.type === 'actor' || n.type === 'malware') ? 'kev' : '')));
+  return h('div', { class: 'stack', style: 'gap:8px' },
+    parts.length ? h('div', {}, h('div', { class: 'faint', style: 'font-size:11px;margin-bottom:6px' }, 'Attribution chain'), chain) : null,
+    h('div', { class: 'faint', style: 'font-size:11px' }, `${(g.nodes || []).length} entities · ${(g.edges || []).length} relations`), nodes);
+}
+
+/* ---- SOAR playbook runner (in the finding drawer) ------------------- */
+function playbookRunner(f) {
+  const box = h('div', { class: 'stack', style: 'gap:8px' });
+  const sel = h('select', {});
+  API.playbooks().then(pbs => (pbs || []).forEach(p => sel.append(h('option', { value: p.id }, p.name)))).catch(() => {});
+  const out = h('div', {});
+  const run = h('button', { class: 'btn primary sm', onclick: async () => {
+    if (!sel.value) return; run.disabled = true; run.textContent = 'Running…';
+    const r = await API.runPlaybook(sel.value, { finding_id: f.id });
+    out.innerHTML = '';
+    out.append(h('div', { class: 'stack', style: 'gap:5px;margin-top:4px' }, (r.steps || []).map(s =>
+      h('div', { class: 'row', style: 'gap:8px' }, chip(s.ok ? '✓' : '✗', s.ok ? 'ok' : 'kev'),
+        h('span', { class: 'mono', style: 'font-size:11px' }, s.action), h('span', { class: 'faint', style: 'font-size:11px' }, s.detail || '')))));
+    toast('Playbook run complete', true); run.disabled = false; run.textContent = 'Run playbook';
+  } }, 'Run playbook');
+  box.append(h('div', { class: 'faint', style: 'font-size:11px' }, 'Containment-safe automation; destructive steps only ever propose (two-person approval).'),
+    h('div', { class: 'row', style: 'gap:8px' }, sel, run), out);
+  return box;
+}
+
+/* ---- 4.15 Playbooks (SOAR) ------------------------------------------ */
+async function viewPlaybooks(root) {
+  root.append(loading('Loading playbooks…'));
+  const [pbs, runs] = await Promise.all([API.playbooks(), API.playbookRuns()]);
+  root.innerHTML = '';
+  root.append(h('div', { class: 'panel fade' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Playbooks'),
+    h('span', { class: 'sub' }, '· containment-safe automation (analyst-controlled)')),
+    h('div', { class: 'pbgrid' }, (pbs || []).map(p => h('div', { class: 'pbcard' },
+      h('div', { class: 'row', style: 'gap:8px' }, h('div', { class: 'pbn' }, p.name),
+        h('span', { class: 'spring', style: 'flex:1' }), chip(p.trigger || 'manual', p.trigger === 'manual' ? '' : 'attack'), chip(p.enabled ? 'enabled' : 'off', p.enabled ? 'ok' : '')),
+      h('div', { class: 'pbd' }, p.description || ''),
+      h('div', { class: 'wrap', style: 'margin-top:8px' }, (p.actions || []).map(a => chip(a.type.replace('_', ' '), 'mono'))))))));
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Recent runs'),
+    h('span', { class: 'sub' }, `· ${(runs || []).length}`)),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Run', 'Playbook', 'Trigger', 'Steps', 'Status', 'By', 'When'].map(t => h('th', {}, t)))),
+      h('tbody', {}, (runs || []).length ? runs.map(r => h('tr', {},
+        h('td', { class: 'mono' }, '#' + r.id), h('td', {}, r.playbook_id), h('td', { class: 'mono', style: 'font-size:11px' }, r.trigger_ref || ''),
+        h('td', {}, h('div', { class: 'wrap', style: 'gap:4px' }, (r.steps || []).map(s => chip(s.action, s.ok ? 'ok' : 'kev')))),
+        h('td', {}, chip(r.status, r.status === 'completed' ? 'ok' : 'warn')), h('td', {}, r.run_by || ''),
+        h('td', { class: 'mono', style: 'font-size:11px' }, ago(r.created_at))))
+        : [h('tr', {}, h('td', { colspan: '7', class: 'faint', style: 'padding:18px;text-align:center' }, 'No runs yet.'))])))));
 }
 
 /* ---- 4.14 Dashboards (embedded Grafana) ----------------------------- */

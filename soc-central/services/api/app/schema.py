@@ -119,6 +119,80 @@ ALTER TABLE incidents ADD COLUMN IF NOT EXISTS correlation_uid text;
 ALTER TABLE incidents ADD COLUMN IF NOT EXISTS auto_created boolean DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS incidents_correlation_uid ON incidents (correlation_uid)
     WHERE correlation_uid IS NOT NULL;
+
+-- Case work (TheHive pattern): tasks/checklists + observables (IOCs) attached to an incident.
+CREATE TABLE IF NOT EXISTS case_tasks (
+    id           bigserial PRIMARY KEY,
+    incident_id  bigint REFERENCES incidents(id) ON DELETE CASCADE,
+    title        text NOT NULL,
+    status       text DEFAULT 'todo',       -- todo | in_progress | done
+    assignee     text,
+    created_at   timestamptz DEFAULT now(),
+    completed_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS case_tasks_incident ON case_tasks (incident_id);
+
+CREATE TABLE IF NOT EXISTS case_observables (
+    id           bigserial PRIMARY KEY,
+    incident_id  bigint REFERENCES incidents(id) ON DELETE CASCADE,
+    type         text NOT NULL,             -- ip | domain | url | hash | cve | host
+    value        text NOT NULL,
+    is_ioc       boolean DEFAULT false,
+    tlp          text DEFAULT 'amber',
+    note         text,
+    added_at     timestamptz DEFAULT now(),
+    UNIQUE (incident_id, type, value)
+);
+
+-- IOC sightings (MISP pattern): record where/when an indicator was actually observed.
+CREATE TABLE IF NOT EXISTS ioc_sightings (
+    id         bigserial PRIMARY KEY,
+    indicator  text NOT NULL,
+    type       text,
+    finding_id bigint,
+    asset_id   text,
+    source     text,
+    seen_at    timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ioc_sightings_indicator ON ioc_sightings (indicator, seen_at DESC);
+
+-- SOAR playbooks (n8n/Shuffle pattern): a named sequence of containment-safe actions, with
+-- an audit of every run. Actions are local-only (notify / open_incident / propose_containment)
+-- so automation stays air-gap clean and analyst-controlled.
+CREATE TABLE IF NOT EXISTS playbooks (
+    id          text PRIMARY KEY,
+    name        text NOT NULL,
+    description text,
+    trigger     text DEFAULT 'manual',      -- manual | critical_finding | sla_breach
+    actions     jsonb DEFAULT '[]',         -- [{type, params}]
+    enabled     boolean DEFAULT true,
+    created_at  timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS playbook_runs (
+    id           bigserial PRIMARY KEY,
+    playbook_id  text REFERENCES playbooks(id) ON DELETE CASCADE,
+    trigger_ref  text,                       -- e.g. finding:10 / incident:3 / manual
+    status       text DEFAULT 'completed',   -- completed | failed
+    steps        jsonb DEFAULT '[]',         -- per-action result
+    run_by       text,
+    created_at   timestamptz DEFAULT now()
+);
+
+-- Seed three default playbooks (idempotent).
+INSERT INTO playbooks (id, name, description, trigger, actions) VALUES
+  ('pb-critical-triage', 'Critical finding fast-triage',
+   'On a critical finding: raise an alert, open a case, and propose host containment for approval.',
+   'critical_finding',
+   '[{"type":"notify","params":{"severity":"critical"}},{"type":"open_incident","params":{}},{"type":"propose_containment","params":{"action":"network_isolate"}}]'),
+  ('pb-c2-contain', 'Suspected C2 beacon containment',
+   'On a C2/egress detection: alert, open a case, and propose isolating the source host.',
+   'manual',
+   '[{"type":"notify","params":{"severity":"critical"}},{"type":"open_incident","params":{}},{"type":"propose_containment","params":{"action":"network_isolate"}}]'),
+  ('pb-sla-escalate', 'SLA-breach escalation',
+   'On an SLA breach: raise a high-severity alert and notify the on-call owner.',
+   'sla_breach',
+   '[{"type":"notify","params":{"severity":"high"}}]')
+ON CONFLICT (id) DO NOTHING;
 """
 
 # Finding lifecycle / risk-acceptance (DefectDojo pattern). findings is owned by the
