@@ -48,6 +48,8 @@ def _finding(asset_id: str, domain: str, rule_id: str, title: str, severity: str
         "epss_percentile": kw.get("epss_percentile"), "kev": kw.get("kev", False),
         "kev_due_date": kw.get("kev_due_date"), "evidence": kw.get("evidence", {}),
         "source_tool": source_tool, "raw_ref": kw.get("raw_ref"), "dedup_key": dedup_key,
+        "exploit_refs": kw.get("exploit_refs", []),
+        "exploit_available": bool(kw.get("exploit_refs")) or kw.get("kev", False),
     }
     f["fingerprint"] = _fp(*fp_parts)
     return f
@@ -70,8 +72,10 @@ def assess_application(asset_id: str, packages: list[dict], matcher: Matcher) ->
                 cvss_score=m.cvss_score, cvss_severity=m.cvss_severity,
                 epss=m.epss, epss_percentile=m.epss_percentile,
                 kev=m.kev, kev_due_date=m.kev_due_date,
+                exploit_refs=m.exploit_refs,
                 evidence={"matched": m.matched_range, "cvss_vector": m.cvss_vector,
-                          "product": m.product},
+                          "product": m.product,
+                          "exploits": [r["ref"] for r in (m.exploit_refs or [])][:5]},
             ))
     return findings
 

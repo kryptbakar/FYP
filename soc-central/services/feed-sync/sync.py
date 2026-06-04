@@ -70,6 +70,11 @@ def load_fixture_kev() -> list[dict]:
     return out
 
 
+def load_fixture_exploit() -> list[dict]:
+    data = json.loads((FIXTURES / "exploit_seed.json").read_text())
+    return data.get("exploits", [])
+
+
 def load_aliases() -> dict[str, str]:
     return json.loads((FIXTURES / "pkg_alias_seed.json").read_text())
 
@@ -86,7 +91,7 @@ def cache_read(name: str) -> list[dict]:
 # ----------------------------------------------------------------- main ------
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--feeds", default="kev,epss,nvd", help="comma list: kev,epss,nvd")
+    ap.add_argument("--feeds", default="kev,epss,nvd,exploit", help="comma list: kev,epss,nvd,exploit")
     ap.add_argument("--seed", action="store_true", help="load bundled fixtures (offline)")
     ap.add_argument("--from-cache", action="store_true", help="replay the on-disk cache (offline)")
     ap.add_argument("--nvd-days", type=int, default=int(os.getenv("NVD_SYNC_DAYS", "7")))
@@ -129,6 +134,13 @@ def main() -> None:
                 rows = fetchers.fetch_nvd(client, days=args.nvd_days, api_key=os.getenv("NVD_API_KEY") or None)
                 cache_write("nvd", rows)
             db.record_sync(conn, "nvd", db.upsert_cves(conn, rows), mode)
+
+        if "exploit" in feeds:
+            rows = load_fixture_exploit() if mode == "seed" else (
+                cache_read("exploit") if mode == "cache" else fetchers.fetch_exploit_refs(client))
+            if mode == "online":
+                cache_write("exploit", rows)
+            db.record_sync(conn, "exploit", db.upsert_exploit_refs(conn, rows), mode)
     finally:
         if client:
             client.close()

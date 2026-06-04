@@ -26,6 +26,36 @@ log = logging.getLogger("feed-sync.fetch")
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 EPSS_URL = "https://epss.cyentia.com/epss_scores-current.csv.gz"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+# Exploit-DB ships a master CSV; its `codes` column carries the CVE id(s) an exploit covers.
+EXPLOITDB_URL = "https://gitlab.com/exploit-database/exploitdb/-/raw/main/files_exploits.csv"
+
+
+# ------------------------------------------------------------ Exploit-DB ------
+def fetch_exploit_refs(client: httpx.Client) -> list[dict[str, Any]]:
+    """Map CVE -> public exploit availability from the Exploit-DB master CSV.
+    Each EDB row's `codes` field may list one or more CVE ids; we emit one ref per CVE."""
+    r = client.get(EXPLOITDB_URL, timeout=120)
+    r.raise_for_status()
+    rows: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in csv.DictReader(io.StringIO(r.text)):
+        codes = (row.get("codes") or "")
+        if "CVE-" not in codes:
+            continue
+        edb_id = row.get("id") or ""
+        title = (row.get("description") or "").strip()[:200]
+        for token in codes.replace(",", ";").split(";"):
+            token = token.strip()
+            if not token.startswith("CVE-"):
+                continue
+            key = (token, edb_id)
+            if key in seen:
+                continue
+            seen.add(key)
+            rows.append({"cve_id": token, "source": "exploit-db", "ref": f"EDB-{edb_id}",
+                         "type": "exploit", "title": title})
+    log.info("Exploit-DB: %d CVE->exploit refs", len(rows))
+    return rows
 
 
 # ---------------------------------------------------------------- KEV --------
