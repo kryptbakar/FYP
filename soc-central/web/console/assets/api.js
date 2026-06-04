@@ -85,6 +85,21 @@ const API = {
   tenants: () => API._get('/tenants', () => FIX.tenants),
   triage: (id, body) => API._post(`/findings/${id}/triage`, body, { id, triage_status: body.status, simulated: true }),
   correlate: (body) => API._post('/incidents/correlate', body || { min_score: 60, window_hours: 24 }, { correlated_groups: 1, created: [{ incident_id: 99, findings: 3 }], simulated: true }),
+  // casework (TheHive)
+  tasks: (incId) => API._get(`/incidents/${incId}/tasks`, () => FIX.tasks(incId)),
+  addTask: (incId, body) => API._post(`/incidents/${incId}/tasks`, body, { id: Date.now(), title: body.title, status: 'todo', simulated: true }),
+  patchTask: (taskId, body) => API._send('PATCH', `/tasks/${taskId}`, body, { id: taskId, status: body.status, simulated: true }),
+  observables: (incId) => API._get(`/incidents/${incId}/observables`, () => FIX.observables(incId)),
+  addObservable: (incId, body) => API._post(`/incidents/${incId}/observables`, body, { id: Date.now(), ...body, simulated: true }),
+  autoObservables: (incId) => API._post(`/incidents/${incId}/observables/auto`, {}, { seeded: 3, simulated: true }),
+  // SOAR (n8n/Shuffle)
+  playbooks: () => API._get('/playbooks', () => FIX.playbooks),
+  playbookRuns: () => API._get('/playbook-runs', () => FIX.playbookRuns),
+  runPlaybook: (id, body) => API._post(`/playbooks/${id}/run`, body || {}, FIX.runPlaybook(id)),
+  // threat intel (OpenCTI / MISP)
+  intelGraph: (fid) => API._get(`/findings/${fid}/intel-graph`, () => FIX.intelGraph(fid)),
+  attribution: () => API._get('/intel/attribution', () => FIX.attribution),
+  sightings: () => API._get('/intel/sightings', () => FIX.sightings),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),

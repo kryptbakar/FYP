@@ -202,5 +202,63 @@ const FIX = (() => {
 
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
+
+    // Case work (TheHive) — tasks + observables per incident.
+    tasks: (incId) => ([
+      { id: 1, title: 'Validate the detection / rule out false positive', status: 'done', assignee: 'hamza' },
+      { id: 2, title: 'Scope: which hosts/users are affected', status: 'in_progress', assignee: 'hamza' },
+      { id: 3, title: 'Contain — isolate affected host (two-person)', status: 'todo', assignee: null },
+      { id: 4, title: 'Eradicate & recover; document timeline', status: 'todo', assignee: null },
+    ]),
+    observables: (incId) => ([
+      { id: 1, type: 'host', value: 'web-prod-03', is_ioc: false, tlp: 'amber' },
+      { id: 2, type: 'ip', value: '185.220.101.45', is_ioc: true, tlp: 'red' },
+      { id: 3, type: 'cve', value: 'CVE-2023-4911', is_ioc: false, tlp: 'green' },
+    ]),
+
+    // SOAR (n8n/Shuffle) — playbooks + run history.
+    playbooks: [
+      { id: 'pb-critical-triage', name: 'Critical finding fast-triage', trigger: 'critical_finding', enabled: true,
+        description: 'On a critical finding: raise an alert, open a case, and propose host containment for approval.',
+        actions: [{ type: 'notify' }, { type: 'open_incident' }, { type: 'propose_containment', params: { action: 'network_isolate' } }] },
+      { id: 'pb-c2-contain', name: 'Suspected C2 beacon containment', trigger: 'manual', enabled: true,
+        description: 'On a C2/egress detection: alert, open a case, and propose isolating the source host.',
+        actions: [{ type: 'notify' }, { type: 'open_incident' }, { type: 'propose_containment', params: { action: 'network_isolate' } }] },
+      { id: 'pb-sla-escalate', name: 'SLA-breach escalation', trigger: 'sla_breach', enabled: true,
+        description: 'On an SLA breach: raise a high-severity alert and notify the on-call owner.',
+        actions: [{ type: 'notify' }] },
+    ],
+    playbookRuns: [
+      { id: 12, playbook_id: 'pb-critical-triage', trigger_ref: 'finding:10', status: 'completed', run_by: 'hamza', created_at: new Date(Date.now() - 18 * 60000).toISOString(),
+        steps: [{ action: 'notify', ok: true, detail: 'critical' }, { action: 'open_incident', ok: true, detail: '#7' }, { action: 'propose_containment', ok: true, detail: 'action #5 pending two-person approval' }] },
+    ],
+    runPlaybook: (id) => ({ run_id: Date.now(), playbook: id, trigger_ref: 'finding:10', incident_id: 7, simulated: true,
+      steps: [{ action: 'notify', ok: true, detail: 'critical' }, { action: 'open_incident', ok: true, detail: '#7' }, { action: 'propose_containment', ok: true, detail: 'action #5 pending two-person approval' }] }),
+
+    // Threat intel (OpenCTI knowledge graph + MISP sightings).
+    intelGraph: (fid) => ({
+      attribution: { indicator: '185.220.101.45', malware: 'Cobalt Strike', actor: 'TA-Phoenix', campaign: 'Operation Duskfall', technique: 'T1071.001', confidence: 90 },
+      nodes: [
+        { id: 'asset:web-prod-03', label: 'web-prod-03', type: 'asset' },
+        { id: 'finding:' + fid, label: 'finding #' + fid, type: 'finding' },
+        { id: 'ioc:185.220.101.45', label: '185.220.101.45', type: 'indicator' },
+        { id: 'ttp:T1071.001', label: 'T1071.001', type: 'technique' },
+        { id: 'mal:Cobalt Strike', label: 'Cobalt Strike', type: 'malware' },
+        { id: 'actor:TA-Phoenix', label: 'TA-Phoenix', type: 'actor' },
+        { id: 'camp:Operation Duskfall', label: 'Operation Duskfall', type: 'campaign' },
+      ],
+      edges: [
+        { from: 'finding:' + fid, to: 'asset:web-prod-03', label: 'affects' },
+        { from: 'finding:' + fid, to: 'ioc:185.220.101.45', label: 'observed' },
+        { from: 'finding:' + fid, to: 'ttp:T1071.001', label: 'maps to' },
+        { from: 'ioc:185.220.101.45', to: 'mal:Cobalt Strike', label: 'indicates' },
+        { from: 'mal:Cobalt Strike', to: 'actor:TA-Phoenix', label: 'used by' },
+        { from: 'actor:TA-Phoenix', to: 'camp:Operation Duskfall', label: 'part of' },
+      ],
+    }),
+    attribution: { actors: [{ name: 'TA-Phoenix', findings: 2 }], malware: [{ name: 'Cobalt Strike', findings: 2 }, { name: 'Log4Shell', findings: 1 }] },
+    sightings: [
+      { id: 1, indicator: '185.220.101.45', type: 'ip-dst', finding_id: 21, asset_id: 'web-prod-03', source: 'misp', seen_at: new Date(Date.now() - 12 * 60000).toISOString() },
+    ],
   };
 })();
