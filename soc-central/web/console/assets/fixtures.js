@@ -30,7 +30,9 @@ const FIX = (() => {
   ];
 
   // lifecycle + derived exploit-availability signal (mirrors the live API fields)
-  ranking.forEach(r => { r.triage_status = r.triage_status || 'open'; r.exploit_available = !!(r.kev || r.source_tool === 'nuclei'); });
+  const CWE_DEMO = { 'CVE-2023-4911': 'CWE-787', 'CVE-2021-44228': 'CWE-502', 'CVE-2022-3715': 'CWE-787' };
+  ranking.forEach(r => { r.triage_status = r.triage_status || 'open'; r.exploit_available = !!(r.kev || r.source_tool === 'nuclei');
+    r.cwe = r.cwe || CWE_DEMO[r.cve_id] || null; r.cvss_predicted = r.cvss_predicted || false; });
 
   const explain = (id) => {
     const f = ranking.find(r => r.id === +id) || ranking[0];

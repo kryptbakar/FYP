@@ -29,6 +29,28 @@ def _fp(*parts: Any) -> str:
     return hashlib.sha1("|".join(str(p) for p in parts).encode()).hexdigest()
 
 
+# CVSS-from-text: when a matched CVE has no CVSS severity (NVD sometimes lags), estimate one
+# from the description via impact keywords. A defensible, air-gap-clean stand-in for the
+# cvss_score_prediction_model reference (no heavy NLP); flagged cvss_predicted so the UI is
+# honest that it's an estimate, not an authoritative score.
+_SEV_KEYWORDS = [
+    (("remote code execution", "rce", "arbitrary code", "command injection",
+      "deserialization", "unauthenticated"), "CRITICAL"),
+    (("privilege escalation", "buffer overflow", "use-after-free", "out-of-bounds write",
+      "sql injection", "authentication bypass", "type confusion"), "HIGH"),
+    (("cross-site scripting", "xss", "csrf", "path traversal", "out-of-bounds read",
+      "information disclosure", "denial of service", "dos", "open redirect"), "MEDIUM"),
+]
+
+
+def predict_severity(desc: str | None) -> str:
+    d = (desc or "").lower()
+    for kws, sev in _SEV_KEYWORDS:
+        if any(k in d for k in kws):
+            return sev
+    return "MEDIUM"
+
+
 def _finding(asset_id: str, domain: str, rule_id: str, title: str, severity: str, **kw) -> dict:
     source_tool = kw.get("source_tool", "agent")
     # dedup_key groups the SAME underlying issue across tools (Phase-F fusion); fingerprint is
@@ -50,6 +72,7 @@ def _finding(asset_id: str, domain: str, rule_id: str, title: str, severity: str
         "source_tool": source_tool, "raw_ref": kw.get("raw_ref"), "dedup_key": dedup_key,
         "exploit_refs": kw.get("exploit_refs", []),
         "exploit_available": bool(kw.get("exploit_refs")) or kw.get("kev", False),
+        "cwe": kw.get("cwe"), "cvss_predicted": kw.get("cvss_predicted", False),
     }
     f["fingerprint"] = _fp(*fp_parts)
     return f
@@ -63,18 +86,21 @@ def assess_application(asset_id: str, packages: list[dict], matcher: Matcher) ->
         if not name or not version:
             continue
         for m in matcher.match_package(name, version):
+            predicted = not (m.cvss_severity and m.cvss_severity != "UNKNOWN")
+            severity = predict_severity(m.description) if predicted else m.cvss_severity
             findings.append(_finding(
                 asset_id, "application", m.cve_id,
                 title=f"{m.cve_id} in {name} {version}",
-                severity=m.cvss_severity or "UNKNOWN",
+                severity=severity,
                 description=m.description,
                 cve_id=m.cve_id, package_name=name, package_version=version,
                 cvss_score=m.cvss_score, cvss_severity=m.cvss_severity,
                 epss=m.epss, epss_percentile=m.epss_percentile,
                 kev=m.kev, kev_due_date=m.kev_due_date,
-                exploit_refs=m.exploit_refs,
+                exploit_refs=m.exploit_refs, cwe=m.cwe, cvss_predicted=predicted,
                 evidence={"matched": m.matched_range, "cvss_vector": m.cvss_vector,
-                          "product": m.product,
+                          "product": m.product, "cwe": m.cwe,
+                          "cvss_predicted": predicted,
                           "exploits": [r["ref"] for r in (m.exploit_refs or [])][:5]},
             ))
     return findings

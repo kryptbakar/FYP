@@ -115,7 +115,9 @@ function decisionCard(r) {
     consensusChip(r.consensus),
     r.kev ? chip('KEV', 'kev') : null,
     exploitChip(r),
+    cweChip(r),
     r.epss ? chip('EPSS ' + pct(r.epss), '') : null,
+    predictedChip(r),
     r.attack ? chip(r.attack, 'attack') : null,
     r.threat_intel ? chip('Live IOC', 'intel') : null,
     triageChip(r.triage_status));
@@ -187,7 +189,9 @@ async function openFinding(id) {
   // ATT&CK + threat intel
   const ctx = h('div', { class: 'kv' });
   if (f.attack) ctx.append(h('div', { class: 'k' }, 'ATT&CK'), h('div', {}, eCode(f.attack), ' · ', attackName(f.attack)));
+  if (f.cwe) ctx.append(h('div', { class: 'k' }, 'CWE'), h('div', {}, eCode(f.cwe), ' · ', cweName(f.cwe)));
   if (f.cvss_score) ctx.append(h('div', { class: 'k' }, 'CVSS'), h('div', { class: 'mono' }, n1(f.cvss_score)));
+  else if (f.cvss_predicted) ctx.append(h('div', { class: 'k' }, 'CVSS'), h('div', {}, chip('predicted', 'warn'), ' severity estimated from description'));
   if (f.epss) ctx.append(h('div', { class: 'k' }, 'EPSS'), h('div', {}, h('span', { class: 'mono' }, pct(f.epss)), ' exploitation probability'));
   if (f.exploit_refs && f.exploit_refs.length) ctx.append(h('div', { class: 'k' }, 'Public exploit'),
     h('div', { class: 'wrap' }, f.exploit_refs.slice(0, 4).map(r => chip(`${r.source}: ${r.ref}`, 'mono'))));

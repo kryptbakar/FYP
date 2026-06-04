@@ -33,7 +33,8 @@ async def ranking(
                risk_score, ml_risk_score, kev, cvss_score, epss,
                attack, threat_intel, consensus,
                COALESCE(triage_status,'open') AS triage_status,
-               COALESCE(exploit_available, kev OR source_tool = 'nuclei') AS exploit_available
+               COALESCE(exploit_available, kev OR source_tool = 'nuclei') AS exploit_available,
+               cwe, COALESCE(cvss_predicted, false) AS cvss_predicted
         FROM findings
         WHERE risk_score IS NOT NULL {closed}
         ORDER BY risk_score DESC

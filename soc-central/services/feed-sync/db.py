@@ -22,10 +22,12 @@ CREATE TABLE IF NOT EXISTS nvd_cve (
     cvss_score    numeric,
     cvss_severity text,
     cvss_vector   text,
+    cwe           text,
     description   text,
     source        text DEFAULT 'nvd',
     synced_at     timestamptz DEFAULT now()
 );
+ALTER TABLE nvd_cve ADD COLUMN IF NOT EXISTS cwe text;
 
 CREATE TABLE IF NOT EXISTS nvd_affected (
     id                 bigserial PRIMARY KEY,
@@ -106,18 +108,19 @@ def upsert_cves(conn: psycopg.Connection, cves: list[dict[str, Any]]) -> int:
             cur.execute(
                 """
                 INSERT INTO nvd_cve (cve_id, published, last_modified, cvss_score,
-                                     cvss_severity, cvss_vector, description, source)
+                                     cvss_severity, cvss_vector, cwe, description, source)
                 VALUES (%(cve_id)s, %(published)s, %(last_modified)s, %(cvss_score)s,
-                        %(cvss_severity)s, %(cvss_vector)s, %(description)s, %(source)s)
+                        %(cvss_severity)s, %(cvss_vector)s, %(cwe)s, %(description)s, %(source)s)
                 ON CONFLICT (cve_id) DO UPDATE SET
                     last_modified = EXCLUDED.last_modified,
                     cvss_score    = EXCLUDED.cvss_score,
                     cvss_severity = EXCLUDED.cvss_severity,
                     cvss_vector   = EXCLUDED.cvss_vector,
+                    cwe           = EXCLUDED.cwe,
                     description   = EXCLUDED.description,
                     synced_at     = now()
                 """,
-                {"source": "nvd", **c},
+                {"source": "nvd", "cwe": None, **c},
             )
             # Replace affected ranges for this CVE.
             cur.execute("DELETE FROM nvd_affected WHERE cve_id = %s", (c["cve_id"],))

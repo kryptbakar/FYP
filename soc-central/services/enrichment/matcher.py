@@ -34,6 +34,7 @@ class Match:
     kev_due_date: Any | None
     extra: dict = field(default_factory=dict)
     exploit_refs: list = field(default_factory=list)
+    cwe: str | None = None
 
 
 class Matcher:
@@ -52,15 +53,15 @@ class Matcher:
                 """
                 SELECT a.product, a.cve_id, a.version_start, a.version_start_incl,
                        a.version_end, a.version_end_excl,
-                       c.cvss_score, c.cvss_severity, c.cvss_vector, c.description
+                       c.cvss_score, c.cvss_severity, c.cvss_vector, c.cwe, c.description
                 FROM nvd_affected a JOIN nvd_cve c USING (cve_id)
                 """
             )
             for row in cur.fetchall():
-                (product, cve_id, vs, vsi, ve, vee, score, sev, vec, desc) = row
+                (product, cve_id, vs, vsi, ve, vee, score, sev, vec, cwe, desc) = row
                 m.by_product.setdefault(product.lower(), []).append(
                     {"cve_id": cve_id, "vs": vs, "vsi": vsi, "ve": ve, "vee": vee,
-                     "score": score, "sev": sev, "vec": vec, "desc": desc}
+                     "score": score, "sev": sev, "vec": vec, "cwe": cwe, "desc": desc}
                 )
             cur.execute("SELECT cve_id, epss, percentile FROM epss")
             for cve_id, epss, pct in cur.fetchall():
@@ -117,6 +118,7 @@ class Matcher:
             kev=k is not None,
             kev_due_date=k["due_date"] if k else None,
             exploit_refs=self.exploit.get(c["cve_id"], []),
+            cwe=c.get("cwe"),
         )
 
 
