@@ -8,6 +8,7 @@ const ROUTES = {
   overview:   { title: 'Overview', crumb: 'Security posture at a glance', icon: 'overview', key: '1', sec: 'Monitor', view: viewOverview },
   triage:     { title: 'Triage', crumb: 'Ranked decisions', icon: 'triage', key: '2', sec: 'Monitor', view: viewTriage },
   hunt:       { title: 'Hunt', crumb: 'Search raw telemetry', icon: 'hunt', key: '3', sec: 'Monitor', view: viewHunt },
+  coverage:   { title: 'Coverage', crumb: 'ATT&CK coverage & posture trend', icon: 'matrix', key: '', sec: 'Monitor', view: viewCoverage },
   cases:      { title: 'Cases', crumb: 'Incidents, correlation & signed audit', icon: 'cases', key: '4', sec: 'Investigate', view: viewIncidents },
   assets:     { title: 'Assets', crumb: 'Inventory & host detail', icon: 'assets', key: '5', sec: 'Investigate', view: viewAssets },
   livehunt:   { title: 'Live Hunt', crumb: 'Fleet artifact collection', icon: 'target', key: '', sec: 'Investigate', view: viewLiveHunt },

@@ -239,6 +239,18 @@ const FIX = (() => {
     generateReport: (type) => ({ id: Date.now(), type, title: type + ' report (demo) — just now', simulated: true,
       content: { kpis: { assets: 7, open_findings: 40, kev: 8, exploit_available: 3, critical: 2, high: 14, avg_risk: 30.2 }, risk_bands: { critical: 2, high: 14, medium: 18, low: 6 }, top_risks: [], by_tool: [] } }),
 
+    // ATT&CK coverage matrix.
+    attackCoverage: { tactics: ['initial-access', 'execution', 'privilege-escalation', 'defense-evasion', 'command-and-control'],
+      techniques: [
+        { technique: 'T1190', tactic: 'initial-access', name: 'Exploit Public-Facing Application', findings: 6, tools: ['agent', 'nuclei', 'trivy'], tool_count: 3, top_risk: 94.3 },
+        { technique: 'T1059', tactic: 'execution', name: 'Command & Scripting Interpreter', findings: 1, tools: ['falco'], tool_count: 1, top_risk: 60 },
+        { technique: 'T1068', tactic: 'privilege-escalation', name: 'Exploitation for Privilege Escalation', findings: 2, tools: ['agent', 'trivy'], tool_count: 2, top_risk: 72 },
+        { technique: 'T1562', tactic: 'defense-evasion', name: 'Impair Defenses', findings: 2, tools: ['wazuh', 'agent'], tool_count: 2, top_risk: 46 },
+        { technique: 'T1071.001', tactic: 'command-and-control', name: 'Web Protocols (C2)', findings: 2, tools: ['suricata', 'misp'], tool_count: 2, top_risk: 88 },
+      ], covered: 5, total_known: 20 },
+    postureTrends: (() => { const out = []; for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000);
+      out.push({ snap_date: d.toISOString().slice(0, 10), open_findings: 38 + (6 - i), kev: 7 + (i % 2), critical: 2, high: 12 + (6 - i), exploit_available: 3, avg_risk: 28 + (6 - i) * 0.6, compliance_pct: 33 + (6 - i) }); } return out; })(),
+
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 

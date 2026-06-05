@@ -463,6 +463,20 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 .task .tl.done { color: var(--faint); text-decoration: line-through; }
 .obs { display: inline-flex; align-items: center; gap: 5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: var(--r-sm); }
 
+/* ATT&CK coverage matrix */
+.attackmx { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+.attcol { min-width: 184px; flex: 1; }
+.attcol .atth { font-size: 10px; letter-spacing: .5px; text-transform: uppercase; color: var(--muted); padding: 6px 4px 10px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.attcell { border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--r-sm); padding: 9px 10px; margin-bottom: 8px; cursor: pointer; background: var(--elevated); transition: border-color .14s; }
+.attcell:hover { border-color: var(--line-strong); }
+.attcell.critical { border-left-color: var(--critical); } .attcell.high { border-left-color: var(--warning); }
+.attcell.medium { border-left-color: var(--muted); } .attcell.low, .attcell.info { border-left-color: var(--faint); }
+.attcell.i3 { background: #1d161b; } .attcell.i2 { background: #181419; }
+.attcell .tn { font-family: var(--mono); font-size: 12px; font-weight: 500; }
+.attcell .td { font-size: 11px; color: var(--text-2); margin: 3px 0; line-height: 1.35; }
+.attcell .tm { font-size: 10px; color: var(--faint); }
+.trendx { display: flex; justify-content: space-between; margin-top: 4px; font-size: 9.5px; color: var(--faint); font-family: var(--mono); }
+
 /* playbooks (SOAR) */
 .pbgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; padding: 16px; }
 .pbcard { padding: 14px 15px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--elevated); }
