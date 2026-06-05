@@ -85,14 +85,18 @@ async function boot() {
   q.addEventListener('input', () => { STATE.q = q.value; if (current === 'triage' && window._renderCards) window._renderCards(); });
 
   document.addEventListener('keydown', e => {
-    if (e.target === q) {
-      if (e.key === 'Escape') q.blur();
-      // Enter in the search bar runs a global search (across findings/assets/CVEs/IOCs).
-      if (e.key === 'Enter' && q.value.trim()) { STATE.q = q.value; go('search'); q.blur(); }
-      return;
+    // Command palette (⌘K / Ctrl+K) works from anywhere, even inside inputs.
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openPalette(); return; }
+    const tag = (e.target.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+      if (e.target === q) {
+        if (e.key === 'Escape') q.blur();
+        if (e.key === 'Enter' && q.value.trim()) { STATE.q = q.value; go('search'); q.blur(); }
+      } else if (e.key === 'Escape') { e.target.blur(); }
+      return; // don't fire single-key shortcuts while typing
     }
     if (e.key === '/') { e.preventDefault(); q.focus(); return; }
-    if (e.key === 'Escape') { closeAlerts(); closeDrawer(); return; }
+    if (e.key === 'Escape') { closePalette(); closeAlerts(); closeDrawer(); return; }
     if (e.key === 'j') { moveSel(1); return; }
     if (e.key === 'k') { moveSel(-1); return; }
     if (e.key === 'Enter') { openSel(); return; }
@@ -139,6 +143,47 @@ function routeFromHash(initial) {
   else if (initial) go('overview');
 }
 window.addEventListener('hashchange', () => routeFromHash(false));
+
+/* ---- command palette (⌘K / Ctrl+K) — jump to any page ---------------- */
+let _cmdkItems = [], _cmdkSel = 0, _cmdkWired = false;
+function openPalette() {
+  const box = $('#cmdk'); if (!box || $('#login') && !$('#login').hidden) return; // not before login
+  box.hidden = false;
+  const input = $('#cmdk-input');
+  if (!_cmdkWired) {
+    input.addEventListener('input', () => renderPalette(input.value));
+    input.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); paletteNav(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); paletteNav(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); paletteEnter(); }
+      else if (e.key === 'Escape') { e.preventDefault(); closePalette(); }
+    });
+    box.addEventListener('click', e => { if (e.target === box) closePalette(); });
+    _cmdkWired = true;
+  }
+  input.value = ''; renderPalette(''); input.focus();
+}
+function closePalette() { const box = $('#cmdk'); if (box) box.hidden = true; }
+function renderPalette(query) {
+  const list = $('#cmdk-list'); const ql = (query || '').toLowerCase();
+  _cmdkItems = Object.entries(ROUTES)
+    .filter(([k, r]) => r.sec !== '_hidden' && `${r.title} ${r.sec} ${r.crumb}`.toLowerCase().includes(ql))
+    .map(([k, r]) => ({ key: k, title: r.title, sec: r.sec, icon: r.icon }));
+  _cmdkSel = 0; list.innerHTML = '';
+  if (!_cmdkItems.length) { list.append(h('div', { class: 'faint', style: 'padding:16px;text-align:center;font-size:12px' }, 'No matching page.')); return; }
+  _cmdkItems.forEach((it, i) => list.append(h('div', { class: 'cmdk-item' + (i === 0 ? ' sel' : ''), onclick: () => { go(it.key); closePalette(); } },
+    h('span', { html: ic(it.icon), style: 'width:15px;height:15px;color:var(--muted);display:inline-flex' }),
+    h('span', { style: 'flex:1' }, it.title),
+    h('span', { class: 'faint', style: 'font-size:10.5px' }, it.sec))));
+}
+function paletteNav(d) {
+  if (!_cmdkItems.length) return;
+  _cmdkSel = (_cmdkSel + d + _cmdkItems.length) % _cmdkItems.length;
+  const els = $$('#cmdk-list .cmdk-item');
+  els.forEach((el, i) => el.classList.toggle('sel', i === _cmdkSel));
+  if (els[_cmdkSel]) els[_cmdkSel].scrollIntoView({ block: 'nearest' });
+}
+function paletteEnter() { const it = _cmdkItems[_cmdkSel]; if (it) { go(it.key); closePalette(); } }
 
 /* ---- auth gate: require login before the app boots ------------------- */
 window.canAct = () => API.role !== 'viewer';   // viewer = read-only
