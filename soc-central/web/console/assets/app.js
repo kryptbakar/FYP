@@ -160,14 +160,18 @@ function showLogin() {
   const form = $('#login-form'), err = $('#login-err'), btn = $('#login-go');
   form.onsubmit = async (e) => {
     e.preventDefault(); err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
-    const r = await API.login($('#login-user').value.trim(), $('#login-pass').value);
-    if (r && r.token) {
-      API._setSession(r); login.hidden = true;
-      document.body.classList.add('role-' + (r.role || 'viewer')); boot();
-    } else {
-      err.textContent = (r && r.error) || 'login failed'; btn.disabled = false; btn.textContent = 'Sign in';
-      $('#login-pass').value = '';
+    try {
+      const r = await API.login($('#login-user').value.trim(), $('#login-pass').value);
+      if (r && r.token) {
+        API._setSession(r); document.body.classList.add('role-' + (r.role || 'viewer'));
+        login.hidden = true; boot(); return;
+      }
+      err.textContent = (r && r.error) || 'login failed';
+    } catch (ex) {
+      // never leave the button stuck — surface the error (e.g. stale cached api.js)
+      err.textContent = 'login error: ' + ((ex && ex.message) || ex) + ' — try a hard refresh (Ctrl+Shift+R)';
     }
+    btn.disabled = false; btn.textContent = 'Sign in'; $('#login-pass').value = '';
   };
   $('#login-user').focus();
 }
