@@ -20,6 +20,7 @@ const ROUTES = {
   dashboards: { title: 'Dashboards', crumb: 'Grafana metrics & trends', icon: 'dash', key: '', sec: 'Operate', view: viewDashboards },
   model:      { title: 'Model', crumb: 'Risk model card & transparency', icon: 'model', key: '', sec: 'Operate', view: viewModel },
   settings:   { title: 'Settings', crumb: 'Identity, integrations & retention', icon: 'gear', key: '', sec: 'Operate', view: viewSettings },
+  search:     { title: 'Search', crumb: 'Global results', icon: 'hunt', key: '', sec: '_hidden', view: viewSearch },
 };
 const SECTIONS = ['Monitor', 'Investigate', 'Assure', 'Operate'];
 let current = 'overview', selIdx = -1;
@@ -80,7 +81,12 @@ async function boot() {
   q.addEventListener('input', () => { STATE.q = q.value; if (current === 'triage' && window._renderCards) window._renderCards(); });
 
   document.addEventListener('keydown', e => {
-    if (e.target === q) { if (e.key === 'Escape') q.blur(); return; }
+    if (e.target === q) {
+      if (e.key === 'Escape') q.blur();
+      // Enter in the search bar runs a global search (across findings/assets/CVEs/IOCs).
+      if (e.key === 'Enter' && q.value.trim()) { STATE.q = q.value; go('search'); q.blur(); }
+      return;
+    }
     if (e.key === '/') { e.preventDefault(); q.focus(); return; }
     if (e.key === 'Escape') { closeAlerts(); closeDrawer(); return; }
     if (e.key === 'j') { moveSel(1); return; }

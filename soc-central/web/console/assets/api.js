@@ -104,6 +104,10 @@ const API = {
   hunts: () => API._get('/hunts', () => FIX.hunts),
   hunt: (id) => API._get(`/hunts/${id}`, () => FIX.huntDetail(id)),
   createHunt: (body) => API._post('/hunts', body, FIX.createHunt(body)),
+  // global search + entity pages
+  search: (q) => API._get(`/search?q=${encodeURIComponent(q)}`, () => FIX.searchResults(q)),
+  entityCve: (id) => API._get(`/entity/cve/${encodeURIComponent(id)}`, () => FIX.entityCve(id)),
+  entityIp: (ip) => API._get(`/entity/ip/${encodeURIComponent(ip)}`, () => FIX.entityIp(ip)),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),

@@ -28,6 +28,7 @@ from .routers import (
     playbooks,
     response,
     risk,
+    search,
     triage,
 )
 
@@ -76,6 +77,7 @@ app.include_router(casework.router)
 app.include_router(playbooks.router)
 app.include_router(intel.router)
 app.include_router(hunts.router)
+app.include_router(search.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")
