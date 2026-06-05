@@ -225,6 +225,20 @@ const FIX = (() => {
         findings: fs.map(r => ({ id: r.id, asset_id: r.asset_id, title: r.title, severity: r.severity, source_tool: r.source_tool, risk_score: r.risk_score, attack: r.attack, threat_intel: r.threat_intel })),
         seen_on_assets: [...new Set(fs.map(r => r.asset_id))] }; },
 
+    // Reports Center.
+    reports: [
+      { id: 2, type: 'executive', title: 'Executive Summary — 2026-06-05 08:00 UTC', generated_by: 'hamza', created_at: new Date(Date.now() - 60 * 60000).toISOString() },
+      { id: 1, type: 'posture', title: 'Security Posture Report — 2026-06-04 18:00 UTC', generated_by: 'hamza', created_at: new Date(Date.now() - 14 * 3600000).toISOString() },
+    ],
+    reportDetail: (id) => ({ id: +id, type: 'posture', title: 'Security Posture Report (demo)', generated_by: 'hamza', created_at: new Date().toISOString(),
+      content: { kpis: { assets: 7, open_findings: 40, kev: 8, exploit_available: 3, critical: 2, high: 14, avg_risk: 30.2 },
+        risk_bands: { critical: 2, high: 14, medium: 18, low: 6 },
+        top_risks: [{ risk_rank: 1, title: 'CVE-2023-4911 (Looney Tunables)', asset_id: 'web-prod-03', cve_id: 'CVE-2023-4911', severity: 'HIGH', risk: 94.3, kev: true },
+          { risk_rank: 2, title: 'Suspicious C2 egress on tcp/4444', asset_id: 'web-prod-03', cve_id: null, severity: 'CRITICAL', risk: 88.0, kev: false }],
+        by_tool: [{ tool: 'agent', n: 20 }, { tool: 'trivy', n: 8 }, { tool: 'nuclei', n: 6 }, { tool: 'wazuh', n: 4 }, { tool: 'suricata', n: 2 }] } }),
+    generateReport: (type) => ({ id: Date.now(), type, title: type + ' report (demo) — just now', simulated: true,
+      content: { kpis: { assets: 7, open_findings: 40, kev: 8, exploit_available: 3, critical: 2, high: 14, avg_risk: 30.2 }, risk_bands: { critical: 2, high: 14, medium: 18, low: 6 }, top_risks: [], by_tool: [] } }),
+
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 

@@ -178,6 +178,26 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     created_at   timestamptz DEFAULT now()
 );
 
+-- Generated reports (posture / compliance / executive) — point-in-time snapshots an analyst
+-- or stakeholder can export. Content is a self-contained jsonb so a report is reproducible.
+CREATE TABLE IF NOT EXISTS reports (
+    id           bigserial PRIMARY KEY,
+    type         text NOT NULL,            -- posture | compliance | executive
+    title        text NOT NULL,
+    content      jsonb NOT NULL,
+    generated_by text,
+    created_at   timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS reports_created ON reports (created_at DESC);
+
+-- Daily posture snapshots — so the platform can show real trends, not a single point.
+CREATE TABLE IF NOT EXISTS posture_snapshots (
+    snap_date    date PRIMARY KEY,
+    open_findings int, kev int, critical int, high int,
+    exploit_available int, avg_risk numeric, compliance_pct numeric,
+    created_at   timestamptz DEFAULT now()
+);
+
 -- Live hunting (Velociraptor pattern): an analyst defines a read-only artifact to collect
 -- across the fleet; agents poll, collect, and return rows. Collection-only (never executes
 -- destructive actions), so it needs no two-person gate — but is still agent-token auth'd.

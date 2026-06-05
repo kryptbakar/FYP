@@ -1079,6 +1079,70 @@ async function openHunt(id) {
   });
 }
 
+/* ---- 4.19 Reports Center -------------------------------------------- */
+async function viewReports(root) {
+  root.append(loading('Loading reports…'));
+  const list = await API.reports();
+  root.innerHTML = '';
+  const gen = async (type) => { const r = await API.generateReport(type); toast(`${type} report generated`, true); go('reports'); openReport(r.id, r); };
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Generate a report'),
+    h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' },
+      h('button', { class: 'btn primary', onclick: () => gen('posture') }, 'Security posture'),
+      h('button', { class: 'btn', onclick: () => gen('compliance') }, 'Compliance'),
+      h('button', { class: 'btn', onclick: () => gen('executive') }, 'Executive summary')),
+    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Computed from live data, stored as a reproducible snapshot; open one to export PDF/CSV.')));
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Generated reports'), h('span', { class: 'sub' }, `· ${(list || []).length}`)),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Report', 'Type', 'By', 'When'].map(t => h('th', {}, t)))),
+      h('tbody', {}, (list || []).length ? list.map(r => h('tr', { tabindex: '0', onclick: () => openReport(r.id), onkeydown: e => { if (e.key === 'Enter') openReport(r.id); } },
+        h('td', {}, r.title), h('td', {}, chip(r.type, r.type === 'executive' ? 'consensus' : 'mono')), h('td', {}, r.generated_by || '—'), h('td', { class: 'mono', style: 'font-size:11px' }, ago(r.created_at))))
+        : [h('tr', {}, h('td', { colspan: '4', class: 'faint', style: 'padding:18px;text-align:center' }, 'No reports yet — generate one above.'))])))));
+}
+async function openReport(id, preloaded) {
+  const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
+  inner.innerHTML = ''; inner.append(loading('Loading report…'));
+  const r = preloaded && preloaded.content ? preloaded : await API.report(id);
+  const c = r.content || {};
+  inner.innerHTML = '';
+  inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, chip(r.type || 'report', 'consensus')),
+    h('div', { style: 'font-size:17px;font-weight:600' }, r.title || ('Report #' + id))),
+    h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
+  const b = h('div', { class: 'drawer-b', id: 'report-body' }); inner.append(b);
+
+  if (c.kpis) {
+    const k = c.kpis;
+    b.append(block('Posture', h('div', { class: 'kpis', style: 'grid-template-columns:repeat(2,1fr)' },
+      kpiCard('Open findings', String(k.open_findings ?? '—'), `${k.critical || 0} critical · ${k.high || 0} high`, k.critical ? 'crit' : 'ok'),
+      kpiCard('KEV-listed', String(k.kev ?? '—'), `${k.exploit_available || 0} with exploits`, k.kev ? 'warn' : 'ok'),
+      kpiCard('Avg composite risk', String(k.avg_risk ?? '—'), 'across findings', ''),
+      kpiCard('Assets', String(k.assets ?? '—'), 'monitored', ''))));
+  }
+  if (c.posture_score != null) b.append(block('Executive metrics', h('div', { class: 'kv' },
+    h('div', { class: 'k' }, 'Posture score'), h('div', { class: 'mono' }, String(c.posture_score)),
+    h('div', { class: 'k' }, 'Compliance'), h('div', { class: 'mono' }, (c.compliance_score ?? '—') + '%'),
+    h('div', { class: 'k' }, 'Open incidents'), h('div', { class: 'mono' }, String(c.open_incidents ?? 0)),
+    h('div', { class: 'k' }, 'SLA breaches'), h('div', { class: 'mono' }, String(c.sla_breaches ?? 0)))));
+  if (c.summary) b.append(block('Compliance', h('div', { class: 'kv' },
+    h('div', { class: 'k' }, 'Score'), h('div', { class: 'mono' }, (c.summary.score_pct ?? '—') + '%'),
+    h('div', { class: 'k' }, 'Pass'), h('div', { class: 'mono' }, String(c.summary.pass ?? 0)),
+    h('div', { class: 'k' }, 'Fail'), h('div', { class: 'mono' }, String(c.summary.fail ?? 0)),
+    h('div', { class: 'k' }, 'Evidence chain'), h('div', {}, chip((c.evidence_chain && c.evidence_chain.ok) ? 'intact ✓' : 'check', (c.evidence_chain && c.evidence_chain.ok) ? 'ok' : 'warn')))));
+  const tr = c.top_risks || [];
+  if (tr.length) b.append(block('Top risks', h('div', {}, tr.map(x => h('div', { class: 'evrow' },
+    h('span', { class: 'sc ' + band(x.risk) }, n0(x.risk)), h('span', { style: 'flex:1;min-width:0' }, x.title),
+    eAsset(x.asset_id), x.kev ? chip('KEV', 'kev') : null)))));
+  const bt = c.by_tool || [];
+  if (bt.length) { const max = Math.max(1, ...bt.map(t => t.n));
+    b.append(block('Detections by tool', h('div', { class: 'sfbars' }, bt.map(t =>
+      h('div', { class: 'sfbar' }, h('div', { class: 'k' }, t.tool),
+        h('div', { class: 'tr' }, h('i', { class: 'pos', style: `left:0;width:${(t.n / max) * 100}%;background:var(--accent)` })),
+        h('div', { class: 'c' }, String(t.n))))))); }
+
+  b.append(h('div', { class: 'row noprint', style: 'gap:8px;margin-top:6px' }, pdfBtn('Export PDF'),
+    csvBtn('Export CSV', `vyrex-${r.type || 'report'}.csv`, () => [['metric', 'value'],
+      ...Object.entries(c.kpis || {}).map(([k2, v]) => [k2, v]), ...(c.top_risks || []).map(x => ['top_risk', `${x.title} (${x.risk})`])])));
+}
+
 /* ---- 4.18 Global search results ------------------------------------- */
 async function viewSearch(root) {
   const q = STATE.q || '';
