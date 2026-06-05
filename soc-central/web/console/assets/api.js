@@ -108,6 +108,10 @@ const API = {
   search: (q) => API._get(`/search?q=${encodeURIComponent(q)}`, () => FIX.searchResults(q)),
   entityCve: (id) => API._get(`/entity/cve/${encodeURIComponent(id)}`, () => FIX.entityCve(id)),
   entityIp: (ip) => API._get(`/entity/ip/${encodeURIComponent(ip)}`, () => FIX.entityIp(ip)),
+  // reports
+  reports: () => API._get('/reports', () => FIX.reports),
+  report: (id) => API._get(`/reports/${id}`, () => FIX.reportDetail(id)),
+  generateReport: (type) => API._post('/reports', { type }, FIX.generateReport(type)),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
