@@ -98,10 +98,19 @@ function toolChip(t, onclick) { const c = h('span', { class: 'chip tool', onclic
 /* ---- entity-highlight chips (the signature pattern) ------------------ */
 /* assets/hosts/identities = teal · IPs/ports/domains = amber · CVEs/files/hashes = mono.
    Each chip pivots (filters Triage) to that entity via window.pivot(). */
+/* Entity chips route to the right place: CVE -> CVE entity page, IP -> indicator page,
+   otherwise pivot (filter the triage queue). openCve/openIp live in views.js (same global
+   scope; resolved at click time). */
+function entityAction(text, kind) {
+  if (kind === 'code' && /^CVE-/i.test(text) && typeof openCve === 'function') { openCve(text); return; }
+  if (kind === 'net' && /^(\d{1,3}\.){3}\d{1,3}$/.test(text) && typeof openIp === 'function') { openIp(text); return; }
+  if (window.pivot) window.pivot(text);
+}
 function entityChip(text, kind) {
-  return h('span', { class: 'ent ' + kind, role: 'button', tabindex: '0', title: 'pivot to ' + text,
-    onclick: (e) => { e.stopPropagation(); window.pivot && window.pivot(text); },
-    onkeydown: (e) => { if (e.key === 'Enter') { window.pivot && window.pivot(text); } } }, text);
+  const isEntity = (kind === 'code' && /^CVE-/i.test(text)) || (kind === 'net' && /^(\d{1,3}\.){3}\d{1,3}$/.test(text));
+  return h('span', { class: 'ent ' + kind, role: 'button', tabindex: '0', title: (isEntity ? 'open ' : 'pivot to ') + text,
+    onclick: (e) => { e.stopPropagation(); entityAction(text, kind); },
+    onkeydown: (e) => { if (e.key === 'Enter') { e.stopPropagation(); entityAction(text, kind); } } }, text);
 }
 const eAsset = (t) => entityChip(t, 'asset');
 const eNet = (t) => entityChip(t, 'net');

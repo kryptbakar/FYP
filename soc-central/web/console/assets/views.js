@@ -1079,6 +1079,81 @@ async function openHunt(id) {
   });
 }
 
+/* ---- 4.18 Global search results ------------------------------------- */
+async function viewSearch(root) {
+  const q = STATE.q || '';
+  root.innerHTML = '';
+  if (!q.trim()) { root.append(h('div', { class: 'empty' }, 'Type a query in the search bar and press Enter.')); return; }
+  root.append(loading(`Searching "${q}"…`));
+  const r = await API.search(q);
+  root.innerHTML = '';
+  root.append(h('div', { class: 'panel-h', style: 'border:none;padding:0 2px 14px' }, h('h2', {}, `Results for "${q}"`), h('span', { class: 'sub' }, `· ${r.total} match(es)`)));
+  const sect = (title, rows, render) => rows && rows.length ? h('div', { class: 'panel fade', style: 'margin-bottom:14px' },
+    h('div', { class: 'panel-h' }, h('h2', {}, title), h('span', { class: 'sub' }, `· ${rows.length}`)),
+    h('div', {}, rows.map(render))) : null;
+  [
+    sect('Findings', r.findings, f => h('div', { class: 'orow', tabindex: '0', onclick: () => openFinding(f.id), onkeydown: e => { if (e.key === 'Enter') openFinding(f.id); } },
+      h('div', { class: 'sc ' + band(f.risk_score) }, n0(f.risk_score)),
+      h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'tt' }, f.title),
+        h('div', { class: 'wrap', style: 'margin-top:5px' }, severity(f.severity), eAsset(f.asset_id), f.cve_id ? eCode(f.cve_id) : null, f.kev ? chip('KEV', 'kev') : null)))),
+    sect('Assets', r.assets, a => h('div', { class: 'orow', tabindex: '0', onclick: () => openAsset(a.host_id), onkeydown: e => { if (e.key === 'Enter') openAsset(a.host_id); } },
+      h('span', { html: ic('assets'), style: 'width:18px;height:18px;color:var(--muted)' }),
+      h('div', { style: 'flex:1' }, h('div', { class: 'tt' }, a.hostname || a.host_id),
+        h('div', { class: 'wrap', style: 'margin-top:5px' }, chip(a.os || '—', 'mono'), a.ip ? eNet(a.ip) : null, a.exposure ? chip(a.exposure, a.exposure === 'internet' ? 'warn' : '') : null)))),
+    sect('CVEs', r.cves, c => h('div', { class: 'orow', tabindex: '0', onclick: () => openCve(c.cve_id), onkeydown: e => { if (e.key === 'Enter') openCve(c.cve_id); } },
+      h('div', { style: 'flex:1' }, h('div', { class: 'wrap' }, eCode(c.cve_id), c.cwe ? chip(c.cwe, 'mono') : null, c.kev ? chip('KEV', 'kev') : null, c.cvss_score ? chip('CVSS ' + n1(c.cvss_score), '') : null, h('span', { class: 'faint', style: 'font-size:11px' }, `${c.occurrences} finding(s)`))))),
+    sect('Indicators', r.iocs, i => h('div', { class: 'orow', tabindex: '0', onclick: () => openIp(i.indicator), onkeydown: e => { if (e.key === 'Enter') openIp(i.indicator); } },
+      h('div', { style: 'flex:1' }, h('div', { class: 'wrap' }, eNet(i.indicator), chip(i.type || 'ioc', 'mono'))))),
+  ].filter(Boolean).forEach(s => root.append(s));
+  if (!r.total) root.append(h('div', { class: 'empty' }, 'No matches.'));
+}
+
+/* ---- CVE entity page (drawer) --------------------------------------- */
+async function openCve(cveId) {
+  const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
+  inner.innerHTML = ''; inner.append(loading('Loading CVE…'));
+  const d = await API.entityCve(cveId); const m = d.meta || {};
+  inner.innerHTML = '';
+  inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' },
+    m.cvss_severity ? severity(m.cvss_severity) : null, d.kev ? chip('KEV', 'kev') : null, (d.exploits || []).length ? chip('exploit', 'exploit') : null),
+    h('div', { style: 'font-size:18px;font-weight:600' }, cveId),
+    h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${(d.affected_assets || []).length} affected asset(s) · ${(d.findings || []).length} finding(s)`)),
+    h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
+  const b = h('div', { class: 'drawer-b' }); inner.append(b);
+  if (m.description) b.append(h('div', { class: 'summary' }, m.description));
+  const kv = h('div', { class: 'kv' });
+  if (m.cvss_score) kv.append(h('div', { class: 'k' }, 'CVSS'), h('div', { class: 'mono' }, n1(m.cvss_score)));
+  if (m.cwe) kv.append(h('div', { class: 'k' }, 'CWE'), h('div', {}, eCode(m.cwe), ' · ', cweName(m.cwe)));
+  if (d.epss) kv.append(h('div', { class: 'k' }, 'EPSS'), h('div', { class: 'mono' }, pct(d.epss.epss)));
+  if (d.kev) kv.append(h('div', { class: 'k' }, 'KEV due'), h('div', { class: 'mono' }, d.kev.due_date || '—'));
+  if (kv.children.length) b.append(block('CVE intelligence', kv));
+  if ((d.exploits || []).length) b.append(block('Public exploits', h('div', { class: 'wrap' }, d.exploits.map(e => chip(`${e.source}: ${e.ref}`, 'mono')))));
+  b.append(block(`Findings (${(d.findings || []).length})`, (d.findings || []).length
+    ? h('div', {}, d.findings.map(f => h('div', { class: 'evrow', tabindex: '0', onclick: () => openFinding(f.id), onkeydown: e => { if (e.key === 'Enter') openFinding(f.id); } },
+        h('span', { class: 'sc ' + band(f.risk_score) }, n0(f.risk_score)), h('span', { style: 'flex:1;min-width:0' }, f.title), eAsset(f.asset_id))))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings.')));
+}
+
+/* ---- IP / indicator entity page (drawer) ---------------------------- */
+async function openIp(ip) {
+  const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
+  inner.innerHTML = ''; inner.append(loading('Loading indicator…'));
+  const d = await API.entityIp(ip);
+  inner.innerHTML = '';
+  inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, chip('indicator', 'mono'), (d.findings || []).length ? chip('active', 'kev') : null),
+    h('div', { style: 'font-size:18px;font-weight:600;font-family:var(--mono)' }, ip),
+    h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${(d.sightings || []).length} sighting(s) · ${(d.findings || []).length} finding(s)`)),
+    h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
+  const b = h('div', { class: 'drawer-b' }); inner.append(b);
+  b.append(block(`Sightings (${(d.sightings || []).length})`, (d.sightings || []).length
+    ? h('div', {}, d.sightings.map(s => h('div', { class: 'cf' }, h('span', {}, eAsset(s.asset_id || '—'), ` · ${s.source || ''}`), h('span', { class: 'faint mono', style: 'font-size:11px' }, ago(s.seen_at)))))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No sightings recorded.')));
+  b.append(block(`Findings (${(d.findings || []).length})`, (d.findings || []).length
+    ? h('div', {}, d.findings.map(f => h('div', { class: 'evrow', tabindex: '0', onclick: () => openFinding(f.id), onkeydown: e => { if (e.key === 'Enter') openFinding(f.id); } },
+        h('span', { class: 'sc ' + band(f.risk_score) }, n0(f.risk_score)), h('span', { style: 'flex:1;min-width:0' }, f.title), f.attack ? chip(f.attack, 'attack') : null)))
+    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings reference this indicator.')));
+}
+
 /* ---- 4.17 Threat Intelligence Center (attribution + IOC sightings + fusion clusters) -- */
 async function viewIntel(root) {
   root.append(loading('Loading threat intelligence…'));

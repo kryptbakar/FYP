@@ -203,6 +203,28 @@ const FIX = (() => {
       { seq: 39, actor: 'hamza', role: 'analyst', tenant: 'default', method: 'GET', path: '/whoami', status: 200, created_at: new Date(Date.now() - 130 * 60000).toISOString() },
     ],
 
+    // Global search + entity pages.
+    searchResults: (q) => {
+      const ql = (q || '').toLowerCase();
+      const findings = ranking.filter(r => `${r.title} ${r.cve_id || ''} ${r.asset_id}`.toLowerCase().includes(ql))
+        .map(r => ({ id: r.id, asset_id: r.asset_id, title: r.title, severity: r.severity, cve_id: r.cve_id, source_tool: r.source_tool, risk_score: r.risk_score, kev: r.kev }));
+      const assets = (FIX.assets || []).filter(a => `${a.host_id} ${a.hostname} ${a.ip}`.toLowerCase().includes(ql));
+      const cves = [...new Set(ranking.filter(r => r.cve_id && r.cve_id.toLowerCase().includes(ql)).map(r => r.cve_id))]
+        .map(c => { const r = ranking.find(x => x.cve_id === c); return { cve_id: c, cvss_score: r.cvss_score, kev: r.kev, cwe: r.cwe, occurrences: 1 }; });
+      const iocs = (FIX.sightings || []).filter(s => s.indicator.toLowerCase().includes(ql)).map(s => ({ indicator: s.indicator, type: s.type }));
+      return { query: q, findings, assets, cves, iocs, total: findings.length + assets.length + cves.length + iocs.length };
+    },
+    entityCve: (id) => { const r = ranking.find(x => x.cve_id === id) || {};
+      return { cve_id: id, meta: { cve_id: id, cvss_score: r.cvss_score, cvss_severity: r.severity, cwe: r.cwe || 'CWE-787', description: 'Vulnerability ' + id + ' affecting the matched package.' },
+        kev: r.kev ? { due_date: '2026-06-30', known_ransomware: 'Unknown' } : null, epss: r.epss ? { epss: r.epss, percentile: 0.9 } : null,
+        exploits: r.exploit_available ? [{ source: 'exploit-db', ref: 'EDB-51884', type: 'exploit' }, { source: 'metasploit', ref: 'exploit/linux/local/glibc_tunables_priv_esc', type: 'metasploit' }] : [],
+        findings: ranking.filter(x => x.cve_id === id).map(x => ({ id: x.id, asset_id: x.asset_id, title: x.title, severity: x.severity, source_tool: x.source_tool, risk_score: x.risk_score, triage_status: 'open' })),
+        affected_assets: [...new Set(ranking.filter(x => x.cve_id === id).map(x => x.asset_id))] }; },
+    entityIp: (ip) => { const fs = ranking.filter(r => r.threat_intel && r.threat_intel.indicator === ip);
+      return { indicator: ip, sightings: (FIX.sightings || []).filter(s => s.indicator === ip),
+        findings: fs.map(r => ({ id: r.id, asset_id: r.asset_id, title: r.title, severity: r.severity, source_tool: r.source_tool, risk_score: r.risk_score, attack: r.attack, threat_intel: r.threat_intel })),
+        seen_on_assets: [...new Set(fs.map(r => r.asset_id))] }; },
+
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 
