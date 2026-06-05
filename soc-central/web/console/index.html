@@ -6,7 +6,7 @@
   <title>VYREX — Analyst Console</title>
   <meta name="description" content="VYREX — explainable, air-gapped security intelligence workspace." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23A82A47' d='M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z'/></svg>" />
-  <link rel="stylesheet" href="assets/app.css?v=3" />
+  <link rel="stylesheet" href="assets/app.css?v=4" />
 </head>
 <body>
   <div class="app">
@@ -34,8 +34,8 @@
         <div class="spring"></div>
         <div class="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-          <input id="q" placeholder="Search findings, assets, CVEs…" />
-          <span class="slash">/</span>
+          <input id="q" placeholder="Search findings, assets, CVEs…" aria-label="search findings, assets and CVEs" />
+          <span class="slash" title="press / to focus search">/</span>
         </div>
         <div class="orgchip" id="orgchip" title="organization"></div>
         <button class="iconbtn" id="bell" title="alerts" aria-label="alerts">
@@ -48,6 +48,18 @@
       <div class="alerts-pop" id="alerts-pop" hidden></div>
       <div class="scroll" id="scroll"><div class="view" id="view"></div></div>
     </main>
+  </div>
+
+  <div class="cmdk" id="cmdk" hidden>
+    <div class="cmdk-card">
+      <div class="cmdk-top">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
+        <input id="cmdk-input" placeholder="Jump to a page…" aria-label="command palette" autocomplete="off" />
+        <span class="kbd">esc</span>
+      </div>
+      <div class="cmdk-list" id="cmdk-list"></div>
+      <div class="cmdk-foot"><span><span class="kbd">↑↓</span> navigate</span><span><span class="kbd">↵</span> open</span><span><span class="kbd">⌘K</span> palette</span></div>
+    </div>
   </div>
 
   <div class="login" id="login" hidden>
@@ -68,10 +80,10 @@
   <aside class="drawer" id="drawer"><div id="drawer-inner" style="display:flex;flex-direction:column;height:100%"></div></aside>
   <div class="toast" id="toast"></div>
 
-  <script src="assets/fixtures.js?v=3"></script>
-  <script src="assets/api.js?v=3"></script>
-  <script src="assets/ui.js?v=3"></script>
-  <script src="assets/views.js?v=3"></script>
-  <script src="assets/app.js?v=3"></script>
+  <script src="assets/fixtures.js?v=4"></script>
+  <script src="assets/api.js?v=4"></script>
+  <script src="assets/ui.js?v=4"></script>
+  <script src="assets/views.js?v=4"></script>
+  <script src="assets/app.js?v=4"></script>
 </body>
 </html>
