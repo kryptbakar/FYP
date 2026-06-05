@@ -1,6 +1,6 @@
 {
   "uid": "soc-api-metrics",
-  "title": "SOC Central — API metrics",
+  "title": "VYREX — API metrics",
   "tags": ["soc-central", "observability"],
   "timezone": "browser",
   "schemaVersion": 39,
