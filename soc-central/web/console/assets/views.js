@@ -1079,6 +1079,56 @@ async function openHunt(id) {
   });
 }
 
+/* ---- 4.20 Coverage (ATT&CK matrix + posture trend) ------------------ */
+async function viewCoverage(root) {
+  root.append(loading('Loading coverage & trends…'));
+  const [cov, trends] = await Promise.all([API.attackCoverage(), API.postureTrends()]);
+  root.innerHTML = '';
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'row', style: 'margin-bottom:12px' },
+    h('div', { class: 'sec-label' }, 'Risk posture trend'), h('span', { class: 'spring', style: 'flex:1' }),
+    h('span', { class: 'faint', style: 'font-size:11px' }, `${(trends || []).length} daily snapshot(s)`)),
+    trendChart(trends)));
+  root.append(h('div', { class: 'kpis fade', style: 'margin-top:14px' },
+    kpiCard('Techniques observed', String(cov.covered || 0), `of ${cov.total_known || 0} in our ATT&CK KB`, cov.covered ? 'warn' : ''),
+    kpiCard('Tactics covered', String((cov.tactics || []).length), 'across the kill chain', ''),
+    kpiCard('Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'ATT&CK coverage by tactic — click a technique to investigate'),
+    h('div', { class: 'attackmx' }, (cov.tactics || []).map(tac => h('div', { class: 'attcol' },
+      h('div', { class: 'atth' }, tac.replace(/-/g, ' ')),
+      (cov.techniques || []).filter(t => t.tactic === tac).map(t => attCell(t)))))));
+}
+function attCell(t) {
+  const intensity = t.tool_count >= 3 ? 'i3' : t.tool_count === 2 ? 'i2' : 'i1';
+  return h('div', { class: 'attcell ' + intensity + ' ' + band(t.top_risk), tabindex: '0', title: `${t.technique} ${t.name} — ${t.findings} findings, ${t.tool_count} tools`,
+    onclick: () => { STATE.q = t.technique; go('search'); }, onkeydown: e => { if (e.key === 'Enter') { STATE.q = t.technique; go('search'); } } },
+    h('div', { class: 'tn' }, t.technique), h('div', { class: 'td' }, t.name),
+    h('div', { class: 'tm' }, h('span', { class: 'mono' }, t.findings + 'f'), ' · ', (t.tools || []).join(', ')));
+}
+function trendChart(series) {
+  series = series || [];
+  if (series.length < 2) return h('div', { class: 'faint', style: 'font-size:12px' }, series.length === 1 ? 'One snapshot so far — the trend builds as daily snapshots accumulate.' : 'No snapshots yet.');
+  const W = 900, H = 120, pad = 8;
+  const xs = series.map((_, i) => pad + i * ((W - 2 * pad) / (series.length - 1)));
+  const vals = series.map(s => +s.avg_risk || 0);
+  const max = Math.max(10, ...vals), min = Math.min(...vals, 0);
+  const y = v => H - pad - ((v - min) / ((max - min) || 1)) * (H - 2 * pad);
+  const pts = series.map((s, i) => `${xs[i].toFixed(1)},${y(vals[i]).toFixed(1)}`).join(' ');
+  const area = `M${xs[0]},${H - pad} L${pts.split(' ').join(' L')} L${xs[xs.length - 1]},${H - pad} Z`;
+  const dots = series.map((s, i) => `<circle cx="${xs[i].toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="2.5" fill="var(--accent-text)"/>`).join('');
+  const wrap = h('div', {});
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:140px">`
+    + `<path d="${area}" fill="var(--accent-soft)"/>`
+    + `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+    + dots + `</svg>`;
+  const labels = h('div', { class: 'trendx' }, series.map(s => h('span', {}, s.snap_date.slice(5))));
+  const latest = series[series.length - 1];
+  const legend = h('div', { class: 'row', style: 'gap:14px;margin-top:8px;font-size:11.5px' },
+    h('span', { class: 'faint' }, 'avg composite risk · latest'), h('span', { class: 'mono' }, n1(latest.avg_risk)),
+    h('span', { class: 'faint' }, '· KEV'), h('span', { class: 'mono' }, String(latest.kev)),
+    h('span', { class: 'faint' }, '· compliance'), h('span', { class: 'mono' }, latest.compliance_pct + '%'));
+  return h('div', {}, wrap, labels, legend);
+}
+
 /* ---- 4.19 Reports Center -------------------------------------------- */
 async function viewReports(root) {
   root.append(loading('Loading reports…'));

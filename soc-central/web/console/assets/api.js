@@ -112,6 +112,9 @@ const API = {
   reports: () => API._get('/reports', () => FIX.reports),
   report: (id) => API._get(`/reports/${id}`, () => FIX.reportDetail(id)),
   generateReport: (type) => API._post('/reports', { type }, FIX.generateReport(type)),
+  // analytics
+  attackCoverage: () => API._get('/attack/coverage', () => FIX.attackCoverage),
+  postureTrends: () => API._get('/posture/trends', () => FIX.postureTrends),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
