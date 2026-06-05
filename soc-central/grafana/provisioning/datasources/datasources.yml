@@ -15,14 +15,17 @@ datasources:
     type: postgres
     access: proxy
     url: postgres:5432
-    user: ${POSTGRES_USER:-soc}
+    # Grafana provisioning does NOT support bash-style ${VAR:-default}; it would treat the
+    # whole "VAR:-default" as the env name and resolve to empty. Use plain ${VAR} (the grafana
+    # container is given these in docker-compose.yml).
+    user: ${POSTGRES_USER}
     isDefault: true
     jsonData:
-      database: ${POSTGRES_DB:-soc_central}
+      database: ${POSTGRES_DB}
       sslmode: disable
       postgresVersion: 1600
     secureJsonData:
-      password: ${POSTGRES_PASSWORD:-soc}
+      password: ${POSTGRES_PASSWORD}
     editable: true
 
   - name: TimescaleDB
@@ -30,14 +33,14 @@ datasources:
     type: postgres
     access: proxy
     url: timescaledb:5432
-    user: ${TIMESCALE_USER:-soc}
+    user: ${TIMESCALE_USER}
     jsonData:
-      database: ${TIMESCALE_DB:-soc_telemetry}
+      database: ${TIMESCALE_DB}
       sslmode: disable
       postgresVersion: 1600
       timescaledb: true
     secureJsonData:
-      password: ${TIMESCALE_PASSWORD:-soc}
+      password: ${TIMESCALE_PASSWORD}
     editable: true
 
   # Observability stack (only reachable when docker-compose.observability.yml is up).

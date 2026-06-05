@@ -298,6 +298,14 @@ services:
       GF_SECURITY_COOKIE_SAMESITE: "disabled"
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      # DB credentials for the provisioned datasources (datasources.yml reads these). Without
+      # them the datasource falls back to the 'soc' default and can't auth -> panels show "No data".
+      POSTGRES_DB: ${POSTGRES_DB:-soc_central}
+      POSTGRES_USER: ${POSTGRES_USER:-soc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      TIMESCALE_DB: ${TIMESCALE_DB:-soc_telemetry}
+      TIMESCALE_USER: ${TIMESCALE_USER:-soc}
+      TIMESCALE_PASSWORD: ${TIMESCALE_PASSWORD:-soc}
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     volumes:

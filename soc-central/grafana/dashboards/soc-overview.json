@@ -5,7 +5,7 @@
   "graphTooltip": 0,
   "schemaVersion": 39,
   "tags": ["soc-central", "overview"],
-  "title": "SOC Central — Security Overview",
+  "title": "VYREX — Security Overview",
   "uid": "soc-overview",
   "time": { "from": "now-7d", "to": "now" },
   "timezone": "",
