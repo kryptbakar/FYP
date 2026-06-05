@@ -178,6 +178,22 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     created_at   timestamptz DEFAULT now()
 );
 
+-- Local users + sessions for the console login gate (complements the K3s SSO path). Real
+-- pbkdf2 password hashing; sessions are opaque bearer tokens. Seeded by auth.seed_users().
+CREATE TABLE IF NOT EXISTS users (
+    username      text PRIMARY KEY,
+    password_hash text NOT NULL,
+    salt          text NOT NULL,
+    role          text DEFAULT 'viewer',   -- admin | analyst | viewer
+    created_at    timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token      text PRIMARY KEY,
+    username   text,
+    role       text,
+    created_at timestamptz DEFAULT now()
+);
+
 -- Alerting: notification channels (webhook/email/slack), routing rules, and a delivery log.
 -- Closes the "alerts exist in-app but never leave the building" gap. Webhook delivery is real
 -- (an internal POST, air-gap-friendly); email/slack are recorded as queued until a transport

@@ -110,16 +110,16 @@ async function boot() {
   // model version (best-effort from a finding explanation)
   try { const rk = await API.ranking(); if (rk[0]) { const ex = await API.explain(rk[0].id); $('#model-ver').textContent = ((ex.ml_explanation || {}).model_version || '—').replace('xgb-', ''); } } catch {}
 
-  // signed-in user (SSO forward-auth, or demo identity) → topbar chip
-  try {
-    const me = await API.whoami(); const uc = $('#userchip');
-    if (me && me.user) {
-      uc.innerHTML = '';
-      uc.append(h('span', { class: 'av' }, (me.user[0] || '?').toUpperCase()),
-        h('div', { class: 'ui' }, h('div', { class: 'un' }, me.user), h('div', { class: 'rl' }, me.role || 'viewer')));
-      uc.title = `${me.email || me.user} · ${me.sso}`;
-    }
-  } catch {}
+  // signed-in user (local session) → topbar chip with sign-out
+  const uc = $('#userchip');
+  if (uc && API.user) {
+    uc.innerHTML = '';
+    uc.append(h('span', { class: 'av' }, (API.user[0] || '?').toUpperCase()),
+      h('div', { class: 'ui' }, h('div', { class: 'un' }, API.user), h('div', { class: 'rl' }, API.role || 'viewer')));
+    uc.title = 'click to sign out';
+    uc.style.cursor = 'pointer';
+    uc.onclick = async () => { await API.logout(); location.reload(); };
+  }
 
   // organization chip (multi-tenancy foundation)
   try { const orgs = await API.tenants(); const oc = $('#orgchip'); if (oc && orgs && orgs.length) { oc.textContent = orgs[0].name; oc.title = orgs.map(o => o.name).join(' · '); } } catch {}
@@ -139,4 +139,36 @@ function routeFromHash(initial) {
   else if (initial) go('overview');
 }
 window.addEventListener('hashchange', () => routeFromHash(false));
-boot();
+
+/* ---- auth gate: require login before the app boots ------------------- */
+window.canAct = () => API.role !== 'viewer';   // viewer = read-only
+function requireAct() { if (!window.canAct()) { toast('Read-only (viewer role) — sign in as analyst/admin to act', false); return false; } return true; }
+async function gate() {
+  if (API.token) {
+    const me = await API.me();
+    if (me && me.authenticated) {
+      API.role = me.role || API.role; API.user = me.user || API.user;
+      document.body.classList.add('role-' + (API.role || 'viewer'));
+      boot(); return;
+    }
+    API.token = null; localStorage.removeItem('vyrex_token'); // stale/expired session
+  }
+  showLogin();
+}
+function showLogin() {
+  const login = $('#login'); login.hidden = false;
+  const form = $('#login-form'), err = $('#login-err'), btn = $('#login-go');
+  form.onsubmit = async (e) => {
+    e.preventDefault(); err.textContent = ''; btn.disabled = true; btn.textContent = 'Signing in…';
+    const r = await API.login($('#login-user').value.trim(), $('#login-pass').value);
+    if (r && r.token) {
+      API._setSession(r); login.hidden = true;
+      document.body.classList.add('role-' + (r.role || 'viewer')); boot();
+    } else {
+      err.textContent = (r && r.error) || 'login failed'; btn.disabled = false; btn.textContent = 'Sign in';
+      $('#login-pass').value = '';
+    }
+  };
+  $('#login-user').focus();
+}
+gate();

@@ -275,6 +275,11 @@ const FIX = (() => {
       { id: 2, channel_name: 'On-call email', subject: 'SLA breached — db-core-01', status: 'queued', detail: 'email transport not configured at this site', created_at: new Date(Date.now() - 41 * 60000).toISOString() },
     ],
 
+    // Demo-mode login (offline): the 3 seed users, password "vyrex".
+    login: (u, p) => { const roles = { admin: 'admin', analyst: 'analyst', viewer: 'viewer' };
+      if (p === 'vyrex' && roles[u]) return { token: 'demo-' + u, user: u, role: roles[u] };
+      return { error: 'invalid username or password' }; },
+
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 

@@ -17,6 +17,7 @@ from .config import settings
 from .routers import (
     alerts,
     analytics,
+    auth,
     casework,
     compliance,
     detrules,
@@ -40,6 +41,7 @@ from .routers import (
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     schema.ensure_schema()  # incident/response tables (idempotent)
+    auth.seed_users()       # seed admin/analyst/viewer if absent
     yield
 
 
@@ -86,6 +88,7 @@ app.include_router(reports.router)
 app.include_router(analytics.router)
 app.include_router(detrules.router)
 app.include_router(alerts.router)
+app.include_router(auth.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")

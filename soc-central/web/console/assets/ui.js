@@ -281,6 +281,7 @@ function approvalGate(action, opts) {
     return c;
   }
   async function approve(who, isSecond) {
+    if (typeof requireAct === 'function' && !requireAct()) return; // viewer = read-only
     approvals.add(who);
     await API.approveAction(action.id, { analyst: who });
     if (!destructive) { state = 'approved'; render(); setTimeout(execute, 400); return; }

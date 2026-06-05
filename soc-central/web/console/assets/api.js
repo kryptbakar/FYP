@@ -8,10 +8,15 @@
 const API = {
   mode: 'connecting',           // 'live' | 'demo' | 'connecting'
   _onmode: null,
+  token: localStorage.getItem('vyrex_token') || null,
+  role: localStorage.getItem('vyrex_role') || null,
+  user: localStorage.getItem('vyrex_user') || null,
+
+  _h(base) { const h = Object.assign({}, base); if (this.token) h.Authorization = 'Bearer ' + this.token; return h; },
 
   async _get(path, fallback) {
     try {
-      const r = await fetch('/api' + path, { headers: { Accept: 'application/json' } });
+      const r = await fetch('/api' + path, { headers: this._h({ Accept: 'application/json' }) });
       if (!r.ok) throw new Error(r.status);
       this._set('live');
       return await r.json();
@@ -23,7 +28,7 @@ const API = {
   async _post(path, body, simulated) {
     if (this.mode === 'demo') return simulated;
     try {
-      const r = await fetch('/api' + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch('/api' + path, { method: 'POST', headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       if (!r.ok) throw new Error(r.status);
       this._set('live');
       return r.status === 204 ? simulated : await r.json();
@@ -35,7 +40,7 @@ const API = {
   async _send(method, path, body, simulated) {
     if (this.mode === 'demo') return simulated;
     try {
-      const r = await fetch('/api' + path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch('/api' + path, { method, headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       if (!r.ok) throw new Error(r.status);
       this._set('live');
       return r.status === 204 ? simulated : await r.json();
@@ -45,6 +50,35 @@ const API = {
     }
   },
   _set(m) { if (this.mode !== m) { this.mode = m; this._onmode && this._onmode(m); } },
+
+  // --- auth (console login gate) ---
+  async login(u, p) {
+    try {
+      const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u, password: p }) });
+      if (r.status === 401) return { error: 'invalid username or password' };
+      if (!r.ok) throw new Error(r.status);
+      this._set('live');
+      return await r.json();
+    } catch {
+      this._set('demo');
+      return FIX.login(u, p);
+    }
+  },
+  async me() {
+    if (!this.token) return { authenticated: false };
+    try {
+      const r = await fetch('/api/auth/me', { headers: this._h({ Accept: 'application/json' }) });
+      if (!r.ok) throw new Error(r.status);
+      this._set('live');
+      return await r.json();
+    } catch {
+      this._set('demo');
+      return { authenticated: true, user: this.user, role: this.role }; // offline: trust stored session
+    }
+  },
+  async logout() { try { await fetch('/api/auth/logout', { method: 'POST', headers: this._h({}) }); } catch {}
+    this.token = this.role = this.user = null; localStorage.removeItem('vyrex_token'); localStorage.removeItem('vyrex_role'); localStorage.removeItem('vyrex_user'); },
+  _setSession(s) { this.token = s.token; this.role = s.role; this.user = s.user; localStorage.setItem('vyrex_token', s.token); localStorage.setItem('vyrex_role', s.role); localStorage.setItem('vyrex_user', s.user); },
 
   // reads
   version: () => API._get('/version', () => FIX.version),
