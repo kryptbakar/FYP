@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import access_audit, metrics, schema
 from .config import settings
 from .routers import (
+    alerts,
     analytics,
     casework,
     compliance,
@@ -84,6 +85,7 @@ app.include_router(search.router)
 app.include_router(reports.router)
 app.include_router(analytics.router)
 app.include_router(detrules.router)
+app.include_router(alerts.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")

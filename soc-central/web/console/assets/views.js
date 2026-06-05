@@ -1079,6 +1079,44 @@ async function openHunt(id) {
   });
 }
 
+/* ---- 4.22 Alerting (channels + routing rules + delivery log) -------- */
+async function viewAlerting(root) {
+  root.append(loading('Loading alerting…'));
+  let [channels, rules, deliveries] = await Promise.all([API.alertChannels(), API.alertRules(), API.alertDeliveries()]);
+  root.innerHTML = '';
+
+  // channels
+  const cname = h('input', { class: 'txt', placeholder: 'Channel name…' });
+  const ctype = h('select', {}, ['webhook', 'email', 'slack'].map(t => h('option', { value: t }, t)));
+  const ctarget = h('input', { class: 'txt', placeholder: 'URL / email / slack hook…' });
+  const cadd = h('button', { class: 'btn primary', onclick: async () => { if (!cname.value.trim() || !ctarget.value.trim()) { toast('Name + target required', false); return; } await API.addChannel({ name: cname.value.trim(), type: ctype.value, target: ctarget.value.trim() }); toast('Channel added', true); go('alerting'); } }, 'Add channel');
+  const chBody = h('tbody', {});
+  const renderCh = () => { chBody.innerHTML = ''; channels.forEach(c => chBody.append(h('tr', { class: c.enabled ? '' : 'dim' },
+    h('td', {}, c.name), h('td', {}, chip(c.type, 'mono')), h('td', { class: 'mono', style: 'font-size:11px' }, c.target),
+    h('td', {}, h('button', { class: 'btn sm', onclick: async () => { const r = await API.testChannel(c.id); toast(`Test: ${r.status}${r.detail ? ' (' + r.detail + ')' : ''}`, r.status === 'delivered'); go('alerting'); } }, 'Test')),
+    h('td', {}, h('span', { class: 'rtoggle' + (c.enabled ? ' on' : ''), role: 'button', tabindex: '0', onclick: async () => { c.enabled = !c.enabled; await API.patchChannel(c.id, c.enabled); renderCh(); } }))))); };
+  renderCh();
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Notification channels'),
+    h('div', { class: 'huntbar' }, cname, ctype, ctarget, cadd),
+    h('div', { class: 'faint', style: 'font-size:11px;margin:8px 0 12px' }, 'Webhook delivery is real (internal POST, air-gap-friendly). Email/Slack are recorded as queued until a transport is wired at the site.'),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, ['Channel', 'Type', 'Target', 'Test', 'On'].map(t => h('th', {}, t)))), chBody))));
+
+  // routing rules
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Routing rules'), h('span', { class: 'sub' }, `· ${rules.length}`)),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Rule', 'Min severity', 'Kind', 'Channel', 'On'].map(t => h('th', {}, t)))),
+      h('tbody', {}, rules.length ? rules.map(r => h('tr', {}, h('td', {}, r.name), h('td', {}, chip(r.min_severity, r.min_severity === 'critical' ? 'kev' : 'warn')), h('td', { class: 'mono' }, r.kind || 'any'), h('td', {}, r.channel_name || ('#' + r.channel_id)), h('td', {}, chip(r.enabled ? 'on' : 'off', r.enabled ? 'ok' : ''))))
+        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:16px;text-align:center' }, 'No routing rules.'))])))));
+
+  // delivery log
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Delivery log'), h('span', { class: 'sub' }, `· ${deliveries.length}`),
+    h('span', { class: 'spring', style: 'flex:1' }), h('button', { class: 'btn sm primary', onclick: async () => { const r = await API.dispatchAlerts(); toast(`${r.deliveries} alert(s) dispatched`, true); go('alerting'); } }, 'Dispatch now')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Channel', 'Subject', 'Status', 'Detail', 'When'].map(t => h('th', {}, t)))),
+      h('tbody', {}, deliveries.length ? deliveries.map(d => h('tr', {}, h('td', {}, d.channel_name), h('td', {}, d.subject), h('td', {}, chip(d.status, d.status === 'delivered' ? 'ok' : d.status === 'failed' ? 'kev' : 'warn')), h('td', { class: 'faint', style: 'font-size:11px' }, d.detail || ''), h('td', { class: 'mono', style: 'font-size:11px' }, ago(d.created_at))))
+        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:16px;text-align:center' }, 'No deliveries yet.'))])))));
+}
+
 /* ---- 4.21 Detection rules management -------------------------------- */
 async function viewDetections(root) {
   root.append(loading('Loading detection rules…'));

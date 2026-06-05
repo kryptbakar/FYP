@@ -120,6 +120,15 @@ const API = {
   ruleStats: () => API._get('/detection-rules/stats', () => FIX.ruleStats),
   createRule: (body) => API._post('/detection-rules', body, { id: Date.now(), ...body, enabled: true, simulated: true }),
   patchRule: (id, body) => API._send('PATCH', `/detection-rules/${id}`, body, { id, ...body, simulated: true }),
+  // alerting
+  alertChannels: () => API._get('/alert-channels', () => FIX.alertChannels),
+  alertRules: () => API._get('/alert-rules', () => FIX.alertRules),
+  alertDeliveries: () => API._get('/alert-deliveries', () => FIX.alertDeliveries),
+  addChannel: (body) => API._post('/alert-channels', body, { id: Date.now(), ...body, enabled: true, simulated: true }),
+  patchChannel: (id, enabled) => API._send('PATCH', `/alert-channels/${id}`, { enabled }, { id, enabled, simulated: true }),
+  testChannel: (id) => API._post(`/alert-channels/${id}/test`, {}, { channel: 'channel', status: 'delivered', detail: 'HTTP 200 (demo)' }),
+  addAlertRule: (body) => API._post('/alert-rules', body, { id: Date.now(), ...body, enabled: true, simulated: true }),
+  dispatchAlerts: () => API._post('/alerts/dispatch', {}, { notifications: 1, deliveries: 1, results: [{ channel: 'SOC webhook', status: 'delivered' }], simulated: true }),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
