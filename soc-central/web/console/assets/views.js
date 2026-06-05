@@ -281,7 +281,7 @@ function closeDrawer() { $('#scrim').classList.remove('show'); $('#drawer').clas
 /* ---- 4.3 Compliance -------------------------------------------------- */
 async function viewCompliance(root) {
   root.append(loading('Loading compliance posture…'));
-  const [summary, results, chain] = await Promise.all([API.compSummary(), API.compResults(), API.chain()]);
+  const [summary, results, chain, evidence] = await Promise.all([API.compSummary(), API.compResults(), API.chain(), API.compEvidence()]);
   root.innerHTML = '';
   const by = {}; (summary.by_status || []).forEach(s => by[s.status] = s.count);
   const graded = (by.pass || 0) + (by.fail || 0) + (by.partial || 0) || 1;
@@ -297,7 +297,23 @@ async function viewCompliance(root) {
         chip('chain ' + (chain.ok ? 'verified ✓' : 'BROKEN ✗'), chain.ok ? 'ok' : 'kev'),
         chip(`${chain.length ?? 0} evidence records`, 'mono'),
         h('span', { class: 'faint mono', style: 'font-size:10.5px' }, 'head ' + (chain.head_hash || '—').slice(0, 16)))),
-    compTable(results)));
+    compTable(results), evidencePanel(evidence)));
+}
+function evidencePanel(evidence) {
+  return h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Evidence records'),
+    h('span', { class: 'sub' }, '· hash-chained, tamper-evident'), h('span', { class: 'spring', style: 'flex:1' }),
+    csvBtn('CSV', 'vyrex-compliance-evidence.csv', () => [['id', 'rule', 'asset', 'status', 'recorded', 'hash'],
+      ...(evidence || []).map(e => [e.id, e.rule_id, e.asset_id, e.status, e.recorded_at, e.hash])])),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['#', 'Control', 'Host', 'Status', 'Recorded', 'Hash (chain)'].map(t => h('th', {}, t)))),
+      h('tbody', {}, (evidence || []).length ? evidence.map(e => h('tr', {},
+        h('td', { class: 'mono' }, String(e.id)),
+        h('td', { class: 'mono' }, e.rule_id),
+        h('td', { class: 'mono' }, e.asset_id),
+        h('td', {}, statusChip(e.status)),
+        h('td', { class: 'mono', style: 'font-size:11px' }, ago(e.recorded_at)),
+        h('td', {}, h('span', { class: 'faint mono', style: 'font-size:10px' }, (e.hash || '').slice(0, 18) + '…'))))
+        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:16px;text-align:center' }, 'No evidence records yet.'))]))));
 }
 function compTable(results) {
   const byHost = {}; (results || []).forEach(r => { (byHost[r.asset_id] = byHost[r.asset_id] || []).push(r); });
@@ -1061,6 +1077,55 @@ async function openHunt(id) {
     } else box.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'no rows from this host'));
     b.append(box);
   });
+}
+
+/* ---- 4.17 Threat Intelligence Center (attribution + IOC sightings + fusion clusters) -- */
+async function viewIntel(root) {
+  root.append(loading('Loading threat intelligence…'));
+  const [attr, sight, clusters] = await Promise.all([API.attribution(), API.sightings(), API.clusters()]);
+  root.innerHTML = '';
+  const actors = attr.actors || [], malware = attr.malware || [];
+  root.append(h('div', { class: 'kpis fade' },
+    kpiCard('Threat actors', String(actors.length), actors[0] ? 'top: ' + actors[0].name : 'none attributed', actors.length ? 'crit' : ''),
+    kpiCard('Malware families', String(malware.length), malware[0] ? 'top: ' + malware[0].name : 'none seen', malware.length ? 'warn' : ''),
+    kpiCard('IOC sightings', String((sight || []).length), 'observed indicators', (sight || []).length ? 'warn' : ''),
+    kpiCard('Fusion clusters', String((clusters || []).length), 'multi-tool corroboration', '')));
+
+  const actorsTbl = h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Threat actors'), h('span', { class: 'sub' }, '· by attributed findings')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Actor', 'Findings'].map(t => h('th', {}, t)))),
+      h('tbody', {}, actors.length ? actors.map(a => h('tr', {}, h('td', {}, chip(a.name, 'kev')), h('td', { class: 'mono' }, String(a.findings))))
+        : [h('tr', {}, h('td', { colspan: '2', class: 'faint', style: 'padding:16px;text-align:center' }, 'No attribution yet.'))]))));
+  const malTbl = h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Malware'), h('span', { class: 'sub' }, '· families seen')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Malware', 'Findings'].map(t => h('th', {}, t)))),
+      h('tbody', {}, malware.length ? malware.map(m => h('tr', {}, h('td', {}, chip(m.name, 'warn')), h('td', { class: 'mono' }, String(m.findings))))
+        : [h('tr', {}, h('td', { colspan: '2', class: 'faint', style: 'padding:16px;text-align:center' }, 'No malware seen.'))]))));
+  root.append(h('div', { class: 'cols2 fade', style: 'align-items:start' }, actorsTbl, malTbl));
+
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Fusion clusters'), h('span', { class: 'sub' }, '· issues independent tools corroborate')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Severity', 'Title', 'Asset', 'Tools', 'Top risk', ''].map(t => h('th', {}, t)))),
+      h('tbody', {}, (clusters || []).length ? clusters.map(c => h('tr', { tabindex: '0', onclick: () => openFinding(c.primary_id), onkeydown: e => { if (e.key === 'Enter') openFinding(c.primary_id); } },
+        h('td', {}, severity(c.severity)),
+        h('td', {}, c.title),
+        h('td', {}, eAsset(c.asset_id)),
+        h('td', {}, h('div', { class: 'wrap', style: 'gap:4px' }, (c.tools || []).map(t => chip(t, 'mono')), chip((c.n_tools || 0) + ' agree', 'consensus'))),
+        h('td', {}, h('span', { class: 'sc ' + band(c.top_risk_score), style: 'font-family:var(--mono)' }, n0(c.top_risk_score))),
+        h('td', {}, h('span', { class: 'linklike', style: 'font-size:11px' }, 'investigate ›'))))
+        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:16px;text-align:center' }, 'No multi-tool clusters yet.'))])))));
+
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'IOC sightings'), h('span', { class: 'sub' }, '· where indicators were observed'),
+    h('span', { class: 'spring', style: 'flex:1' }), csvBtn('CSV', 'vyrex-sightings.csv', () => [['indicator', 'type', 'asset', 'source', 'seen'], ...(sight || []).map(s => [s.indicator, s.type || '', s.asset_id || '', s.source || '', s.seen_at])])),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Indicator', 'Type', 'Asset', 'Source', 'Seen'].map(t => h('th', {}, t)))),
+      h('tbody', {}, (sight || []).length ? sight.map(s => h('tr', {},
+        h('td', {}, eNet(s.indicator)),
+        h('td', { class: 'mono' }, s.type || '—'),
+        h('td', {}, s.asset_id ? eAsset(s.asset_id) : '—'),
+        h('td', {}, chip(s.source || '—', 'mono')),
+        h('td', { class: 'mono', style: 'font-size:11px' }, ago(s.seen_at))))
+        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:16px;text-align:center' }, 'No sightings recorded.'))])))));
 }
 
 /* ---- 4.14 Dashboards (embedded Grafana) ----------------------------- */

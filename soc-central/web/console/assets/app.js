@@ -11,6 +11,7 @@ const ROUTES = {
   cases:      { title: 'Cases', crumb: 'Incidents, correlation & signed audit', icon: 'cases', key: '4', sec: 'Investigate', view: viewIncidents },
   assets:     { title: 'Assets', crumb: 'Inventory & host detail', icon: 'assets', key: '5', sec: 'Investigate', view: viewAssets },
   livehunt:   { title: 'Live Hunt', crumb: 'Fleet artifact collection', icon: 'target', key: '', sec: 'Investigate', view: viewLiveHunt },
+  intel:      { title: 'Threat Intel', crumb: 'Attribution, IOCs & fusion clusters', icon: 'intel', key: '', sec: 'Investigate', view: viewIntel },
   compliance: { title: 'Compliance', crumb: 'CIS posture & hash-chained evidence', icon: 'shield', key: '6', sec: 'Assure', view: viewCompliance },
   trust:      { title: 'Trust Center', crumb: 'Audit integrity & air-gap assurance', icon: 'shieldcheck', key: '7', sec: 'Assure', view: viewTrust },
   fusion:     { title: 'Sensors & Fusion', crumb: 'Pipeline health & integrated tools', icon: 'fusion', key: '8', sec: 'Operate', view: viewFusion },
