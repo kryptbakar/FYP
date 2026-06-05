@@ -1079,6 +1079,53 @@ async function openHunt(id) {
   });
 }
 
+/* ---- 4.21 Detection rules management -------------------------------- */
+async function viewDetections(root) {
+  root.append(loading('Loading detection rules…'));
+  let [rules, stats] = await Promise.all([API.detectionRules(), API.ruleStats()]);
+  root.innerHTML = '';
+  root.append(h('div', { class: 'kpis fade' },
+    kpiCard('Detection rules', String(stats.n ?? rules.length), `${stats.enabled ?? rules.filter(r => r.enabled).length} enabled`, 'ok'),
+    kpiCard('Total hits', String(stats.hits ?? rules.reduce((a, r) => a + (r.hits || 0), 0)), 'across all rules', ''),
+    kpiCard('Sources', String((stats.by_source || []).length || 4), 'sigma · suricata · yara · domain', '')));
+
+  // author a rule
+  const name = h('input', { class: 'txt', placeholder: 'Rule name…' });
+  const src = h('select', {}, ['sigma', 'suricata', 'yara', 'domain'].map(s => h('option', { value: s }, s)));
+  const tech = h('input', { class: 'txt', placeholder: 'ATT&CK (e.g. T1190)', style: 'max-width:170px' });
+  const sev = h('select', {}, ['critical', 'high', 'medium', 'low'].map(s => h('option', { value: s, selected: s === 'medium' ? 'selected' : null }, s)));
+  const logic = h('input', { class: 'txt', placeholder: 'detection logic / signature…' });
+  const add = h('button', { class: 'btn primary', onclick: async () => {
+    if (!name.value.trim()) { toast('Name the rule', false); return; }
+    await API.createRule({ name: name.value.trim(), source: src.value, technique: tech.value || null, severity: sev.value, logic: logic.value || null });
+    toast('Detection rule created', true); go('detections');
+  } }, 'Create rule');
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Author a detection rule'),
+    h('div', { class: 'huntbar' }, name, src, tech, sev, add), h('div', { class: 'row', style: 'margin-top:8px' }, logic)));
+
+  // rules table
+  const body = h('tbody', {});
+  const render = () => { body.innerHTML = ''; rules.forEach(r => body.append(ruleRow(r, () => render()))); };
+  render();
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Detection rules'), h('span', { class: 'sub' }, `· ${rules.length}`),
+    h('span', { class: 'spring', style: 'flex:1' }), csvBtn('CSV', 'vyrex-detection-rules.csv', () => [['name', 'source', 'technique', 'severity', 'enabled', 'hits'], ...rules.map(r => [r.name, r.source, r.technique || '', r.severity, r.enabled, r.hits])])),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Rule', 'Source', 'ATT&CK', 'Severity', 'Hits', 'Status'].map(t => h('th', {}, t)))),
+      body))));
+}
+function ruleRow(r, refresh) {
+  const toggle = h('span', { class: 'rtoggle' + (r.enabled ? ' on' : ''), title: 'enable/disable', role: 'button', tabindex: '0',
+    onclick: async () => { r.enabled = !r.enabled; await API.patchRule(r.id, { enabled: r.enabled }); toast(`Rule ${r.enabled ? 'enabled' : 'disabled'}`, true); refresh(); },
+    onkeydown: e => { if (e.key === 'Enter') { r.enabled = !r.enabled; API.patchRule(r.id, { enabled: r.enabled }); refresh(); } } });
+  return h('tr', { class: r.enabled ? '' : 'dim' },
+    h('td', {}, h('div', {}, r.name), r.logic ? h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px' }, r.logic) : null),
+    h('td', {}, chip(r.source, 'mono')),
+    h('td', {}, r.technique ? eCode(r.technique) : '—'),
+    h('td', {}, severity(r.severity)),
+    h('td', { class: 'mono' }, String(r.hits || 0)),
+    h('td', {}, toggle));
+}
+
 /* ---- 4.20 Coverage (ATT&CK matrix + posture trend) ------------------ */
 async function viewCoverage(root) {
   root.append(loading('Loading coverage & trends…'));

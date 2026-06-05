@@ -18,6 +18,7 @@ from .routers import (
     analytics,
     casework,
     compliance,
+    detrules,
     findings,
     health,
     hunts,
@@ -82,6 +83,7 @@ app.include_router(hunts.router)
 app.include_router(search.router)
 app.include_router(reports.router)
 app.include_router(analytics.router)
+app.include_router(detrules.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")

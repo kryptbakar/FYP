@@ -115,6 +115,11 @@ const API = {
   // analytics
   attackCoverage: () => API._get('/attack/coverage', () => FIX.attackCoverage),
   postureTrends: () => API._get('/posture/trends', () => FIX.postureTrends),
+  // detection rules
+  detectionRules: () => API._get('/detection-rules', () => FIX.detectionRules),
+  ruleStats: () => API._get('/detection-rules/stats', () => FIX.ruleStats),
+  createRule: (body) => API._post('/detection-rules', body, { id: Date.now(), ...body, enabled: true, simulated: true }),
+  patchRule: (id, body) => API._send('PATCH', `/detection-rules/${id}`, body, { id, ...body, simulated: true }),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
