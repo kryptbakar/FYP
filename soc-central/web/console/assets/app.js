@@ -18,6 +18,7 @@ const ROUTES = {
   fusion:     { title: 'Sensors & Fusion', crumb: 'Pipeline health & integrated tools', icon: 'fusion', key: '8', sec: 'Operate', view: viewFusion },
   manager:    { title: 'Operations', crumb: 'Queue health, SLA & analyst workload', icon: 'manager', key: '9', sec: 'Operate', view: viewManager },
   detections: { title: 'Detections', crumb: 'Detection-rule management', icon: 'rules', key: '', sec: 'Operate', view: viewDetections },
+  alerting:   { title: 'Alerting', crumb: 'Channels, routing & delivery', icon: 'alert', key: '', sec: 'Operate', view: viewAlerting },
   playbooks:  { title: 'Playbooks', crumb: 'SOAR automation', icon: 'fusion', key: '', sec: 'Operate', view: viewPlaybooks },
   reports:    { title: 'Reports', crumb: 'Posture, compliance & executive reports', icon: 'report', key: '', sec: 'Operate', view: viewReports },
   dashboards: { title: 'Dashboards', crumb: 'Grafana metrics & trends', icon: 'dash', key: '', sec: 'Operate', view: viewDashboards },

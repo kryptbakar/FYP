@@ -261,6 +261,20 @@ const FIX = (() => {
     ],
     ruleStats: { n: 5, enabled: 4, hits: 33, by_source: [{ source: 'suricata', n: 2 }, { source: 'sigma', n: 1 }, { source: 'yara', n: 1 }, { source: 'domain', n: 1 }] },
 
+    // Alerting (channels / rules / deliveries).
+    alertChannels: [
+      { id: 1, name: 'SOC webhook (SIRP intake)', type: 'webhook', target: 'http://sirp.soc.local/hooks/vyrex', enabled: true },
+      { id: 2, name: 'On-call email', type: 'email', target: 'soc-oncall@org.local', enabled: true },
+    ],
+    alertRules: [
+      { id: 1, name: 'Critical findings → SIRP', min_severity: 'critical', kind: 'critical_finding', channel_id: 1, channel_name: 'SOC webhook (SIRP intake)', enabled: true },
+      { id: 2, name: 'SLA breaches → on-call', min_severity: 'high', kind: 'sla_breach', channel_id: 2, channel_name: 'On-call email', enabled: true },
+    ],
+    alertDeliveries: [
+      { id: 3, channel_name: 'SOC webhook (SIRP intake)', subject: 'Critical risk on web-prod-03', status: 'delivered', detail: 'HTTP 200', created_at: new Date(Date.now() - 9 * 60000).toISOString() },
+      { id: 2, channel_name: 'On-call email', subject: 'SLA breached — db-core-01', status: 'queued', detail: 'email transport not configured at this site', created_at: new Date(Date.now() - 41 * 60000).toISOString() },
+    ],
+
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 

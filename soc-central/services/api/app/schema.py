@@ -178,6 +178,38 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     created_at   timestamptz DEFAULT now()
 );
 
+-- Alerting: notification channels (webhook/email/slack), routing rules, and a delivery log.
+-- Closes the "alerts exist in-app but never leave the building" gap. Webhook delivery is real
+-- (an internal POST, air-gap-friendly); email/slack are recorded as queued until a transport
+-- is wired at the site.
+CREATE TABLE IF NOT EXISTS alert_channels (
+    id         bigserial PRIMARY KEY,
+    name       text NOT NULL,
+    type       text DEFAULT 'webhook',     -- webhook | email | slack
+    target     text NOT NULL,              -- URL / email / slack webhook
+    enabled    boolean DEFAULT true,
+    created_at timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS alert_rules (
+    id           bigserial PRIMARY KEY,
+    name         text NOT NULL,
+    min_severity text DEFAULT 'high',       -- critical | high | medium
+    kind         text,                      -- critical_finding | sla_breach | any
+    channel_id   bigint REFERENCES alert_channels(id) ON DELETE CASCADE,
+    enabled      boolean DEFAULT true,
+    created_at   timestamptz DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS alert_deliveries (
+    id           bigserial PRIMARY KEY,
+    channel_id   bigint,
+    channel_name text,
+    subject      text,
+    status       text,                      -- delivered | failed | queued
+    detail       text,
+    created_at   timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS alert_deliveries_time ON alert_deliveries (created_at DESC);
+
 -- Detection rules (Sigma/Suricata/YARA/domain) as manageable content: enable/tune/track
 -- hits, not just a read-only catalog. The detections-as-content surface every SIEM has.
 CREATE TABLE IF NOT EXISTS detection_rules (
