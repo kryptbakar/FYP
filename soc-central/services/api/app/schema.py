@@ -178,6 +178,28 @@ CREATE TABLE IF NOT EXISTS playbook_runs (
     created_at   timestamptz DEFAULT now()
 );
 
+-- Detection rules (Sigma/Suricata/YARA/domain) as manageable content: enable/tune/track
+-- hits, not just a read-only catalog. The detections-as-content surface every SIEM has.
+CREATE TABLE IF NOT EXISTS detection_rules (
+    id          bigserial PRIMARY KEY,
+    name        text NOT NULL UNIQUE,
+    source      text DEFAULT 'sigma',     -- sigma | suricata | yara | domain
+    technique   text,                     -- ATT&CK technique id
+    severity    text DEFAULT 'medium',
+    logic       text,                     -- query / condition / signature
+    enabled     boolean DEFAULT true,
+    hits        int DEFAULT 0,
+    created_by  text,
+    created_at  timestamptz DEFAULT now()
+);
+INSERT INTO detection_rules (name, source, technique, severity, logic, hits) VALUES
+  ('C2 beacon to non-standard port (tcp/4444)', 'suricata', 'T1071.001', 'critical', 'alert tcp any any -> any 4444 (msg:"C2 beacon"; sid:9000001;)', 14),
+  ('Looney Tunables local privilege escalation', 'sigma', 'T1068', 'high', 'process.args contains "GLIBC_TUNABLES" and exit_code = 0', 6),
+  ('Reverse shell spawned (bash -i /dev/tcp)', 'yara', 'T1059', 'high', '$a = "bash -i >& /dev/tcp/"', 3),
+  ('auditd not running (tamper-evident logging off)', 'domain', 'T1562', 'medium', 'service.auditd.active = false', 8),
+  ('Apache Log4Shell JNDI exploit attempt', 'suricata', 'T1190', 'critical', 'content:"jndi:ldap"; http.uri; sid:9000002;', 2)
+ON CONFLICT (name) DO NOTHING;
+
 -- Generated reports (posture / compliance / executive) — point-in-time snapshots an analyst
 -- or stakeholder can export. Content is a self-contained jsonb so a report is reproducible.
 CREATE TABLE IF NOT EXISTS reports (

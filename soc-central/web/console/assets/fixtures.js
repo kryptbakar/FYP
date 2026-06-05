@@ -251,6 +251,16 @@ const FIX = (() => {
     postureTrends: (() => { const out = []; for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000);
       out.push({ snap_date: d.toISOString().slice(0, 10), open_findings: 38 + (6 - i), kev: 7 + (i % 2), critical: 2, high: 12 + (6 - i), exploit_available: 3, avg_risk: 28 + (6 - i) * 0.6, compliance_pct: 33 + (6 - i) }); } return out; })(),
 
+    // Detection rules (management).
+    detectionRules: [
+      { id: 1, name: 'C2 beacon to non-standard port (tcp/4444)', source: 'suricata', technique: 'T1071.001', severity: 'critical', logic: 'alert tcp any any -> any 4444 (msg:"C2 beacon"; sid:9000001;)', enabled: true, hits: 14, created_by: 'system' },
+      { id: 2, name: 'Looney Tunables local privilege escalation', source: 'sigma', technique: 'T1068', severity: 'high', logic: 'process.args contains "GLIBC_TUNABLES" and exit_code = 0', enabled: true, hits: 6, created_by: 'system' },
+      { id: 4, name: 'auditd not running (tamper-evident logging off)', source: 'domain', technique: 'T1562', severity: 'medium', logic: 'service.auditd.active = false', enabled: true, hits: 8, created_by: 'system' },
+      { id: 5, name: 'Apache Log4Shell JNDI exploit attempt', source: 'suricata', technique: 'T1190', severity: 'critical', logic: 'content:"jndi:ldap"; http.uri;', enabled: true, hits: 2, created_by: 'system' },
+      { id: 3, name: 'Reverse shell spawned (bash -i /dev/tcp)', source: 'yara', technique: 'T1059', severity: 'high', logic: '$a = "bash -i >& /dev/tcp/"', enabled: false, hits: 3, created_by: 'system' },
+    ],
+    ruleStats: { n: 5, enabled: 4, hits: 33, by_source: [{ source: 'suricata', n: 2 }, { source: 'sigma', n: 1 }, { source: 'yara', n: 1 }, { source: 'domain', n: 1 }] },
+
     // Organizations (mirror /tenants).
     tenants: [ { id: 'default', name: 'Default organization' }, { id: 'pitb', name: 'Punjab IT Board (demo)' } ],
 
