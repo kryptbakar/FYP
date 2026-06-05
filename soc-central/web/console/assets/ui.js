@@ -64,7 +64,12 @@ const PATHS = {
   gear: 'M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7zM12 2v2.5M12 19.5V22M4.2 4.2l1.8 1.8M18 18l1.8 1.8M2 12h2.5M19.5 12H22M4.2 19.8 6 18M18 6l1.8-1.8',
   download: 'M12 3v12M7 10l5 5 5-5M5 21h14',
   dash: 'M3 13h4v8H3zM10 3h4v18h-4zM17 9h4v12h-4z',
-  target: 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z' };
+  target: 'M12 2v3M12 19v3M2 12h3M19 12h3M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10z',
+  intel: 'M5 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM19 20a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM7 10l10-4M7 12l10 4',
+  report: 'M7 3h7l5 5v13H7zM14 3v5h5M9 13h6M9 17h6',
+  matrix: 'M3 3h6v6H3zM10 3h6v6h-6zM17 3h4v6h-4zM3 10h6v6H3zM10 10h6v6h-6zM3 17h6v4H3z',
+  rules: 'M4 6h16M4 12h16M4 18h10M18 16l2 2-2 2',
+  alert: 'M12 3l9 16H3zM12 10v4M12 17h.01' };
 const ic = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${PATHS[k]}"/></svg>`;
 
 /* ---- atoms ----------------------------------------------------------- */
