@@ -108,7 +108,8 @@ async function boot() {
       return; // don't fire single-key shortcuts while typing
     }
     if (e.key === '/') { e.preventDefault(); q.focus(); return; }
-    if (e.key === 'Escape') { closePalette(); closeAlerts(); closeDrawer(); return; }
+    if (e.key === '?') { e.preventDefault(); toggleShortcuts(); return; }
+    if (e.key === 'Escape') { const sh = $('#shortcuts'); if (sh) { sh.remove(); return; } closePalette(); closeAlerts(); closeDrawer(); return; }
     if (e.key === 'j') { moveSel(1); return; }
     if (e.key === 'k') { moveSel(-1); return; }
     if (e.key === 'Enter') { openSel(); return; }
@@ -158,6 +159,29 @@ function routeFromHash(initial) {
   else if (initial) go('overview');
 }
 window.addEventListener('hashchange', () => routeFromHash(false));
+
+/* ---- keyboard shortcuts cheat-sheet (press ?) ------------------------ */
+function toggleShortcuts() {
+  const existing = $('#shortcuts');
+  if (existing) { existing.remove(); return; }
+  const K = (k) => h('kbd', { class: 'kkey' }, k);
+  const row = (keys, desc) => h('div', { class: 'shorts-row' },
+    h('div', { class: 'shorts-keys' }, keys), h('div', { class: 'shorts-d' }, desc));
+  const box = h('div', { class: 'shorts', id: 'shortcuts', onclick: e => { if (e.target.id === 'shortcuts') box.remove(); } },
+    h('div', { class: 'shorts-card' },
+      h('div', { class: 'shorts-h' }, h('strong', {}, 'Keyboard shortcuts'),
+        h('span', { class: 'spring', style: 'flex:1' }),
+        h('button', { class: 'sc-x', title: 'Close (Esc)', onclick: () => box.remove(), html: ic('x') })),
+      h('div', { class: 'shorts-b' },
+        row([K('⌘'), K('K')], 'Command palette — jump to a page or run an action'),
+        row([K('/')], 'Focus the search bar'),
+        row([K('1'), h('span', { class: 'kdash' }, '–'), K('9')], 'Jump to a section'),
+        row([K('j'), K('k')], 'Move selection down / up'),
+        row([K('↵')], 'Open the selected item'),
+        row([K('Esc')], 'Close drawer · palette · this overlay'),
+        row([K('?')], 'Show this help'))));
+  document.body.append(box);
+}
 
 /* ---- command palette (⌘K / Ctrl+K) — jump to any page ---------------- */
 let _cmdkItems = [], _cmdkSel = 0, _cmdkWired = false;

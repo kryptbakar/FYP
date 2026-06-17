@@ -1233,7 +1233,7 @@ function trendChart(series) {
   const wrap = h('div', {});
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:140px">`
     + `<path d="${area}" fill="var(--accent-soft)"/>`
-    + `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+    + `<polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`
     + dots + `</svg>`;
   const labels = h('div', { class: 'trendx' }, series.map(s => h('span', {}, s.snap_date.slice(5))));
   const latest = series[series.length - 1];
