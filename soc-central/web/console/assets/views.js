@@ -478,6 +478,7 @@ async function viewFusion(root) {
   // pipeline strip
   const stage = (nm, val, ds) => h('div', { class: 'stage' }, h('div', { class: 'nm' }, h('span', { class: 'statdot active' }), nm), h('div', { class: 'mv' }, val), h('div', { class: 'ds' }, ds));
   root.append(h('div', { class: 'stack fade' },
+    consensusReveal(),
     h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Pipeline'),
       h('div', { class: 'pipe' },
         stage('feed-sync', 'mirrored', 'NVD · EPSS · KEV (only egress)'),
@@ -489,6 +490,26 @@ async function viewFusion(root) {
     h('div', { class: 'panel pad' }, h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'sec-label' }, 'Sensors & integrated tools'),
       h('span', { class: 'spring' }), h('span', { class: 'faint mono', style: 'font-size:10.5px' }, 'model ' + modelVer)),
       sensorsGrid(byTool))));
+}
+/* Fusion "at a glance" — the hero consensus reveal (animated by Storyline Mode).
+   Renders in its final state when viewed normally; story.js resets + plays it. */
+function consensusReveal() {
+  const tools = [['agent', 'endpoint agent'], ['trivy', 'Trivy scanner'], ['suricata', 'Suricata IDS']];
+  return h('div', { class: 'panel pad consensus-reveal' },
+    h('div', { class: 'row', style: 'margin-bottom:3px' }, h('div', { class: 'sec-label' }, 'Multi-tool consensus'),
+      h('span', { class: 'spring', style: 'flex:1' }), chip('fusion', 'consensus')),
+    h('div', { class: 'faint mono', style: 'font-size:11px;margin-bottom:16px' }, 'CVE-2023-4911 · web-prod-03 · dedup_key ce940f3478795574998a'),
+    h('div', { class: 'cr-tools' }, tools.map(([t, d]) => h('div', { class: 'cr-tool on', 'data-tool': t },
+      h('div', { class: 'cr-ring' }, h('span', { html: ic('shieldcheck') })),
+      h('div', { class: 'cr-tn mono' }, t), h('div', { class: 'cr-td faint' }, d)))),
+    h('div', { class: 'cr-meterwrap' },
+      h('div', { class: 'cr-meter' }, h('i', { class: 'cr-fill', style: 'width:100%' })),
+      h('div', { class: 'cr-ticks' }, ['0', '0.5', '1.0'].map(x => h('span', {}, x)))),
+    h('div', { class: 'cr-weight' }, 'consensus weight ', h('b', { class: 'mono cr-w' }, '1.0'),
+      h('span', { class: 'faint', style: 'margin-left:8px;font-size:11px' }, '· 3 independent tools corroborate'),
+      h('span', { class: 'spring', style: 'flex:1' })),
+    h('div', { class: 'cf cr-cf show' }, h('span', {}, 'if only one tool had flagged this'),
+      h('span', { class: 'd down' }, '−21 → 73 (High)')));
 }
 function sensorsGrid(byTool) {
   const TOOLS = [
@@ -533,6 +554,13 @@ async function viewOverview(root) {
   const graded = (by.pass || 0) + (by.fail || 0) + (by.partial || 0) || 1;
   const cis = Math.round(((by.pass || 0) / graded) * 100);
   const techniques = [...new Set(ranking.map(r => r.attack).filter(Boolean))];
+
+  root.append(h('div', { class: 'row fade', style: 'margin-bottom:14px;gap:12px' },
+    h('div', { style: 'min-width:0' }, h('div', { style: 'font-size:15px;font-weight:560' }, 'Security posture'),
+      h('div', { class: 'faint', style: 'font-size:11.5px;margin-top:1px' }, 'Live exposure, ranked. New here? Walk one threat from detection to contained.')),
+    h('span', { class: 'spring', style: 'flex:1' }),
+    h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
+      html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' })));
 
   root.append(h('div', { class: 'kpis fade' },
     kpiCard('Critical exposure', String(bands.critical), `${bands.high} high · ${ranking.length} ranked`, bands.critical ? 'crit' : 'ok'),

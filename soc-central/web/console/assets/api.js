@@ -8,6 +8,7 @@
 const API = {
   mode: 'connecting',           // 'live' | 'demo' | 'connecting'
   _onmode: null,
+  _story: false,                // Storyline Mode: force deterministic fixtures (never live tools)
   token: localStorage.getItem('vyrex_token') || null,
   role: localStorage.getItem('vyrex_role') || null,
   user: localStorage.getItem('vyrex_user') || null,
@@ -15,6 +16,8 @@ const API = {
   _h(base) { const h = Object.assign({}, base); if (this.token) h.Authorization = 'Bearer ' + this.token; return h; },
 
   async _get(path, fallback) {
+    // Storyline Mode reads must be bit-for-bit identical every run — short-circuit to fixtures.
+    if (this._story) { this._set('demo'); return typeof fallback === 'function' ? fallback() : fallback; }
     try {
       const r = await fetch('/api' + path, { headers: this._h({ Accept: 'application/json' }) });
       if (!r.ok) throw new Error(r.status);
@@ -26,7 +29,7 @@ const API = {
     }
   },
   async _post(path, body, simulated) {
-    if (this.mode === 'demo') return simulated;
+    if (this._story || this.mode === 'demo') return simulated;
     try {
       const r = await fetch('/api' + path, { method: 'POST', headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       if (!r.ok) throw new Error(r.status);
@@ -38,7 +41,7 @@ const API = {
     }
   },
   async _send(method, path, body, simulated) {
-    if (this.mode === 'demo') return simulated;
+    if (this._story || this.mode === 'demo') return simulated;
     try {
       const r = await fetch('/api' + path, { method, headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
       if (!r.ok) throw new Error(r.status);

@@ -178,6 +178,7 @@ function closePalette() { const box = $('#cmdk'); if (box) box.hidden = true; }
 // Deep actions — run a workflow straight from the palette, not just navigate. Writes are
 // RBAC-gated via requireAct() so viewers get the read-only toast instead of a failed call.
 const CMDK_ACTIONS = [
+  { title: 'Run Demo Storyline', sec: 'Action', icon: 'target', run: () => { if (typeof startStory === 'function') startStory(); } },
   { title: 'Correlate incidents now', sec: 'Action', icon: 'cases', run: async () => {
       if (!requireAct()) return; toast('Correlating findings…');
       const r = await API.correlate(); toast(`Correlation complete — ${(r.created || []).length || r.correlated_groups || 0} incident(s)`, true); go('cases'); } },
