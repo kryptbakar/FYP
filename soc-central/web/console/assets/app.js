@@ -128,6 +128,9 @@ async function boot() {
   // organization chip (multi-tenancy foundation)
   try { const orgs = await API.tenants(); const oc = $('#orgchip'); if (oc && orgs && orgs.length) { oc.textContent = orgs[0].name; oc.title = orgs.map(o => o.name).join(' · '); } } catch {}
 
+  // table density toggle (topbar)
+  const db = $('#density'); if (db) { db.addEventListener('click', toggleDensity); if (document.body.classList.contains('compact')) db.classList.add('on'); }
+
   // alerts inbox (topbar bell)
   const bell = $('#bell'); if (bell) bell.addEventListener('click', e => { e.stopPropagation(); toggleAlerts(); });
   document.addEventListener('click', e => { const pop = $('#alerts-pop'); if (pop && !pop.hidden && !pop.contains(e.target) && e.target !== bell && !bell.contains(e.target)) pop.hidden = true; });
@@ -164,17 +167,37 @@ function openPalette() {
   input.value = ''; renderPalette(''); input.focus();
 }
 function closePalette() { const box = $('#cmdk'); if (box) box.hidden = true; }
-function renderPalette(query) {
-  const list = $('#cmdk-list'); const ql = (query || '').toLowerCase();
-  _cmdkItems = Object.entries(ROUTES)
+// Deep actions — run a workflow straight from the palette, not just navigate. Writes are
+// RBAC-gated via requireAct() so viewers get the read-only toast instead of a failed call.
+const CMDK_ACTIONS = [
+  { title: 'Correlate incidents now', sec: 'Action', icon: 'cases', run: async () => {
+      if (!requireAct()) return; toast('Correlating findings…');
+      const r = await API.correlate(); toast(`Correlation complete — ${(r.created || []).length || r.correlated_groups || 0} incident(s)`, true); go('cases'); } },
+  { title: 'Generate posture report', sec: 'Action', icon: 'report', run: async () => {
+      if (!requireAct()) return; toast('Generating posture report…'); await API.generateReport('posture'); toast('Posture report generated', true); go('reports'); } },
+  { title: 'Generate compliance report', sec: 'Action', icon: 'report', run: async () => {
+      if (!requireAct()) return; toast('Generating compliance report…'); await API.generateReport('compliance'); toast('Compliance report generated', true); go('reports'); } },
+  { title: 'Dispatch pending alerts', sec: 'Action', icon: 'alert', run: async () => {
+      if (!requireAct()) return; toast('Dispatching…'); const r = await API.dispatchAlerts(); toast(`Dispatched ${r.deliveries || 0} alert(s)`, true); } },
+  { title: 'Toggle table density', sec: 'Action', icon: 'gear', run: () => toggleDensity() },
+  { title: 'Sign out', sec: 'Action', icon: 'gear', run: async () => { await API.logout(); location.reload(); } },
+];
+function paletteSource(ql) {
+  const routes = Object.entries(ROUTES)
     .filter(([k, r]) => r.sec !== '_hidden' && `${r.title} ${r.sec} ${r.crumb}`.toLowerCase().includes(ql))
     .map(([k, r]) => ({ key: k, title: r.title, sec: r.sec, icon: r.icon }));
+  const acts = CMDK_ACTIONS.filter(a => `${a.title} ${a.sec}`.toLowerCase().includes(ql));
+  return routes.concat(acts);
+}
+function renderPalette(query) {
+  const list = $('#cmdk-list');
+  _cmdkItems = paletteSource((query || '').toLowerCase());
   _cmdkSel = 0; list.innerHTML = '';
-  if (!_cmdkItems.length) { list.append(h('div', { class: 'faint', style: 'padding:16px;text-align:center;font-size:12px' }, 'No matching page.')); return; }
-  _cmdkItems.forEach((it, i) => list.append(h('div', { class: 'cmdk-item' + (i === 0 ? ' sel' : ''), onclick: () => { go(it.key); closePalette(); } },
+  if (!_cmdkItems.length) { list.append(h('div', { class: 'faint', style: 'padding:16px;text-align:center;font-size:12px' }, 'No match.')); return; }
+  _cmdkItems.forEach((it, i) => list.append(h('div', { class: 'cmdk-item' + (i === 0 ? ' sel' : ''), onclick: () => runPaletteItem(it) },
     h('span', { html: ic(it.icon), style: 'width:15px;height:15px;color:var(--muted);display:inline-flex' }),
     h('span', { style: 'flex:1' }, it.title),
-    h('span', { class: 'faint', style: 'font-size:10.5px' }, it.sec))));
+    h('span', { class: it.run ? 'cmdk-tag' : 'faint', style: 'font-size:10.5px' }, it.sec))));
 }
 function paletteNav(d) {
   if (!_cmdkItems.length) return;
@@ -183,7 +206,44 @@ function paletteNav(d) {
   els.forEach((el, i) => el.classList.toggle('sel', i === _cmdkSel));
   if (els[_cmdkSel]) els[_cmdkSel].scrollIntoView({ block: 'nearest' });
 }
-function paletteEnter() { const it = _cmdkItems[_cmdkSel]; if (it) { go(it.key); closePalette(); } }
+function runPaletteItem(it) { closePalette(); if (it.run) it.run(); else go(it.key); }
+function paletteEnter() { const it = _cmdkItems[_cmdkSel]; if (it) runPaletteItem(it); }
+
+/* ---- table density toggle + click-to-sort (shared across every .tbl) ---- */
+function toggleDensity() {
+  const compact = document.body.classList.toggle('compact');
+  localStorage.setItem('vyrex_density', compact ? 'compact' : 'comfortable');
+  const b = $('#density'); if (b) b.classList.toggle('on', compact);
+  toast(compact ? 'Compact rows' : 'Comfortable rows', true);
+}
+if (localStorage.getItem('vyrex_density') === 'compact') document.body.classList.add('compact');
+
+// One delegated handler makes every table (current and future) sortable by clicking a header.
+// Sorts the existing <tr> nodes in place (preserves their click handlers) by visible cell text,
+// auto-detecting numeric columns; skips blank/action headers.
+document.addEventListener('click', e => {
+  const th = e.target.closest && e.target.closest('table.tbl thead th');
+  if (th) sortTable(th);
+});
+function sortTable(th) {
+  const headRow = th.parentNode, table = th.closest('table'), tbody = table.tBodies[0];
+  if (!tbody || !th.textContent.trim() || th.classList.contains('nosort')) return;
+  const idx = Array.prototype.indexOf.call(headRow.children, th);
+  const rows = Array.prototype.slice.call(tbody.rows).filter(r => r.cells.length > idx);
+  if (rows.length < 2) return;
+  const dir = th.dataset.sort === 'asc' ? 'desc' : 'asc';
+  Array.prototype.forEach.call(headRow.children, c => { delete c.dataset.sort; c.classList.remove('sorted'); });
+  const val = r => (r.cells[idx] ? r.cells[idx].textContent.trim() : '');
+  const num = s => { const m = String(s).replace(/[,%$\s]/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; };
+  const allNum = rows.every(r => val(r) !== '' && num(val(r)) !== null);
+  rows.sort((a, b) => {
+    const x = val(a), y = val(b);
+    const c = allNum ? num(x) - num(y) : x.localeCompare(y, undefined, { numeric: true, sensitivity: 'base' });
+    return dir === 'asc' ? c : -c;
+  });
+  rows.forEach(r => tbody.appendChild(r));
+  th.dataset.sort = dir; th.classList.add('sorted');
+}
 
 /* ---- auth gate: require login before the app boots ------------------- */
 window.canAct = () => API.role !== 'viewer';   // viewer = read-only

@@ -6,7 +6,7 @@
   <title>VYREX — Analyst Console</title>
   <meta name="description" content="VYREX — explainable, air-gapped security intelligence workspace." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23A82A47' d='M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z'/></svg>" />
-  <link rel="stylesheet" href="assets/app.css?v=4" />
+  <link rel="stylesheet" href="assets/app.css?v=5" />
 </head>
 <body>
   <div class="app">
@@ -38,6 +38,9 @@
           <span class="slash" title="press / to focus search">/</span>
         </div>
         <div class="orgchip" id="orgchip" title="organization"></div>
+        <button class="iconbtn" id="density" title="toggle table density" aria-label="toggle table density">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="6.5" rx="1.5"/><rect x="3" y="13.5" width="18" height="6.5" rx="1.5"/></svg>
+        </button>
         <button class="iconbtn" id="bell" title="alerts" aria-label="alerts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
           <span class="nbadge" id="bell-badge" hidden></span>
@@ -80,10 +83,10 @@
   <aside class="drawer" id="drawer"><div id="drawer-inner" style="display:flex;flex-direction:column;height:100%"></div></aside>
   <div class="toast" id="toast"></div>
 
-  <script src="assets/fixtures.js?v=4"></script>
-  <script src="assets/api.js?v=4"></script>
-  <script src="assets/ui.js?v=4"></script>
-  <script src="assets/views.js?v=4"></script>
-  <script src="assets/app.js?v=4"></script>
+  <script src="assets/fixtures.js?v=5"></script>
+  <script src="assets/api.js?v=5"></script>
+  <script src="assets/ui.js?v=5"></script>
+  <script src="assets/views.js?v=5"></script>
+  <script src="assets/app.js?v=5"></script>
 </body>
 </html>

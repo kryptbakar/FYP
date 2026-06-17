@@ -198,7 +198,16 @@ table.tbl { width: 100%; border-collapse: collapse; }
 .tbl tbody tr:nth-child(even) { background: rgba(237,228,233,0.022); }   /* zebra */
 .tbl tbody tr:hover { background: var(--hover); }
 .tbl tbody tr:last-child td { border-bottom: none; }
-.tbl tbody tr:last-child td { border-bottom: none; }
+/* click-to-sort headers (delegated handler in app.js makes every .tbl sortable) */
+.tbl thead th { cursor: pointer; user-select: none; }
+.tbl thead th:hover { color: var(--text-2); }
+.tbl thead th.sorted { color: var(--text); }
+.tbl thead th.sorted::after { content: '▲'; font-size: 7px; margin-left: 6px; vertical-align: middle; opacity: .8; }
+.tbl thead th.sorted[data-sort="desc"]::after { content: '▼'; }
+/* density toggle — compact rows for data-dense triage/inventory work */
+body.compact .tbl td { height: 32px; }
+body.compact .tbl thead th { padding-top: 6px; padding-bottom: 6px; }
+.iconbtn.on { color: var(--accent-text); border-color: var(--accent); }
 
 /* ---------------------------------------------------------------- drawer / detail */
 .scrim { position: fixed; inset: 0; background: rgba(5,6,7,.6); opacity: 0; pointer-events: none; transition: opacity .18s; z-index: 40; }
@@ -470,6 +479,7 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 .cmdk-item { display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: var(--r-sm); cursor: pointer; font-size: 13px; }
 .cmdk-item:hover, .cmdk-item.sel { background: var(--accent-soft); }
 .cmdk-item.sel { box-shadow: inset 2px 0 0 var(--accent); }
+.cmdk-item .cmdk-tag { color: var(--accent-text); border: 1px solid var(--accent-soft); border-radius: 3px; padding: 0 5px; text-transform: uppercase; letter-spacing: .4px; font-family: var(--mono); }
 .cmdk-foot { display: flex; gap: 14px; padding: 9px 14px; border-top: 1px solid var(--line); font-size: 10.5px; color: var(--faint); }
 .cmdk-foot .kbd { font-family: var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
 
