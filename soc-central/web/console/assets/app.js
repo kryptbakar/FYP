@@ -83,6 +83,10 @@ function updateLive(mode) {
   const el = $('#live'), lbl = $('#live-label');
   el.className = 'live ' + (mode === 'live' ? 'live' : mode === 'demo' ? 'demo' : '');
   lbl.textContent = mode === 'live' ? 'LIVE /api' : mode === 'demo' ? 'DEMO DATA' : 'connecting…';
+  // make the offline/demo state self-explanatory rather than silently swapping data
+  el.title = mode === 'live' ? 'Connected to /api — live data'
+    : mode === 'demo' ? (API._story ? 'Storyline Mode — showing scripted demo data' : 'API unreachable — showing bundled offline demo data')
+    : 'Connecting to /api…';
 }
 
 async function boot() {

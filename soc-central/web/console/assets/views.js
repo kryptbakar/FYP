@@ -57,7 +57,7 @@ async function viewTriage(root) {
     $$('.toggle', bar).forEach(t => t.classList.toggle('on', t.textContent === 'KEV only' && STATE.filters.kev));
     const rows = filteredRows();
     list.innerHTML = '';
-    if (!rows.length) { list.append(h('div', { class: 'empty' }, 'No findings match the current filters.')); renderBulk(); return; }
+    if (!rows.length) { list.append(emptyState('No findings match the current filters', 'Try clearing the search box or widening the severity / source-tool filters above.', 'triage')); renderBulk(); return; }
     rows.forEach(r => list.append(decisionCard(r)));
     renderBulk();
   }
@@ -132,7 +132,9 @@ function decisionCard(r) {
 async function openFinding(id) {
   const drawer = $('#drawer'), inner = $('#drawer-inner');
   $('#scrim').classList.add('show'); drawer.classList.add('show');
-  inner.innerHTML = ''; inner.append(loading('Loading explanation…'));
+  inner.innerHTML = ''; inner.append(h('div', { class: 'drawer-b' },
+    sk('55%', '28px', 'var(--r-md)'), h('div', { style: 'height:16px' }),
+    skLines(['88%', '74%', '92%']), h('div', { style: 'height:18px' }), skPanel(['85%', '60%'])));
   const [data, detail] = await Promise.all([API.explain(id), API.finding(id)]);
   // /explain.finding lacks asset_id/cve_id/cvss/epss/kev — /findings/{id} fills them in.
   const f = Object.assign({}, detail || {}, data.finding || {});
@@ -467,7 +469,7 @@ function killChain(findings) {
 
 /* ---- 4.5 Sensors & Fusion ------------------------------------------- */
 async function viewFusion(root) {
-  root.append(loading('Loading pipeline & sensors…'));
+  root.append(skPanel(['90%', '80%']), h('div', { style: 'height:14px' }), skPanel());
   const [ranking, stats, ver, chain] = await Promise.all([API.ranking(), API.stats(), API.version(), API.chain()]);
   root.innerHTML = '';
   const byTool = {}; let corroborated = 0, modelVer = '—';
@@ -538,7 +540,7 @@ function sensorsGrid(byTool) {
 
 /* ---- 4.6 Overview (executive landing — the default route) ------------ */
 async function viewOverview(root) {
-  root.append(loading('Loading security posture…'));
+  root.append(skKpis(), h('div', { style: 'height:14px' }), skPanel(), h('div', { style: 'height:14px' }), skPanel(['90%', '70%']));
   const [ranking, stats, comp, incidents, chain, recent] = await Promise.all([
     API.ranking(), API.stats(), API.compSummary(), API.incidents(), API.chain(), API.recent(30)]);
   STATE.ranking = ranking;
@@ -653,7 +655,7 @@ async function viewHunt(root) {
     const r = await API.logs(input.value.trim(), kind, minutes);
     results.innerHTML = '';
     const cnt = $('#huntcount'); if (cnt) cnt.textContent = r.available === false ? '· OpenSearch unavailable (showing none)' : `· ${r.total} event(s)`;
-    if (!r.hits || !r.hits.length) { results.append(h('div', { class: 'empty' }, 'No events match this query.')); return; }
+    if (!r.hits || !r.hits.length) { results.append(emptyState('No events match this query', 'Adjust the Lucene query, widen the time range, or pick a different telemetry kind.', 'hunt')); return; }
     r.hits.forEach(hit => results.append(logRow(hit)));
   }
 }
@@ -681,7 +683,7 @@ function logLine(hit) {
 
 /* ---- 4.8 Trust Center (audit integrity + air-gap assurance) ---------- */
 async function viewTrust(root) {
-  root.append(loading('Loading trust & audit state…'));
+  root.append(skKpis(), h('div', { style: 'height:14px' }), skPanel(['85%', '70%', '90%']));
   const [resp, comp, events, actions, access] = await Promise.all([API.auditVerify(), API.chain(), API.auditEvents(40), API.actions(), API.accessAudit(50)]);
   root.innerHTML = '';
 
@@ -1310,7 +1312,7 @@ async function openReport(id, preloaded) {
 async function viewSearch(root) {
   const q = STATE.q || '';
   root.innerHTML = '';
-  if (!q.trim()) { root.append(h('div', { class: 'empty' }, 'Type a query in the search bar and press Enter.')); return; }
+  if (!q.trim()) { root.append(emptyState('Search across findings, assets, CVEs & IOCs', 'Type a query in the top search bar and press Enter — or press / to focus it.', 'hunt')); return; }
   root.append(loading(`Searching "${q}"…`));
   const r = await API.search(q);
   root.innerHTML = '';

@@ -332,5 +332,23 @@ function pdfBtn(label) {
 
 /* ---- misc ------------------------------------------------------------ */
 function loading(label) { return h('div', { class: 'center' }, h('div', { class: 'spin' }), h('div', {}, label || 'Loading…')); }
+
+/* ---- skeleton loaders (hero screens — calmer than a spinner gap) ----- */
+function sk(w, ht, r) { return h('div', { class: 'sk', style: `width:${w};height:${ht || '12px'}${r ? ';border-radius:' + r : ''}` }); }
+function skLines(widths) { return h('div', { class: 'stack', style: 'gap:9px' }, (widths || ['92%', '78%', '85%', '60%']).map(w => sk(w, '11px'))); }
+function skKpis() {
+  return h('div', { class: 'kpis' }, [0, 1, 2, 3].map(() => h('div', { class: 'kpi' },
+    sk('45%', '11px'), h('div', { style: 'height:9px' }), sk('55%', '24px'), h('div', { style: 'height:7px' }), sk('70%', '11px'))));
+}
+function skPanel(widths) { return h('div', { class: 'panel pad' }, sk('26%', '12px'), h('div', { style: 'height:14px' }), skLines(widths)); }
+
+/* ---- designed empty state (icon + title + hint + optional cta) ------- */
+function emptyState(title, hint, icon, cta) {
+  return h('div', { class: 'empty-state' },
+    icon ? h('div', { class: 'es-ic', html: ic(icon) }) : null,
+    h('div', { class: 'es-t' }, title),
+    hint ? h('div', { class: 'es-h' }, hint) : null,
+    cta ? h('div', { class: 'es-cta' }, cta) : null);
+}
 let _toastT;
 function toast(msg, ok) { const t = $('#toast'); t.className = 'toast show' + (ok ? ' ok' : ''); t.textContent = (ok ? '✓ ' : '') + msg; clearTimeout(_toastT); _toastT = setTimeout(() => t.classList.remove('show'), 3000); }

@@ -363,8 +363,20 @@ textarea:focus, input.txt:focus { outline: none; border-color: var(--accent); }
 @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
 .working { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--t-xs); }
 .working .d { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
-.center { display: grid; place-items: center; gap: 12px; padding: 70px 0; color: var(--faint); text-align: center; }
-.empty { padding: 44px; text-align: center; color: var(--faint); font-size: var(--t-sm); }
+.center { display: grid; place-items: center; gap: var(--s-3); padding: 70px 0; color: var(--faint); text-align: center; }
+.empty { padding: var(--s-6); text-align: center; color: var(--faint); font-size: var(--t-sm); }
+
+/* skeleton loaders — opacity pulse (no gradient; honours reduced-motion) */
+.sk { background: var(--elevated); border-radius: var(--r-sm); animation: skpulse 1.5s ease-in-out infinite; }
+@keyframes skpulse { 0%, 100% { opacity: .5; } 50% { opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; opacity: .6; } }
+
+/* designed empty state — icon + title + hint (+ optional action) */
+.empty-state { display: grid; place-items: center; gap: var(--s-2); padding: var(--s-6) var(--s-4); text-align: center; }
+.empty-state .es-ic svg { width: 28px; height: 28px; color: var(--faint); opacity: .75; }
+.empty-state .es-t { font-size: var(--t-sm); color: var(--text-2); font-weight: var(--fw-med); }
+.empty-state .es-h { font-size: var(--t-xs); color: var(--faint); max-width: 360px; line-height: var(--lh-base); }
+.empty-state .es-cta { margin-top: var(--s-1); }
 .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(16px); background: var(--elevated); border: 1px solid var(--line-strong); border-radius: var(--r-md); padding: 11px 18px; font-size: var(--t-sm); z-index: 80; opacity: 0; transition: all .2s; display: flex; gap: 9px; align-items: center; }
 .toast.show { opacity: 1; transform: translateX(-50%); }
 .toast.ok { border-color: var(--success-soft); }
