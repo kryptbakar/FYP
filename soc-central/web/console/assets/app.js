@@ -155,8 +155,21 @@ async function boot() {
 function routeFromHash(initial) {
   const hash = location.hash.slice(1);
   if (hash.startsWith('f/')) { if (current !== 'triage' || initial) go('triage'); openFinding(hash.slice(2)); return; }
-  if (ROUTES[hash]) { if (hash !== current || initial) go(hash); }
-  else if (initial) go('overview');
+  if (ROUTES[hash]) { if (hash !== current || initial) go(hash); return; }
+  if (hash) { showNotFound(hash); return; }   // unknown, non-empty hash → designed 404
+  if (initial) go('overview');
+}
+function showNotFound(hash) {
+  current = '';
+  if (window._viewCleanup) { try { window._viewCleanup(); } catch {} window._viewCleanup = null; }
+  $('#title').textContent = 'Not found';
+  $('#crumb').textContent = '#' + hash;
+  $$('#nav a').forEach(a => a.classList.remove('active'));
+  closeDrawer();
+  const root = $('#view'); root.innerHTML = ''; $('#scroll').scrollTop = 0;
+  root.append(emptyState('That screen doesn’t exist',
+    `No view is registered for "#${hash}". Press ⌘K to jump to a page, or head back to the Overview.`,
+    'shield2', h('button', { class: 'btn primary', onclick: () => go('overview') }, 'Back to Overview')));
 }
 window.addEventListener('hashchange', () => routeFromHash(false));
 
@@ -315,6 +328,14 @@ function showLogin() {
     }
     btn.disabled = false; btn.textContent = 'Sign in'; $('#login-pass').value = '';
   };
+  // caps-lock hint on the password field (a small thing premium tools get right)
+  const pass = $('#login-pass');
+  if (pass && !$('#login-caps')) {
+    const caps = h('div', { class: 'login-caps', id: 'login-caps', hidden: true }, '⚠ Caps Lock is on');
+    err.before(caps);
+    const check = e => { caps.hidden = !(e.getModifierState && e.getModifierState('CapsLock')); };
+    pass.addEventListener('keydown', check); pass.addEventListener('keyup', check);
+  }
   $('#login-user').focus();
 }
 gate();

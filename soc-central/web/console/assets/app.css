@@ -491,7 +491,7 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 /* the author display:grid above overrides the UA [hidden]{display:none}; restore it so the
    gate actually hides the overlay once the app boots. */
 .login[hidden] { display: none !important; }
-.login-card { width: 340px; max-width: 92vw; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-lg); padding: 28px 26px; display: flex; flex-direction: column; gap: 12px; }
+.login-card { width: 340px; max-width: 92vw; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-lg); padding: var(--s-6) var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); box-shadow: var(--shadow-pop); }
 .login-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 8px; }
 .login-brand .mark { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--elevated); border: 1px solid var(--line-strong); }
 .login-brand .mark svg { width: 20px; height: 20px; color: var(--accent); }
@@ -501,6 +501,8 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 .login-card input { background: var(--bg); border: 1px solid var(--line); border-radius: var(--r-sm); color: var(--text); font: inherit; font-size: var(--t-sm); padding: 10px 12px; }
 .login-card input:focus { outline: none; border-color: var(--accent); }
 .login-card .btn { margin-top: 4px; justify-content: center; padding: 11px; }
+.login-caps { color: var(--warning); font-size: var(--t-2xs); }
+.login-caps[hidden] { display: none; }
 .login-err { color: var(--critical-text); font-size: var(--t-xs); min-height: 14px; }
 .login-hint { font-size: var(--t-2xs); color: var(--faint); text-align: center; margin-top: 4px; }
 
