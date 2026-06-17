@@ -123,7 +123,7 @@ function decisionCard(r) {
     triageChip(r.triage_status));
   return h('div', { class: 'card', tabindex: '0', onclick: () => openFinding(r.id),
     onkeydown: e => { if (e.key === 'Enter') openFinding(r.id); } },
-    h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, selCheck(r), severity(r.severity)),
+    h('div', { class: 'body' }, h('div', { class: 'row', style: 'margin-bottom:var(--s-2)' }, selCheck(r), severity(r.severity)),
       h('div', { class: 'concl' }, r.title), meta),
     h('div', { class: 'scorebox' }, h('div', { class: 'v ' + c }, n0(r.risk_score)), h('div', { class: 'lb' }, 'risk')));
 }
@@ -141,7 +141,7 @@ async function openFinding(id) {
   if (f.exploit_available == null) f.exploit_available = !!(f.kev || f.source_tool === 'nuclei');
   if (!f.id && !f.title) {
     inner.innerHTML = '';
-    inner.append(h('div', { class: 'drawer-h' }, h('div', { style: 'font-size:15px;font-weight:600' }, 'Finding not found'),
+    inner.append(h('div', { class: 'drawer-h' }, h('div', { style: 'font-size:var(--t-md);font-weight:600' }, 'Finding not found'),
       h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })),
       h('div', { class: 'drawer-b' }, h('div', { class: 'empty' }, `No finding #${id} — it may have been resolved or not yet scored.`)));
     return;
@@ -155,7 +155,7 @@ async function openFinding(id) {
       h('div', { class: 'wrap', style: 'margin-bottom:9px' }, severity(f.severity), chip(f.source_tool || 'agent', 'tool'), consensusChip(con),
         f.kev ? chip('KEV', 'kev') : null, exploitChip(f), f.threat_intel ? chip('live IOC', 'intel') : null, triageChip(f.triage_status)),
       h('div', { style: 'font-size:17px;font-weight:600;line-height:1.35' }, f.title),
-      h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${f.domain} · ${assetMeta(f.asset_id).hostname || f.asset_id} · finding #${f.id}`)),
+      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:5px' }, `${f.domain} · ${assetMeta(f.asset_id).hostname || f.asset_id} · finding #${f.id}`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
 
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
@@ -163,8 +163,8 @@ async function openFinding(id) {
   // big score
   b.append(h('div', { class: 'hero' }, h('div', { class: 'big ' + c }, n0(f.risk_score)), h('div', { class: 'of' }, '/ 100 composite'),
     h('span', { style: 'flex:1' }), h('div', { style: 'text-align:right' },
-      h('div', { class: 'mono', style: 'font-size:15px' }, n1(f.ml_risk_score)),
-      h('div', { class: 'linklike', style: 'font-size:10px', title: 'open the model card', onclick: () => go('model') }, 'XGBoost re-ranker ›'))));
+      h('div', { class: 'mono', style: 'font-size:var(--t-md)' }, n1(f.ml_risk_score)),
+      h('div', { class: 'linklike', style: 'font-size:var(--t-3xs)', title: 'open the model card', onclick: () => go('model') }, 'XGBoost re-ranker ›'))));
 
   // stat chips
   b.append(statChips(f, con));
@@ -175,7 +175,7 @@ async function openFinding(id) {
   // two columns: score factors (with expandable full waterfall) | consensus
   const left = h('div', {},
     h('div', { class: 'sec-label', style: 'margin-bottom:4px' }, 'Score factors (SHAP)'),
-    h('div', { class: 'faint', style: 'font-size:10.5px;margin-bottom:11px' },
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-bottom:11px' },
       'Composite weights are the primary signal; the ML layer re-ranks. ',
       h('span', { class: 'linklike', onclick: () => go('model') }, 'Model card ›')));
   if (ml.shap) {
@@ -183,7 +183,7 @@ async function openFinding(id) {
     if (Array.isArray(ml.waterfall) && ml.waterfall.length)
       left.append(h('details', { class: 'expander' }, h('summary', {}, 'Show full waterfall'),
         waterfall(ml.waterfall),
-        h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Base → each factor → final ML score. Risk-raising right; risk-lowering left.')));
+        h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Base → each factor → final ML score. Risk-raising right; risk-lowering left.')));
   } else if (Object.keys(comp).length) { left.append(factorBars(comp)); }
   const right = h('div', {}, h('div', { class: 'sec-label', style: 'margin-bottom:11px' }, 'Multi-tool consensus'), consensusPanel(con));
   b.append(h('div', { class: 'cols2' }, left, right));
@@ -205,7 +205,7 @@ async function openFinding(id) {
     const gbox = h('div', {}, loading('Building graph…'));
     b.append(block('Attribution & knowledge graph', gbox));
     API.intelGraph(f.id).then(g => { gbox.innerHTML = ''; gbox.append(intelGraphView(g)); })
-      .catch(() => { gbox.innerHTML = ''; gbox.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'No attribution available.')); });
+      .catch(() => { gbox.innerHTML = ''; gbox.append(h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No attribution available.')); });
   }
 
   // automation (SOAR playbooks)
@@ -232,23 +232,23 @@ async function openFinding(id) {
 function lifecyclePanel(f) {
   const cur = f.triage_status || 'open';
   const wrap = h('div', { class: 'stack', style: 'gap:11px' });
-  const state = h('div', { class: 'row' }, h('span', { class: 'faint', style: 'font-size:12px' }, 'Current: '),
+  const state = h('div', { class: 'row' }, h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'Current: '),
     triageChip(cur) || chip('open', ''));
   const seg = h('div', { class: 'seg' });
   const opts = [['investigating', 'Investigating'], ['mitigated', 'Mitigated'], ['resolved', 'Resolved'], ['false_positive', 'False positive']];
   opts.forEach(([v, l]) => seg.append(h('button', { class: cur === v ? 'sel' : '', onclick: () => setStatus(v) }, l)));
   // risk acceptance with expiry
   const until = h('input', { class: 'txt', type: 'date', style: 'max-width:170px' });
-  const raRow = h('div', { class: 'row', style: 'gap:8px' },
-    h('span', { class: 'faint', style: 'font-size:12px;flex:1' }, 'Accept risk until'),
+  const raRow = h('div', { class: 'row', style: 'gap:var(--s-2)' },
+    h('span', { class: 'faint', style: 'font-size:var(--t-xs);flex:1' }, 'Accept risk until'),
     until, h('button', { class: 'btn sm', onclick: () => { if (!until.value) { toast('Pick an expiry date', false); return; } setStatus('risk_accepted', until.value); } }, 'Accept risk'));
   wrap.append(state, seg, raRow,
-    h('div', { class: 'faint', style: 'font-size:11px' }, 'Triaged-away findings (false positive / risk accepted / mitigated / resolved) leave the active queue.'));
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'Triaged-away findings (false positive / risk accepted / mitigated / resolved) leave the active queue.'));
   async function setStatus(status, rau) {
     await API.triage(f.id, { status, risk_accepted_until: rau || null, note: null });
     f.triage_status = status;
     toast(`Finding marked ${TRIAGE_LABEL[status] || status}`, true);
-    state.innerHTML = ''; state.append(h('span', { class: 'faint', style: 'font-size:12px' }, 'Current: '), triageChip(status) || chip('open', ''));
+    state.innerHTML = ''; state.append(h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'Current: '), triageChip(status) || chip('open', ''));
     $$('button', seg).forEach(btn => btn.classList.toggle('sel', btn.textContent.toLowerCase().replace(' ', '_') === status));
     if (STATE.ranking) { const row = STATE.ranking.find(x => x.id === f.id); if (row) row.triage_status = status; if (window._renderCards) window._renderCards(); }
   }
@@ -276,7 +276,7 @@ function feedbackForm(id) {
     toast('Feedback captured — weighted 5× in the monthly XGBoost retrain', true); note.value = ''; submit.disabled = false; submit.textContent = 'Submit';
   } }, 'Submit');
   return h('div', { class: 'stack', style: 'gap:11px' }, seg, note,
-    h('div', { class: 'row' }, h('span', { class: 'faint', style: 'font-size:11px;flex:1' }, 'Feedback is weighted 5× and feeds the monthly retraining loop.'), submit));
+    h('div', { class: 'row' }, h('span', { class: 'faint', style: 'font-size:var(--t-2xs);flex:1' }, 'Feedback is weighted 5× and feeds the monthly retraining loop.'), submit));
 }
 function closeDrawer() { $('#scrim').classList.remove('show'); $('#drawer').classList.remove('show'); }
 
@@ -292,13 +292,13 @@ async function viewCompliance(root) {
 
   root.append(h('div', { class: 'stack fade' },
     h('div', { class: 'panel pad' },
-      h('div', { class: 'sec-label', style: 'margin-bottom:8px' }, 'Posture'),
+      h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-2)' }, 'Posture'),
       h('div', { style: 'font-size:16px;font-weight:560;line-height:1.4' },
         `CIS posture ${score}% — ${by.fail || 0} controls failing across the estate` + (regressed ? `, ${regressed} host(s) below 50%.` : '.')),
-      h('div', { class: 'row', style: 'margin-top:14px;gap:8px' },
+      h('div', { class: 'row', style: 'margin-top:14px;gap:var(--s-2)' },
         chip('chain ' + (chain.ok ? 'verified ✓' : 'BROKEN ✗'), chain.ok ? 'ok' : 'kev'),
         chip(`${chain.length ?? 0} evidence records`, 'mono'),
-        h('span', { class: 'faint mono', style: 'font-size:10.5px' }, 'head ' + (chain.head_hash || '—').slice(0, 16)))),
+        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'head ' + (chain.head_hash || '—').slice(0, 16)))),
     compTable(results), evidencePanel(evidence)));
 }
 function evidencePanel(evidence) {
@@ -313,9 +313,9 @@ function evidencePanel(evidence) {
         h('td', { class: 'mono' }, e.rule_id),
         h('td', { class: 'mono' }, e.asset_id),
         h('td', {}, statusChip(e.status)),
-        h('td', { class: 'mono', style: 'font-size:11px' }, ago(e.recorded_at)),
-        h('td', {}, h('span', { class: 'faint mono', style: 'font-size:10px' }, (e.hash || '').slice(0, 18) + '…'))))
-        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:16px;text-align:center' }, 'No evidence records yet.'))]))));
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(e.recorded_at)),
+        h('td', {}, h('span', { class: 'faint mono', style: 'font-size:var(--t-3xs)' }, (e.hash || '').slice(0, 18) + '…'))))
+        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No evidence records yet.'))]))));
 }
 function compTable(results) {
   const byHost = {}; (results || []).forEach(r => { (byHost[r.asset_id] = byHost[r.asset_id] || []).push(r); });
@@ -326,7 +326,7 @@ function compTable(results) {
       h('td', {}, r.title || '—'),
       h('td', {}, statusChip(r.status)),
       h('td', { class: 'mono' }, r.asset_id),
-      h('td', {}, h('span', { class: 'faint mono', style: 'font-size:10.5px' }, 'hash-linked'))))));
+      h('td', {}, h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'hash-linked'))))));
   return h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'CIS controls'), h('span', { class: 'sub' }, `· ${(results || []).length} evaluated`),
     h('span', { class: 'spring', style: 'flex:1' }),
     pdfBtn('PDF'),
@@ -360,7 +360,7 @@ async function viewIncidents(root) {
     const items = incidents.filter(i => colOf(i.status) === ci);
     const kc = h('div', { class: 'kcol' }, h('h3', {}, col[0], h('span', { class: 'ct' }, String(items.length))));
     if (items.length) items.forEach(i => kc.append(kanbanCard(i, actions)));
-    else kc.append(h('div', { class: 'faint', style: 'font-size:11.5px;padding:4px 2px' }, 'None'));
+    else kc.append(h('div', { class: 'faint', style: 'font-size:var(--t-xs);padding:4px 2px' }, 'None'));
     board.append(kc);
   });
   root.append(board);
@@ -369,10 +369,10 @@ function kanbanCard(i, actions) {
   return h('div', { class: 'kcard', tabindex: '0', onclick: () => openIncident(i, actions),
     onkeydown: e => { if (e.key === 'Enter') openIncident(i, actions); } },
     h('div', { class: 'row', style: 'justify-content:space-between' }, severity(i.severity),
-      h('div', { class: 'row', style: 'gap:6px' }, i.auto_created ? chip('auto-correlated', 'consensus') : null, h('span', { class: 'faint mono', style: 'font-size:10.5px' }, '#' + i.id))),
+      h('div', { class: 'row', style: 'gap:6px' }, i.auto_created ? chip('auto-correlated', 'consensus') : null, h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, '#' + i.id))),
     h('div', { class: 't' }, i.title),
     h('div', { class: 'row', style: 'gap:7px' }, i.sla_breached ? chip('SLA breached', 'kev') : chip('On track', 'ok'),
-      h('span', { class: 'faint', style: 'font-size:11px' }, `${i.finding_count ?? 0} findings`)));
+      h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, `${i.finding_count ?? 0} findings`)));
 }
 function openIncident(inc, actions) {
   const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
@@ -383,12 +383,12 @@ function openIncident(inc, actions) {
     h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, severity(inc.severity), chip(inc.status, 'warn'),
       inc.asset_id ? eAsset(assetMeta(inc.asset_id).hostname || inc.asset_id) : null),
       h('div', { style: 'font-size:17px;font-weight:600' }, inc.title),
-      h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `case #${inc.id} · owner ${inc.assignee || inc.created_by || '—'} · opened ${ago(inc.created_at)}`)),
+      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:5px' }, `case #${inc.id} · owner ${inc.assignee || inc.created_by || '—'} · opened ${ago(inc.created_at)}`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
 
   b.append(block('SLA', h('div', { class: 'row' }, inc.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok'),
-    h('span', { class: 'faint mono', style: 'font-size:11px' }, 'due ' + (inc.sla_due || '—')))));
+    h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'due ' + (inc.sla_due || '—')))));
 
   // attack chain (kill-chain order over the linked findings' ATT&CK techniques)
   const chain = killChain(evidence);
@@ -400,12 +400,12 @@ function openIncident(inc, actions) {
         h('span', { class: 'sc ' + band(r.risk_score) }, n0(r.risk_score)),
         h('span', { style: 'flex:1;min-width:0' }, r.title),
         r.cve_id ? eCode(r.cve_id) : null, r.attack ? chip(r.attack, 'attack') : null)))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings linked to this case yet.')));
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No findings linked to this case yet.')));
 
   b.append(block('Response & audit timeline (hash-chained)', acts.length ? h('div', {}, acts.map(a =>
     h('div', { class: 'cf' }, h('span', {}, h('span', { class: 'mono' }, a.action), ` → ${a.target || ''}`),
       h('span', { class: 'chip ' + (a.status && (a.status.includes('contain') || a.status.includes('complet')) ? 'ok' : 'warn') }, a.status || 'proposed'))))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No actions recorded for this case.')));
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No actions recorded for this case.')));
 
   // case tasks + observables (TheHive)
   const tasksBox = h('div', {}, loading('Loading tasks…')); b.append(block('Tasks', tasksBox));
@@ -424,10 +424,10 @@ function renderTasks(incId, box, tasks) {
       const ns = TASK_NEXT[t.status] || 'todo'; await API.patchTask(t.id, { status: ns }); t.status = ns; renderTasks(incId, box, tasks); } },
       t.status === 'done' ? '✓' : t.status === 'in_progress' ? '◐' : ''),
     h('span', { class: 'tl' + (t.status === 'done' ? ' done' : '') }, t.title),
-    t.assignee ? chip(t.assignee, '') : h('span', { class: 'faint', style: 'font-size:10.5px' }, 'unassigned'))));
+    t.assignee ? chip(t.assignee, '') : h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'unassigned'))));
   const inp = h('input', { class: 'txt', placeholder: 'Add a task…', onkeydown: async e => {
     if (e.key === 'Enter' && inp.value.trim()) { const t = await API.addTask(incId, { title: inp.value.trim() }); tasks.push({ id: t.id, title: inp.value.trim(), status: 'todo' }); inp.value = ''; renderTasks(incId, box, tasks); } } });
-  box.append(h('div', { class: 'row', style: 'margin-top:8px' }, inp));
+  box.append(h('div', { class: 'row', style: 'margin-top:var(--s-2)' }, inp));
 }
 function renderObs(incId, box, obs) {
   box.innerHTML = '';
@@ -435,8 +435,8 @@ function renderObs(incId, box, obs) {
   if (obs && obs.length) box.append(h('div', { class: 'wrap' }, obs.map(o =>
     h('span', { class: 'obs' }, chip(o.type, ''), entityChip(o.value, TYPECLS[o.type] || 'code'),
       o.is_ioc ? chip('IOC', 'kev') : null, o.tlp ? chip('TLP:' + o.tlp, 'mono') : null))));
-  else box.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'No observables yet.'));
-  box.append(h('div', { class: 'row', style: 'margin-top:10px;gap:8px' },
+  else box.append(h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No observables yet.'));
+  box.append(h('div', { class: 'row', style: 'margin-top:10px;gap:var(--s-2)' },
     h('button', { class: 'btn sm', onclick: async () => { await API.autoObservables(incId); toast('Observables seeded from linked findings', true); renderObs(incId, box, await API.observables(incId).catch(() => obs)); } }, 'Auto-seed from findings')));
 }
 
@@ -481,7 +481,7 @@ async function viewFusion(root) {
   const stage = (nm, val, ds) => h('div', { class: 'stage' }, h('div', { class: 'nm' }, h('span', { class: 'statdot active' }), nm), h('div', { class: 'mv' }, val), h('div', { class: 'ds' }, ds));
   root.append(h('div', { class: 'stack fade' },
     consensusReveal(),
-    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Pipeline'),
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Pipeline'),
       h('div', { class: 'pipe' },
         stage('feed-sync', 'mirrored', 'NVD · EPSS · KEV (only egress)'),
         stage('ingest-edge', 'mTLS', 'authenticated telemetry'),
@@ -489,8 +489,8 @@ async function viewFusion(root) {
         stage('workers', 'active', 'enrich · normalize · store'),
         stage('scoring', n0(stats.assets ? ranking.length : 0), 'findings scored'),
         stage('fusion', String(corroborated), 'clusters corroborated >1 tool'))),
-    h('div', { class: 'panel pad' }, h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'sec-label' }, 'Sensors & integrated tools'),
-      h('span', { class: 'spring' }), h('span', { class: 'faint mono', style: 'font-size:10.5px' }, 'model ' + modelVer)),
+    h('div', { class: 'panel pad' }, h('div', { class: 'row', style: 'margin-bottom:var(--s-3)' }, h('div', { class: 'sec-label' }, 'Sensors & integrated tools'),
+      h('span', { class: 'spring' }), h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'model ' + modelVer)),
       sensorsGrid(byTool))));
 }
 /* Fusion "at a glance" — the hero consensus reveal (animated by Storyline Mode).
@@ -500,7 +500,7 @@ function consensusReveal() {
   return h('div', { class: 'panel pad consensus-reveal' },
     h('div', { class: 'row', style: 'margin-bottom:3px' }, h('div', { class: 'sec-label' }, 'Multi-tool consensus'),
       h('span', { class: 'spring', style: 'flex:1' }), chip('fusion', 'consensus')),
-    h('div', { class: 'faint mono', style: 'font-size:11px;margin-bottom:16px' }, 'CVE-2023-4911 · web-prod-03 · dedup_key ce940f3478795574998a'),
+    h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs);margin-bottom:var(--s-4)' }, 'CVE-2023-4911 · web-prod-03 · dedup_key ce940f3478795574998a'),
     h('div', { class: 'cr-tools' }, tools.map(([t, d]) => h('div', { class: 'cr-tool on', 'data-tool': t },
       h('div', { class: 'cr-ring' }, h('span', { html: ic('shieldcheck') })),
       h('div', { class: 'cr-tn mono' }, t), h('div', { class: 'cr-td faint' }, d)))),
@@ -508,7 +508,7 @@ function consensusReveal() {
       h('div', { class: 'cr-meter' }, h('i', { class: 'cr-fill', style: 'width:100%' })),
       h('div', { class: 'cr-ticks' }, ['0', '0.5', '1.0'].map(x => h('span', {}, x)))),
     h('div', { class: 'cr-weight' }, 'consensus weight ', h('b', { class: 'mono cr-w' }, '1.0'),
-      h('span', { class: 'faint', style: 'margin-left:8px;font-size:11px' }, '· 3 independent tools corroborate'),
+      h('span', { class: 'faint', style: 'margin-left:var(--s-2);font-size:var(--t-2xs)' }, '· 3 independent tools corroborate'),
       h('span', { class: 'spring', style: 'flex:1' })),
     h('div', { class: 'cf cr-cf show' }, h('span', {}, 'if only one tool had flagged this'),
       h('span', { class: 'd down' }, '−21 → 73 (High)')));
@@ -534,7 +534,7 @@ function sensorsGrid(byTool) {
       h('div', { class: 'top' }, h('div', {}, h('div', { class: 'nm' }, t.nm), h('div', { class: 'role' }, t.role))),
       h('div', { class: 'stat' }, h('span', { class: 'statdot ' + st }), label,
         h('span', { style: 'flex:1' }), h('span', { class: 'mono faint' }, cnt ? `${cnt} findings` : '')),
-      h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:7px' }, t.env));
+      h('div', { class: 'faint mono', style: 'font-size:var(--t-3xs);margin-top:7px' }, t.env));
   }));
 }
 
@@ -557,9 +557,9 @@ async function viewOverview(root) {
   const cis = Math.round(((by.pass || 0) / graded) * 100);
   const techniques = [...new Set(ranking.map(r => r.attack).filter(Boolean))];
 
-  root.append(h('div', { class: 'row fade', style: 'margin-bottom:14px;gap:12px' },
-    h('div', { style: 'min-width:0' }, h('div', { style: 'font-size:15px;font-weight:560' }, 'Security posture'),
-      h('div', { class: 'faint', style: 'font-size:11.5px;margin-top:1px' }, 'Live exposure, ranked. New here? Walk one threat from detection to contained.')),
+  root.append(h('div', { class: 'row fade', style: 'margin-bottom:14px;gap:var(--s-3)' },
+    h('div', { style: 'min-width:0' }, h('div', { style: 'font-size:var(--t-md);font-weight:560' }, 'Security posture'),
+      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:1px' }, 'Live exposure, ranked. New here? Walk one threat from detection to contained.')),
     h('span', { class: 'spring', style: 'flex:1' }),
     h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
       html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' })));
@@ -571,7 +571,7 @@ async function viewOverview(root) {
     kpiCard('CIS posture', cis + '%', `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok')));
 
   root.append(h('div', { class: 'panel pad fade' },
-    h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Risk distribution'),
+    h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Risk distribution'),
     riskBandBar(bands, ranking.length)));
 
   const topRisks = h('div', { class: 'panel' },
@@ -582,19 +582,19 @@ async function viewOverview(root) {
         ...ranking.map((r, i) => [i + 1, r.risk_score, r.severity, assetMeta(r.asset_id).hostname || r.asset_id, r.cve_id || '', r.title, r.attack || ''])])),
     h('div', {}, ranking.slice(0, 6).map(r => overviewRiskRow(r))));
   const side = h('div', { class: 'stack' },
-    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'ATT&CK coverage'),
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'ATT&CK coverage'),
       h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(`${t} · ${attackName(t)}`, 'attack'))
-        : h('span', { class: 'faint', style: 'font-size:12px' }, 'No techniques mapped yet.'))),
+        : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No techniques mapped yet.'))),
     h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'Evidence integrity'),
       h('div', { class: 'row' }, chip(chain.ok ? 'chain intact ✓' : 'chain check', chain.ok ? 'ok' : 'kev'),
-        h('span', { class: 'faint mono', style: 'font-size:10.5px' }, `${chain.length ?? 0} records`))));
+        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} records`))));
   root.append(h('div', { class: 'cols2 fade', style: 'align-items:start' }, topRisks, side));
 
   const feed = h('div', {});
   root.append(h('div', { class: 'panel pad fade' },
-    h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'sec-label' }, 'Live detections'),
+    h('div', { class: 'row', style: 'margin-bottom:var(--s-3)' }, h('div', { class: 'sec-label' }, 'Live detections'),
       h('span', { class: 'spring', style: 'flex:1' }), h('span', { class: 'live-dot' }),
-      h('span', { class: 'faint', style: 'font-size:11px' }, 'near-real-time · polling')),
+      h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'near-real-time · polling')),
     feed));
   const seen = new Set();
   const paint = (items) => { feed.innerHTML = ''; (items || []).slice(0, 12).forEach(d => feed.append(detectionRow(d, seen))); };
@@ -643,12 +643,12 @@ async function viewHunt(root) {
   const kindSel = h('select', { onchange: e => { kind = e.target.value; run(); } }, KINDS.map(k => h('option', { value: k }, k || 'all kinds')));
   const timeSel = h('select', { onchange: e => { minutes = +e.target.value; run(); } },
     [['60', 'last hour'], ['1440', 'last 24h'], ['10080', 'last 7d'], ['43200', 'last 30d']].map(([v, l]) => h('option', { value: v, selected: v === '1440' ? 'selected' : null }, l)));
-  const results = h('div', { class: 'stack', style: 'gap:8px' });
+  const results = h('div', { class: 'stack', style: 'gap:var(--s-2)' });
   root.append(h('div', { class: 'panel pad fade' },
-    h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Search raw telemetry (OpenSearch)'),
+    h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Search raw telemetry (OpenSearch)'),
     h('div', { class: 'huntbar' }, input, kindSel, timeSel, h('button', { class: 'btn primary', onclick: () => run() }, 'Search'))),
     h('div', { class: 'panel', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Results'),
-      h('span', { class: 'sub', id: 'huntcount' }, '')), h('div', { style: 'padding:8px 14px 14px' }, results)));
+      h('span', { class: 'sub', id: 'huntcount' }, '')), h('div', { style: 'padding:var(--s-2) 14px 14px' }, results)));
   run();
   async function run() {
     results.innerHTML = ''; results.append(loading('Searching…'));
@@ -664,7 +664,7 @@ function logRow(hit) {
   const body = h('div', { class: 'prov-b' }, h('pre', {}, JSON.stringify(hit.payload || {}, null, 2)));
   const head = h('div', { class: 'prov-h', onclick: () => box.classList.toggle('open') },
     h('span', { html: ic('chevron'), style: 'width:13px;height:13px;color:var(--faint)' }),
-    h('span', { class: 'mono faint', style: 'font-size:10.5px;min-width:64px' }, ago(hit.ingested_at)),
+    h('span', { class: 'mono faint', style: 'font-size:var(--t-2xs);min-width:64px' }, ago(hit.ingested_at)),
     chip(hit.kind || 'event', 'tool'),
     hit.hostname ? eAsset(hit.hostname) : null,
     h('span', { class: 'logline' }, logLine(hit)));
@@ -722,11 +722,11 @@ async function viewTrust(root) {
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Time', 'Actor', 'Role', 'Method', 'Path', 'Status'].map(t => h('th', {}, t)))),
       h('tbody', {}, (access || []).length ? access.map(a => h('tr', {},
-        h('td', { class: 'mono', style: 'font-size:11px' }, ago(a.created_at)),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(a.created_at)),
         h('td', {}, a.actor === 'anonymous' ? h('span', { class: 'faint' }, 'anonymous') : eAsset(a.actor)),
         h('td', {}, a.role ? chip(a.role, '') : '—'),
         h('td', { class: 'mono' }, a.method),
-        h('td', { class: 'mono', style: 'font-size:11px' }, a.path),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, a.path),
         h('td', {}, chip(String(a.status), String(a.status).startsWith('2') ? 'ok' : 'warn'))))
         : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:20px;text-align:center' }, 'No access recorded yet.'))])))));
 }
@@ -746,11 +746,11 @@ function auditEventRow(e, actions) {
   return h('div', { class: 'tl-row' },
     h('span', { class: 'tl-dot ' + tone }),
     h('div', { style: 'flex:1;min-width:0' },
-      h('div', { class: 'row', style: 'gap:8px' }, h('span', { class: 'tl-ev' }, e.event), chip('action #' + e.action_id, 'mono'),
-        act ? h('span', { class: 'faint', style: 'font-size:11px' }, act.target || '') : null),
-      h('div', { class: 'faint', style: 'font-size:11.5px;margin-top:2px' }, detail)),
-    h('div', { style: 'text-align:right' }, h('div', { class: 'faint mono', style: 'font-size:10.5px' }, e.actor || ''),
-      h('div', { class: 'faint mono', style: 'font-size:10px' }, ago(e.created_at))));
+      h('div', { class: 'row', style: 'gap:var(--s-2)' }, h('span', { class: 'tl-ev' }, e.event), chip('action #' + e.action_id, 'mono'),
+        act ? h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, act.target || '') : null),
+      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:2px' }, detail)),
+    h('div', { style: 'text-align:right' }, h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, e.actor || ''),
+      h('div', { class: 'faint mono', style: 'font-size:var(--t-3xs)' }, ago(e.created_at))));
 }
 
 /* ---- 4.9 Model card (risk-model transparency) ------------------------ */
@@ -772,7 +772,7 @@ async function viewModel(root) {
   const maxW = Math.max(0.001, ...Object.values(w).map(Number));
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
     h('div', { class: 'sec-label', style: 'margin-bottom:4px' }, 'Composite weights — the primary, defensible signal'),
-    h('div', { class: 'faint', style: 'font-size:11px;margin-bottom:12px' }, 'Hand-set, sum to 1.0. The ML layer re-ranks over these same factors.'),
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-bottom:var(--s-3)' }, 'Hand-set, sum to 1.0. The ML layer re-ranks over these same factors.'),
     h('div', { class: 'sfbars' }, Object.entries(w).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
       h('div', { class: 'sfbar' }, h('div', { class: 'k' }, k),
         h('div', { class: 'tr' }, h('i', { class: 'pos', style: `left:0;width:${(v / maxW) * 100}%;background:var(--accent)` })),
@@ -787,7 +787,7 @@ async function viewModel(root) {
   const lims = m.limitations || [];
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
     h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'Training provenance & known limitations'),
-    h('div', { class: 'kv', style: 'margin-bottom:12px' },
+    h('div', { class: 'kv', style: 'margin-bottom:var(--s-3)' },
       h('div', { class: 'k' }, 'Label source'), h('div', {}, (m.training || {}).label_source || '—'),
       h('div', { class: 'k' }, 'Bootstrap'), h('div', {}, (m.training || {}).bootstrap || '—'),
       h('div', { class: 'k' }, 'Retrain'), h('div', {}, (m.training || {}).retrain_cadence || '—')),
@@ -822,7 +822,7 @@ async function viewAssets(root) {
 }
 function critBar(v) {
   const n = v == null ? 0.5 : +v;
-  return h('span', { class: 'crit' }, h('span', { class: 'cbar' }, h('i', { style: `width:${n * 100}%` })), h('span', { class: 'mono faint', style: 'font-size:10.5px' }, n.toFixed(2)));
+  return h('span', { class: 'crit' }, h('span', { class: 'cbar' }, h('i', { style: `width:${n * 100}%` })), h('span', { class: 'mono faint', style: 'font-size:var(--t-2xs)' }, n.toFixed(2)));
 }
 async function openAsset(id) {
   const inner = $('#drawer-inner'); $('#scrim').classList.add('show'); $('#drawer').classList.add('show');
@@ -832,7 +832,7 @@ async function openAsset(id) {
   inner.innerHTML = '';
   inner.append(h('div', { class: 'drawer-h' },
     h('div', {}, h('div', { style: 'font-size:17px;font-weight:600' }, a.hostname || a.host_id),
-      h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${a.os || '—'} · ${a.ip || '—'} · ${a.exposure || 'internal'}-exposed`)),
+      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:5px' }, `${a.os || '—'} · ${a.ip || '—'} · ${a.exposure || 'internal'}-exposed`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
 
@@ -841,8 +841,8 @@ async function openAsset(id) {
   const val = h('span', { class: 'mono', style: 'min-width:34px;text-align:right' }, crit.toFixed(2));
   const slider = h('input', { type: 'range', min: '0', max: '1', step: '0.05', value: String(crit), oninput: e => { crit = +e.target.value; val.textContent = crit.toFixed(2); } });
   const save = h('button', { class: 'btn primary sm', onclick: async () => { save.disabled = true; save.textContent = 'Saving…'; await API.patchAsset(id, crit); toast('Criticality updated — applied on the next scoring run', true); save.disabled = false; save.textContent = 'Save'; } }, 'Save');
-  b.append(block('Business criticality', h('div', { class: 'stack', style: 'gap:8px' },
-    h('div', { class: 'faint', style: 'font-size:11px' }, 'Feeds the composite risk score (4% weight). Tune to your business.'),
+  b.append(block('Business criticality', h('div', { class: 'stack', style: 'gap:var(--s-2)' },
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'Feeds the composite risk score (4% weight). Tune to your business.'),
     h('div', { class: 'row' }, slider, val, h('span', { class: 'spring', style: 'flex:1' }), save))));
 
   b.append(block(`Findings (${findings.length})`, findings.length
@@ -850,18 +850,18 @@ async function openAsset(id) {
         h('span', { class: 'sc ' + band(r.risk_score) }, n0(r.risk_score)),
         h('span', { style: 'flex:1;min-width:0' }, r.title),
         r.cve_id ? eCode(r.cve_id) : null, r.kev ? chip('KEV', 'kev') : null)))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings on this host.')));
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No findings on this host.')));
 
   const flist = (flows && flows.hits) || [];
   b.append(block(`Network flows (${flist.length})`, flist.length
-    ? h('div', {}, flist.map(hit => h('div', { class: 'cf' }, h('span', { class: 'mono', style: 'font-size:11.5px' }, logLine(hit)),
-        h('span', { class: 'faint mono', style: 'font-size:10.5px' }, ago(hit.ingested_at)))))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No recent flows recorded.')));
+    ? h('div', {}, flist.map(hit => h('div', { class: 'cf' }, h('span', { class: 'mono', style: 'font-size:var(--t-xs)' }, logLine(hit)),
+        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, ago(hit.ingested_at)))))
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No recent flows recorded.')));
 
   b.append(block(`Compliance (${comp.length})`, comp.length
     ? h('table', { class: 'tbl' }, h('tbody', {}, comp.slice(0, 30).map(c => h('tr', {},
         h('td', { class: 'mono' }, c.rule_id), h('td', {}, c.title || ''), h('td', {}, statusChip(c.status))))))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No compliance results.')));
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No compliance results.')));
 }
 
 /* ---- 4.11 Operations (SOC-manager view) ------------------------------ */
@@ -892,7 +892,7 @@ async function viewManager(root) {
   // detection coverage by tool
   const byTool = {}; ranking.forEach(r => { const t = r.source_tool || 'agent'; byTool[t] = (byTool[t] || 0) + 1; });
   const maxT = Math.max(1, ...Object.values(byTool));
-  const coverage = h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Detection coverage by tool'),
+  const coverage = h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Detection coverage by tool'),
     h('div', { class: 'sfbars' }, Object.entries(byTool).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
       h('div', { class: 'sfbar' }, h('div', { class: 'k' }, k),
         h('div', { class: 'tr' }, h('i', { class: 'pos', style: `left:0;width:${(v / maxT) * 100}%;background:var(--accent)` })),
@@ -909,7 +909,7 @@ async function viewManager(root) {
         h('td', {}, h('span', { class: 'mono' }, '#' + i.id), ' ', i.title),
         h('td', {}, severity(i.severity)), h('td', {}, chip(i.status, 'warn')),
         h('td', {}, i.assignee || h('span', { class: 'faint' }, 'unassigned')),
-        h('td', { class: 'mono', style: 'font-size:11px' }, (i.sla_due || '—').slice(0, 16).replace('T', ' ')),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, (i.sla_due || '—').slice(0, 16).replace('T', ' ')),
         h('td', {}, i.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok')))))))));
 }
 
@@ -923,7 +923,7 @@ async function viewSettings(root) {
   const ROLES = [['admin', 'Full control — request & approve containment, manage settings'],
     ['analyst', 'Triage, investigate, request actions, submit feedback'],
     ['viewer', 'Read-only access to dashboards and findings']];
-  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Identity & access (SSO)'),
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Identity & access (SSO)'),
     h('div', { class: 'kv' },
       h('div', { class: 'k' }, 'Signed in as'), h('div', {}, me.user ? eAsset(me.user) : h('span', { class: 'faint' }, 'not authenticated')),
       h('div', { class: 'k' }, 'Role'), h('div', {}, chip(me.role || 'viewer', 'consensus')),
@@ -935,7 +935,7 @@ async function viewSettings(root) {
 
   // integrations health
   const byTool = {}; dets.forEach(d => byTool[d.source_tool] = (byTool[d.source_tool] || 0) + (+d.hits || 0));
-  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Integration health'),
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Integration health'),
     sensorsGrid(byTool)));
 
   // detection catalog
@@ -951,18 +951,18 @@ async function viewSettings(root) {
 
   // model feedback loop
   root.append(h('div', { class: 'cols2 fade', style: 'margin-top:14px;align-items:start' },
-    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Analyst feedback loop'),
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Analyst feedback loop'),
       h('div', { class: 'kv' },
         h('div', { class: 'k' }, 'Total labels'), h('div', { class: 'mono' }, String(fb.total ?? 0)),
         ...(fb.by_action || []).flatMap(x => [h('div', { class: 'k' }, x.action), h('div', { class: 'mono' }, String(x.n))])),
-      h('div', { class: 'faint', style: 'font-size:11px;margin-top:10px' }, 'Folded into: ' + ((fb.incorporated_in_models || []).join(', ') || '—'))),
-    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Data retention'),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:10px' }, 'Folded into: ' + ((fb.incorporated_in_models || []).join(', ') || '—'))),
+    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Data retention'),
       h('div', { class: 'kv' },
         h('div', { class: 'k' }, 'Telemetry (JetStream)'), h('div', {}, '7 days'),
         h('div', { class: 'k' }, 'Logs (OpenSearch)'), h('div', {}, '90 days'),
         h('div', { class: 'k' }, 'Findings & audit'), h('div', {}, 'retained (append-only)'),
         h('div', { class: 'k' }, 'Backups (Velero)'), h('div', {}, 'daily 30d · weekly 90d')),
-      h('div', { class: 'faint', style: 'font-size:11px;margin-top:10px' }, 'Configured per deployment; shown for transparency.'))));
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:10px' }, 'Configured per deployment; shown for transparency.'))));
 }
 
 /* ---- 4.13 Alerts inbox (topbar bell) -------------------------------- */
@@ -983,8 +983,8 @@ function closeAlerts() { const p = $('#alerts-pop'); if (p) p.hidden = true; }
 function renderAlerts(pop) {
   pop.innerHTML = '';
   pop.append(h('div', { class: 'ap-h' }, h('span', { style: 'font-weight:500' }, 'Alerts'), h('span', { class: 'spring', style: 'flex:1' }),
-    h('span', { class: 'linklike', style: 'font-size:11px', onclick: async () => { for (const a of (ALERTS || []).filter(x => !x.acknowledged)) { try { await API.ackNotification(a.id); } catch {} } await loadAlerts(); renderAlerts(pop); } }, 'Mark all read')));
-  if (!ALERTS || !ALERTS.length) { pop.append(h('div', { class: 'empty', style: 'padding:24px' }, 'No alerts.')); return; }
+    h('span', { class: 'linklike', style: 'font-size:var(--t-2xs)', onclick: async () => { for (const a of (ALERTS || []).filter(x => !x.acknowledged)) { try { await API.ackNotification(a.id); } catch {} } await loadAlerts(); renderAlerts(pop); } }, 'Mark all read')));
+  if (!ALERTS || !ALERTS.length) { pop.append(h('div', { class: 'empty', style: 'padding:var(--s-5)' }, 'No alerts.')); return; }
   ALERTS.slice(0, 14).forEach(a => pop.append(alertRow(a, pop)));
 }
 function alertRow(a, pop) {
@@ -992,7 +992,7 @@ function alertRow(a, pop) {
   return h('div', { class: 'ap-row' + (a.acknowledged ? ' ack' : ''), onclick: () => { closeAlerts(); if (a.ref_type === 'finding') openFinding(a.ref_id); else go('cases'); } },
     h('span', { class: 'gl s-' + sev, style: 'margin-top:5px;flex:none' }),
     h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'ap-t' }, a.title), h('div', { class: 'ap-b' }, a.body || ''),
-      h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:3px' }, ago(a.created_at))),
+      h('div', { class: 'faint mono', style: 'font-size:var(--t-3xs);margin-top:3px' }, ago(a.created_at))),
     a.acknowledged ? null : h('button', { class: 'btn sm', onclick: async (e) => { e.stopPropagation(); try { await API.ackNotification(a.id); } catch {} await loadAlerts(); renderAlerts(pop); } }, 'Ack'));
 }
 
@@ -1002,17 +1002,17 @@ function intelGraphView(g) {
   const chain = h('div', { class: 'wrap', style: 'gap:6px' });
   const parts = [['indicator', a.indicator, 'net'], ['technique', a.technique, 'code'],
     ['malware', a.malware, null], ['actor', a.actor, null], ['campaign', a.campaign, null]].filter(p => p[1]);
-  parts.forEach((p, i) => { chain.append(p[2] ? entityChip(p[1], p[2]) : chip(p[1], 'attack')); if (i < parts.length - 1) chain.append(h('span', { class: 'faint', style: 'font-size:12px' }, '→')); });
+  parts.forEach((p, i) => { chain.append(p[2] ? entityChip(p[1], p[2]) : chip(p[1], 'attack')); if (i < parts.length - 1) chain.append(h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, '→')); });
   const nodes = h('div', { class: 'wrap', style: 'margin-top:6px' }, (g.nodes || []).map(n =>
     chip(`${n.type}: ${n.label}`, (n.type === 'actor' || n.type === 'malware') ? 'kev' : '')));
-  return h('div', { class: 'stack', style: 'gap:8px' },
-    parts.length ? h('div', {}, h('div', { class: 'faint', style: 'font-size:11px;margin-bottom:6px' }, 'Attribution chain'), chain) : null,
-    h('div', { class: 'faint', style: 'font-size:11px' }, `${(g.nodes || []).length} entities · ${(g.edges || []).length} relations`), nodes);
+  return h('div', { class: 'stack', style: 'gap:var(--s-2)' },
+    parts.length ? h('div', {}, h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-bottom:6px' }, 'Attribution chain'), chain) : null,
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, `${(g.nodes || []).length} entities · ${(g.edges || []).length} relations`), nodes);
 }
 
 /* ---- SOAR playbook runner (in the finding drawer) ------------------- */
 function playbookRunner(f) {
-  const box = h('div', { class: 'stack', style: 'gap:8px' });
+  const box = h('div', { class: 'stack', style: 'gap:var(--s-2)' });
   const sel = h('select', {});
   API.playbooks().then(pbs => (pbs || []).forEach(p => sel.append(h('option', { value: p.id }, p.name)))).catch(() => {});
   const out = h('div', {});
@@ -1021,12 +1021,12 @@ function playbookRunner(f) {
     const r = await API.runPlaybook(sel.value, { finding_id: f.id });
     out.innerHTML = '';
     out.append(h('div', { class: 'stack', style: 'gap:5px;margin-top:4px' }, (r.steps || []).map(s =>
-      h('div', { class: 'row', style: 'gap:8px' }, chip(s.ok ? '✓' : '✗', s.ok ? 'ok' : 'kev'),
-        h('span', { class: 'mono', style: 'font-size:11px' }, s.action), h('span', { class: 'faint', style: 'font-size:11px' }, s.detail || '')))));
+      h('div', { class: 'row', style: 'gap:var(--s-2)' }, chip(s.ok ? '✓' : '✗', s.ok ? 'ok' : 'kev'),
+        h('span', { class: 'mono', style: 'font-size:var(--t-2xs)' }, s.action), h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, s.detail || '')))));
     toast('Playbook run complete', true); run.disabled = false; run.textContent = 'Run playbook';
   } }, 'Run playbook');
-  box.append(h('div', { class: 'faint', style: 'font-size:11px' }, 'Containment-safe automation; destructive steps only ever propose (two-person approval).'),
-    h('div', { class: 'row', style: 'gap:8px' }, sel, run), out);
+  box.append(h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'Containment-safe automation; destructive steps only ever propose (two-person approval).'),
+    h('div', { class: 'row', style: 'gap:var(--s-2)' }, sel, run), out);
   return box;
 }
 
@@ -1038,19 +1038,19 @@ async function viewPlaybooks(root) {
   root.append(h('div', { class: 'panel fade' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Playbooks'),
     h('span', { class: 'sub' }, '· containment-safe automation (analyst-controlled)')),
     h('div', { class: 'pbgrid' }, (pbs || []).map(p => h('div', { class: 'pbcard' },
-      h('div', { class: 'row', style: 'gap:8px' }, h('div', { class: 'pbn' }, p.name),
+      h('div', { class: 'row', style: 'gap:var(--s-2)' }, h('div', { class: 'pbn' }, p.name),
         h('span', { class: 'spring', style: 'flex:1' }), chip(p.trigger || 'manual', p.trigger === 'manual' ? '' : 'attack'), chip(p.enabled ? 'enabled' : 'off', p.enabled ? 'ok' : '')),
       h('div', { class: 'pbd' }, p.description || ''),
-      h('div', { class: 'wrap', style: 'margin-top:8px' }, (p.actions || []).map(a => chip(a.type.replace('_', ' '), 'mono'))))))));
+      h('div', { class: 'wrap', style: 'margin-top:var(--s-2)' }, (p.actions || []).map(a => chip(a.type.replace('_', ' '), 'mono'))))))));
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Recent runs'),
     h('span', { class: 'sub' }, `· ${(runs || []).length}`)),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Run', 'Playbook', 'Trigger', 'Steps', 'Status', 'By', 'When'].map(t => h('th', {}, t)))),
       h('tbody', {}, (runs || []).length ? runs.map(r => h('tr', {},
-        h('td', { class: 'mono' }, '#' + r.id), h('td', {}, r.playbook_id), h('td', { class: 'mono', style: 'font-size:11px' }, r.trigger_ref || ''),
+        h('td', { class: 'mono' }, '#' + r.id), h('td', {}, r.playbook_id), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, r.trigger_ref || ''),
         h('td', {}, h('div', { class: 'wrap', style: 'gap:4px' }, (r.steps || []).map(s => chip(s.action, s.ok ? 'ok' : 'kev')))),
         h('td', {}, chip(r.status, r.status === 'completed' ? 'ok' : 'warn')), h('td', {}, r.run_by || ''),
-        h('td', { class: 'mono', style: 'font-size:11px' }, ago(r.created_at))))
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(r.created_at))))
         : [h('tr', {}, h('td', { colspan: '7', class: 'faint', style: 'padding:18px;text-align:center' }, 'No runs yet.'))])))));
 }
 
@@ -1069,9 +1069,9 @@ async function viewLiveHunt(root) {
     await API.createHunt({ name: name.value.trim(), artifact: art.value, query: query.value || null, target: target.value || 'all' });
     toast('Hunt queued — agents collect on next poll', true); go('livehunt');
   } }, 'Launch hunt');
-  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Launch a live hunt (read-only fleet collection)'),
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Launch a live hunt (read-only fleet collection)'),
     h('div', { class: 'huntbar' }, name, art, query, target, run),
-    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Collection-only — never executes a destructive action. Agents poll, collect the artifact, and return rows.')));
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Collection-only — never executes a destructive action. Agents poll, collect the artifact, and return rows.')));
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Hunts'), h('span', { class: 'sub' }, `· ${hunts.length}`)),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Hunt', 'Artifact', 'Target', 'Status', 'Results', 'When'].map(t => h('th', {}, t)))),
@@ -1081,7 +1081,7 @@ async function viewLiveHunt(root) {
         h('td', { class: 'mono' }, hu.target),
         h('td', {}, chip(hu.status, hu.status === 'completed' ? 'ok' : hu.status === 'collecting' ? 'warn' : '')),
         h('td', { class: 'mono' }, String(hu.result_count ?? 0)),
-        h('td', { class: 'mono', style: 'font-size:11px' }, ago(hu.created_at))))
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(hu.created_at))))
         : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:18px;text-align:center' }, 'No hunts yet — launch one above.'))])))));
 }
 async function openHunt(id) {
@@ -1091,20 +1091,20 @@ async function openHunt(id) {
   inner.innerHTML = '';
   inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, chip(hu.artifact || 'artifact', 'mono'), chip(hu.status || 'queued', hu.status === 'completed' ? 'ok' : 'warn')),
     h('div', { style: 'font-size:17px;font-weight:600' }, hu.name || ('Hunt #' + id)),
-    h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `target ${hu.target || 'all'} · by ${hu.created_by || '—'}`)),
+    h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:5px' }, `target ${hu.target || 'all'} · by ${hu.created_by || '—'}`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
   const results = hu.results || [];
   if (!results.length) { b.append(h('div', { class: 'empty' }, 'No results collected yet — agents return rows as they poll.')); return; }
   results.forEach(r => {
     const rows = r.rows || [];
-    const box = h('div', { class: 'block' }, h('div', { class: 'sec-label', style: 'margin-bottom:8px' }, eAsset(r.asset_id || r.agent_id), ` · ${r.row_count} rows · ${ago(r.collected_at)}`));
+    const box = h('div', { class: 'block' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-2)' }, eAsset(r.asset_id || r.agent_id), ` · ${r.row_count} rows · ${ago(r.collected_at)}`));
     if (rows.length) {
       const cols = [...new Set(rows.flatMap(x => Object.keys(x)))].slice(0, 6);
       box.append(h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
         h('thead', {}, h('tr', {}, cols.map(c => h('th', {}, c)))),
-        h('tbody', {}, rows.slice(0, 50).map(x => h('tr', {}, cols.map(c => h('td', { class: 'mono', style: 'font-size:11px' }, String(x[c] ?? '')))))))));
-    } else box.append(h('div', { class: 'faint', style: 'font-size:12px' }, 'no rows from this host'));
+        h('tbody', {}, rows.slice(0, 50).map(x => h('tr', {}, cols.map(c => h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, String(x[c] ?? '')))))))));
+    } else box.append(h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'no rows from this host'));
     b.append(box);
   });
 }
@@ -1122,13 +1122,13 @@ async function viewAlerting(root) {
   const cadd = h('button', { class: 'btn primary', onclick: async () => { if (!cname.value.trim() || !ctarget.value.trim()) { toast('Name + target required', false); return; } await API.addChannel({ name: cname.value.trim(), type: ctype.value, target: ctarget.value.trim() }); toast('Channel added', true); go('alerting'); } }, 'Add channel');
   const chBody = h('tbody', {});
   const renderCh = () => { chBody.innerHTML = ''; channels.forEach(c => chBody.append(h('tr', { class: c.enabled ? '' : 'dim' },
-    h('td', {}, c.name), h('td', {}, chip(c.type, 'mono')), h('td', { class: 'mono', style: 'font-size:11px' }, c.target),
+    h('td', {}, c.name), h('td', {}, chip(c.type, 'mono')), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, c.target),
     h('td', {}, h('button', { class: 'btn sm', onclick: async () => { const r = await API.testChannel(c.id); toast(`Test: ${r.status}${r.detail ? ' (' + r.detail + ')' : ''}`, r.status === 'delivered'); go('alerting'); } }, 'Test')),
     h('td', {}, h('span', { class: 'rtoggle' + (c.enabled ? ' on' : ''), role: 'button', tabindex: '0', onclick: async () => { c.enabled = !c.enabled; await API.patchChannel(c.id, c.enabled); renderCh(); } }))))); };
   renderCh();
-  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Notification channels'),
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Notification channels'),
     h('div', { class: 'huntbar' }, cname, ctype, ctarget, cadd),
-    h('div', { class: 'faint', style: 'font-size:11px;margin:8px 0 12px' }, 'Webhook delivery is real (internal POST, air-gap-friendly). Email/Slack are recorded as queued until a transport is wired at the site.'),
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin:8px 0 12px' }, 'Webhook delivery is real (internal POST, air-gap-friendly). Email/Slack are recorded as queued until a transport is wired at the site.'),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' }, h('thead', {}, h('tr', {}, ['Channel', 'Type', 'Target', 'Test', 'On'].map(t => h('th', {}, t)))), chBody))));
 
   // routing rules
@@ -1136,15 +1136,15 @@ async function viewAlerting(root) {
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Rule', 'Min severity', 'Kind', 'Channel', 'On'].map(t => h('th', {}, t)))),
       h('tbody', {}, rules.length ? rules.map(r => h('tr', {}, h('td', {}, r.name), h('td', {}, chip(r.min_severity, r.min_severity === 'critical' ? 'kev' : 'warn')), h('td', { class: 'mono' }, r.kind || 'any'), h('td', {}, r.channel_name || ('#' + r.channel_id)), h('td', {}, chip(r.enabled ? 'on' : 'off', r.enabled ? 'ok' : ''))))
-        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:16px;text-align:center' }, 'No routing rules.'))])))));
+        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No routing rules.'))])))));
 
   // delivery log
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Delivery log'), h('span', { class: 'sub' }, `· ${deliveries.length}`),
     h('span', { class: 'spring', style: 'flex:1' }), h('button', { class: 'btn sm primary', onclick: async () => { const r = await API.dispatchAlerts(); toast(`${r.deliveries} alert(s) dispatched`, true); go('alerting'); } }, 'Dispatch now')),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Channel', 'Subject', 'Status', 'Detail', 'When'].map(t => h('th', {}, t)))),
-      h('tbody', {}, deliveries.length ? deliveries.map(d => h('tr', {}, h('td', {}, d.channel_name), h('td', {}, d.subject), h('td', {}, chip(d.status, d.status === 'delivered' ? 'ok' : d.status === 'failed' ? 'kev' : 'warn')), h('td', { class: 'faint', style: 'font-size:11px' }, d.detail || ''), h('td', { class: 'mono', style: 'font-size:11px' }, ago(d.created_at))))
-        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:16px;text-align:center' }, 'No deliveries yet.'))])))));
+      h('tbody', {}, deliveries.length ? deliveries.map(d => h('tr', {}, h('td', {}, d.channel_name), h('td', {}, d.subject), h('td', {}, chip(d.status, d.status === 'delivered' ? 'ok' : d.status === 'failed' ? 'kev' : 'warn')), h('td', { class: 'faint', style: 'font-size:var(--t-2xs)' }, d.detail || ''), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(d.created_at))))
+        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No deliveries yet.'))])))));
 }
 
 /* ---- 4.21 Detection rules management -------------------------------- */
@@ -1168,8 +1168,8 @@ async function viewDetections(root) {
     await API.createRule({ name: name.value.trim(), source: src.value, technique: tech.value || null, severity: sev.value, logic: logic.value || null });
     toast('Detection rule created', true); go('detections');
   } }, 'Create rule');
-  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Author a detection rule'),
-    h('div', { class: 'huntbar' }, name, src, tech, sev, add), h('div', { class: 'row', style: 'margin-top:8px' }, logic)));
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Author a detection rule'),
+    h('div', { class: 'huntbar' }, name, src, tech, sev, add), h('div', { class: 'row', style: 'margin-top:var(--s-2)' }, logic)));
 
   // rules table
   const body = h('tbody', {});
@@ -1186,7 +1186,7 @@ function ruleRow(r, refresh) {
     onclick: async () => { r.enabled = !r.enabled; await API.patchRule(r.id, { enabled: r.enabled }); toast(`Rule ${r.enabled ? 'enabled' : 'disabled'}`, true); refresh(); },
     onkeydown: e => { if (e.key === 'Enter') { r.enabled = !r.enabled; API.patchRule(r.id, { enabled: r.enabled }); refresh(); } } });
   return h('tr', { class: r.enabled ? '' : 'dim' },
-    h('td', {}, h('div', {}, r.name), r.logic ? h('div', { class: 'faint mono', style: 'font-size:10px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px' }, r.logic) : null),
+    h('td', {}, h('div', {}, r.name), r.logic ? h('div', { class: 'faint mono', style: 'font-size:var(--t-3xs);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:380px' }, r.logic) : null),
     h('td', {}, chip(r.source, 'mono')),
     h('td', {}, r.technique ? eCode(r.technique) : '—'),
     h('td', {}, severity(r.severity)),
@@ -1199,15 +1199,15 @@ async function viewCoverage(root) {
   root.append(loading('Loading coverage & trends…'));
   const [cov, trends] = await Promise.all([API.attackCoverage(), API.postureTrends()]);
   root.innerHTML = '';
-  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'row', style: 'margin-bottom:12px' },
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'row', style: 'margin-bottom:var(--s-3)' },
     h('div', { class: 'sec-label' }, 'Risk posture trend'), h('span', { class: 'spring', style: 'flex:1' }),
-    h('span', { class: 'faint', style: 'font-size:11px' }, `${(trends || []).length} daily snapshot(s)`)),
+    h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, `${(trends || []).length} daily snapshot(s)`)),
     trendChart(trends)));
   root.append(h('div', { class: 'kpis fade', style: 'margin-top:14px' },
     kpiCard('Techniques observed', String(cov.covered || 0), `of ${cov.total_known || 0} in our ATT&CK KB`, cov.covered ? 'warn' : ''),
     kpiCard('Tactics covered', String((cov.tactics || []).length), 'across the kill chain', ''),
     kpiCard('Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
-  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'ATT&CK coverage by tactic — click a technique to investigate'),
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'ATT&CK coverage by tactic — click a technique to investigate'),
     h('div', { class: 'attackmx' }, (cov.tactics || []).map(tac => h('div', { class: 'attcol' },
       h('div', { class: 'atth' }, tac.replace(/-/g, ' ')),
       (cov.techniques || []).filter(t => t.tactic === tac).map(t => attCell(t)))))));
@@ -1221,7 +1221,7 @@ function attCell(t) {
 }
 function trendChart(series) {
   series = series || [];
-  if (series.length < 2) return h('div', { class: 'faint', style: 'font-size:12px' }, series.length === 1 ? 'One snapshot so far — the trend builds as daily snapshots accumulate.' : 'No snapshots yet.');
+  if (series.length < 2) return h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, series.length === 1 ? 'One snapshot so far — the trend builds as daily snapshots accumulate.' : 'No snapshots yet.');
   const W = 900, H = 120, pad = 8;
   const xs = series.map((_, i) => pad + i * ((W - 2 * pad) / (series.length - 1)));
   const vals = series.map(s => +s.avg_risk || 0);
@@ -1237,7 +1237,7 @@ function trendChart(series) {
     + dots + `</svg>`;
   const labels = h('div', { class: 'trendx' }, series.map(s => h('span', {}, s.snap_date.slice(5))));
   const latest = series[series.length - 1];
-  const legend = h('div', { class: 'row', style: 'gap:14px;margin-top:8px;font-size:11.5px' },
+  const legend = h('div', { class: 'row', style: 'gap:14px;margin-top:var(--s-2);font-size:var(--t-xs)' },
     h('span', { class: 'faint' }, 'avg composite risk · latest'), h('span', { class: 'mono' }, n1(latest.avg_risk)),
     h('span', { class: 'faint' }, '· KEV'), h('span', { class: 'mono' }, String(latest.kev)),
     h('span', { class: 'faint' }, '· compliance'), h('span', { class: 'mono' }, latest.compliance_pct + '%'));
@@ -1250,17 +1250,17 @@ async function viewReports(root) {
   const list = await API.reports();
   root.innerHTML = '';
   const gen = async (type) => { const r = await API.generateReport(type); toast(`${type} report generated`, true); go('reports'); openReport(r.id, r); };
-  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Generate a report'),
+  root.append(h('div', { class: 'panel pad fade' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Generate a report'),
     h('div', { class: 'row', style: 'gap:10px;flex-wrap:wrap' },
       h('button', { class: 'btn primary', onclick: () => gen('posture') }, 'Security posture'),
       h('button', { class: 'btn', onclick: () => gen('compliance') }, 'Compliance'),
       h('button', { class: 'btn', onclick: () => gen('executive') }, 'Executive summary')),
-    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Computed from live data, stored as a reproducible snapshot; open one to export PDF/CSV.')));
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Computed from live data, stored as a reproducible snapshot; open one to export PDF/CSV.')));
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Generated reports'), h('span', { class: 'sub' }, `· ${(list || []).length}`)),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Report', 'Type', 'By', 'When'].map(t => h('th', {}, t)))),
       h('tbody', {}, (list || []).length ? list.map(r => h('tr', { tabindex: '0', onclick: () => openReport(r.id), onkeydown: e => { if (e.key === 'Enter') openReport(r.id); } },
-        h('td', {}, r.title), h('td', {}, chip(r.type, r.type === 'executive' ? 'consensus' : 'mono')), h('td', {}, r.generated_by || '—'), h('td', { class: 'mono', style: 'font-size:11px' }, ago(r.created_at))))
+        h('td', {}, r.title), h('td', {}, chip(r.type, r.type === 'executive' ? 'consensus' : 'mono')), h('td', {}, r.generated_by || '—'), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(r.created_at))))
         : [h('tr', {}, h('td', { colspan: '4', class: 'faint', style: 'padding:18px;text-align:center' }, 'No reports yet — generate one above.'))])))));
 }
 async function openReport(id, preloaded) {
@@ -1303,7 +1303,7 @@ async function openReport(id, preloaded) {
         h('div', { class: 'tr' }, h('i', { class: 'pos', style: `left:0;width:${(t.n / max) * 100}%;background:var(--accent)` })),
         h('div', { class: 'c' }, String(t.n))))))); }
 
-  b.append(h('div', { class: 'row noprint', style: 'gap:8px;margin-top:6px' }, pdfBtn('Export PDF'),
+  b.append(h('div', { class: 'row noprint', style: 'gap:var(--s-2);margin-top:6px' }, pdfBtn('Export PDF'),
     csvBtn('Export CSV', `vyrex-${r.type || 'report'}.csv`, () => [['metric', 'value'],
       ...Object.entries(c.kpis || {}).map(([k2, v]) => [k2, v]), ...(c.top_risks || []).map(x => ['top_risk', `${x.title} (${x.risk})`])])));
 }
@@ -1330,7 +1330,7 @@ async function viewSearch(root) {
       h('div', { style: 'flex:1' }, h('div', { class: 'tt' }, a.hostname || a.host_id),
         h('div', { class: 'wrap', style: 'margin-top:5px' }, chip(a.os || '—', 'mono'), a.ip ? eNet(a.ip) : null, a.exposure ? chip(a.exposure, a.exposure === 'internet' ? 'warn' : '') : null)))),
     sect('CVEs', r.cves, c => h('div', { class: 'orow', tabindex: '0', onclick: () => openCve(c.cve_id), onkeydown: e => { if (e.key === 'Enter') openCve(c.cve_id); } },
-      h('div', { style: 'flex:1' }, h('div', { class: 'wrap' }, eCode(c.cve_id), c.cwe ? chip(c.cwe, 'mono') : null, c.kev ? chip('KEV', 'kev') : null, c.cvss_score ? chip('CVSS ' + n1(c.cvss_score), '') : null, h('span', { class: 'faint', style: 'font-size:11px' }, `${c.occurrences} finding(s)`))))),
+      h('div', { style: 'flex:1' }, h('div', { class: 'wrap' }, eCode(c.cve_id), c.cwe ? chip(c.cwe, 'mono') : null, c.kev ? chip('KEV', 'kev') : null, c.cvss_score ? chip('CVSS ' + n1(c.cvss_score), '') : null, h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, `${c.occurrences} finding(s)`))))),
     sect('Indicators', r.iocs, i => h('div', { class: 'orow', tabindex: '0', onclick: () => openIp(i.indicator), onkeydown: e => { if (e.key === 'Enter') openIp(i.indicator); } },
       h('div', { style: 'flex:1' }, h('div', { class: 'wrap' }, eNet(i.indicator), chip(i.type || 'ioc', 'mono'))))),
   ].filter(Boolean).forEach(s => root.append(s));
@@ -1345,8 +1345,8 @@ async function openCve(cveId) {
   inner.innerHTML = '';
   inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' },
     m.cvss_severity ? severity(m.cvss_severity) : null, d.kev ? chip('KEV', 'kev') : null, (d.exploits || []).length ? chip('exploit', 'exploit') : null),
-    h('div', { style: 'font-size:18px;font-weight:600' }, cveId),
-    h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${(d.affected_assets || []).length} affected asset(s) · ${(d.findings || []).length} finding(s)`)),
+    h('div', { style: 'font-size:var(--t-lg);font-weight:600' }, cveId),
+    h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:5px' }, `${(d.affected_assets || []).length} affected asset(s) · ${(d.findings || []).length} finding(s)`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
   if (m.description) b.append(h('div', { class: 'summary' }, m.description));
@@ -1360,7 +1360,7 @@ async function openCve(cveId) {
   b.append(block(`Findings (${(d.findings || []).length})`, (d.findings || []).length
     ? h('div', {}, d.findings.map(f => h('div', { class: 'evrow', tabindex: '0', onclick: () => openFinding(f.id), onkeydown: e => { if (e.key === 'Enter') openFinding(f.id); } },
         h('span', { class: 'sc ' + band(f.risk_score) }, n0(f.risk_score)), h('span', { style: 'flex:1;min-width:0' }, f.title), eAsset(f.asset_id))))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings.')));
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No findings.')));
 }
 
 /* ---- IP / indicator entity page (drawer) ---------------------------- */
@@ -1370,17 +1370,17 @@ async function openIp(ip) {
   const d = await API.entityIp(ip);
   inner.innerHTML = '';
   inner.append(h('div', { class: 'drawer-h' }, h('div', {}, h('div', { class: 'wrap', style: 'margin-bottom:9px' }, chip('indicator', 'mono'), (d.findings || []).length ? chip('active', 'kev') : null),
-    h('div', { style: 'font-size:18px;font-weight:600;font-family:var(--mono)' }, ip),
-    h('div', { class: 'faint', style: 'font-size:12px;margin-top:5px' }, `${(d.sightings || []).length} sighting(s) · ${(d.findings || []).length} finding(s)`)),
+    h('div', { style: 'font-size:var(--t-lg);font-weight:600;font-family:var(--mono)' }, ip),
+    h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:5px' }, `${(d.sightings || []).length} sighting(s) · ${(d.findings || []).length} finding(s)`)),
     h('div', { class: 'x', html: ic('x'), onclick: closeDrawer })));
   const b = h('div', { class: 'drawer-b' }); inner.append(b);
   b.append(block(`Sightings (${(d.sightings || []).length})`, (d.sightings || []).length
-    ? h('div', {}, d.sightings.map(s => h('div', { class: 'cf' }, h('span', {}, eAsset(s.asset_id || '—'), ` · ${s.source || ''}`), h('span', { class: 'faint mono', style: 'font-size:11px' }, ago(s.seen_at)))))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No sightings recorded.')));
+    ? h('div', {}, d.sightings.map(s => h('div', { class: 'cf' }, h('span', {}, eAsset(s.asset_id || '—'), ` · ${s.source || ''}`), h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, ago(s.seen_at)))))
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No sightings recorded.')));
   b.append(block(`Findings (${(d.findings || []).length})`, (d.findings || []).length
     ? h('div', {}, d.findings.map(f => h('div', { class: 'evrow', tabindex: '0', onclick: () => openFinding(f.id), onkeydown: e => { if (e.key === 'Enter') openFinding(f.id); } },
         h('span', { class: 'sc ' + band(f.risk_score) }, n0(f.risk_score)), h('span', { style: 'flex:1;min-width:0' }, f.title), f.attack ? chip(f.attack, 'attack') : null)))
-    : h('div', { class: 'faint', style: 'font-size:12px' }, 'No findings reference this indicator.')));
+    : h('div', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No findings reference this indicator.')));
 }
 
 /* ---- 4.17 Threat Intelligence Center (attribution + IOC sightings + fusion clusters) -- */
@@ -1399,12 +1399,12 @@ async function viewIntel(root) {
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Actor', 'Findings'].map(t => h('th', {}, t)))),
       h('tbody', {}, actors.length ? actors.map(a => h('tr', {}, h('td', {}, chip(a.name, 'kev')), h('td', { class: 'mono' }, String(a.findings))))
-        : [h('tr', {}, h('td', { colspan: '2', class: 'faint', style: 'padding:16px;text-align:center' }, 'No attribution yet.'))]))));
+        : [h('tr', {}, h('td', { colspan: '2', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No attribution yet.'))]))));
   const malTbl = h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Malware'), h('span', { class: 'sub' }, '· families seen')),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Malware', 'Findings'].map(t => h('th', {}, t)))),
       h('tbody', {}, malware.length ? malware.map(m => h('tr', {}, h('td', {}, chip(m.name, 'warn')), h('td', { class: 'mono' }, String(m.findings))))
-        : [h('tr', {}, h('td', { colspan: '2', class: 'faint', style: 'padding:16px;text-align:center' }, 'No malware seen.'))]))));
+        : [h('tr', {}, h('td', { colspan: '2', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No malware seen.'))]))));
   root.append(h('div', { class: 'cols2 fade', style: 'align-items:start' }, actorsTbl, malTbl));
 
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Fusion clusters'), h('span', { class: 'sub' }, '· issues independent tools corroborate')),
@@ -1416,8 +1416,8 @@ async function viewIntel(root) {
         h('td', {}, eAsset(c.asset_id)),
         h('td', {}, h('div', { class: 'wrap', style: 'gap:4px' }, (c.tools || []).map(t => chip(t, 'mono')), chip((c.n_tools || 0) + ' agree', 'consensus'))),
         h('td', {}, h('span', { class: 'sc ' + band(c.top_risk_score), style: 'font-family:var(--mono)' }, n0(c.top_risk_score))),
-        h('td', {}, h('span', { class: 'linklike', style: 'font-size:11px' }, 'investigate ›'))))
-        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:16px;text-align:center' }, 'No multi-tool clusters yet.'))])))));
+        h('td', {}, h('span', { class: 'linklike', style: 'font-size:var(--t-2xs)' }, 'investigate ›'))))
+        : [h('tr', {}, h('td', { colspan: '6', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No multi-tool clusters yet.'))])))));
 
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' }, h('div', { class: 'panel-h' }, h('h2', {}, 'IOC sightings'), h('span', { class: 'sub' }, '· where indicators were observed'),
     h('span', { class: 'spring', style: 'flex:1' }), csvBtn('CSV', 'vyrex-sightings.csv', () => [['indicator', 'type', 'asset', 'source', 'seen'], ...(sight || []).map(s => [s.indicator, s.type || '', s.asset_id || '', s.source || '', s.seen_at])])),
@@ -1428,8 +1428,8 @@ async function viewIntel(root) {
         h('td', { class: 'mono' }, s.type || '—'),
         h('td', {}, s.asset_id ? eAsset(s.asset_id) : '—'),
         h('td', {}, chip(s.source || '—', 'mono')),
-        h('td', { class: 'mono', style: 'font-size:11px' }, ago(s.seen_at))))
-        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:16px;text-align:center' }, 'No sightings recorded.'))])))));
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(s.seen_at))))
+        : [h('tr', {}, h('td', { colspan: '5', class: 'faint', style: 'padding:var(--s-4);text-align:center' }, 'No sightings recorded.'))])))));
 }
 
 /* ---- 4.14 Dashboards (embedded Grafana) ----------------------------- */
@@ -1441,11 +1441,11 @@ async function viewDashboards(root) {
     ['API metrics', '/d/soc-api-metrics', 'request rate, latency & errors — from Prometheus'],
   ];
   root.append(h('div', { class: 'panel pad fade' },
-    h('div', { class: 'row', style: 'margin-bottom:12px' }, h('div', { class: 'sec-label' }, 'Grafana dashboards'),
+    h('div', { class: 'row', style: 'margin-bottom:var(--s-3)' }, h('div', { class: 'sec-label' }, 'Grafana dashboards'),
       h('span', { class: 'spring', style: 'flex:1' }),
       h('a', { class: 'btn sm', href: base, target: '_blank', rel: 'noopener', html: ic('hunt') + '<span style="margin-left:6px">Open Grafana</span>' })),
     h('div', { class: 'dashgrid' }, DASH.map(([t, p, d]) => h('a', { class: 'dashcard', href: base + p, target: '_blank', rel: 'noopener' },
-      h('div', { class: 'dt' }, t), h('div', { class: 'dd' }, d), h('div', { class: 'linklike', style: 'font-size:11px;margin-top:8px' }, 'Open ›'))))));
+      h('div', { class: 'dt' }, t), h('div', { class: 'dd' }, d), h('div', { class: 'linklike', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Open ›'))))));
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
     h('div', { class: 'panel-h' }, h('h2', {}, 'Embedded preview'), h('span', { class: 'sub' }, '· live Grafana — needs GF_SECURITY_ALLOW_EMBEDDING')),
     h('iframe', { class: 'gframe', src: base + '/d/soc-overview?theme=dark&kiosk', loading: 'lazy', referrerpolicy: 'no-referrer' })));
@@ -1458,9 +1458,9 @@ async function viewDashboards(root) {
 
 function tkHero(title, sub) {
   return h('div', { class: 'tk-hero' },
-    h('div', {}, h('div', { class: 'sec-label', style: 'letter-spacing:.6px;text-transform:uppercase;font-size:10.5px' }, 'Analyst toolkit'),
+    h('div', {}, h('div', { class: 'sec-label', style: 'letter-spacing:.6px;text-transform:uppercase;font-size:var(--t-2xs)' }, 'Analyst toolkit'),
       h('h2', { style: 'font-size:17px;font-weight:560;margin-top:3px' }, title),
-      h('div', { class: 'faint', style: 'font-size:12px;margin-top:2px' }, sub)),
+      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:2px' }, sub)),
     chip('air-gapped · deterministic', 'consensus'));
 }
 function tkMeter(pct, sevCls) { // 0..100 horizontal meter
@@ -1485,7 +1485,7 @@ async function viewVitals(root) {
 
     const cores = (cpu.per_core || []);
     if (cores.length) root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
-      h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Per-core utilisation'),
+      h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Per-core utilisation'),
       h('div', { class: 'tk-cores' }, cores.map((c, i) =>
         h('div', { class: 'tk-core' }, h('div', { class: 'lb' }, 'c' + i),
           h('div', { class: 'gbar' }, h('i', { class: c >= 85 ? 'critical' : c >= 60 ? 'high' : '', style: `height:${Math.max(3, c || 0)}%` })),
@@ -1517,17 +1517,17 @@ async function viewNews(root) {
   root.append(tkHero('Threat news', 'Bundled offline intel feed · threat level derived from item severity'));
   root.append(h('div', { class: 'panel pad fade tk-threatbar ' + sc, style: 'margin-top:14px;display:flex;align-items:center;gap:14px' },
     h('div', { class: 'tk-pulse ' + sc }),
-    h('div', {}, h('div', { class: 'faint', style: 'font-size:10.5px;text-transform:uppercase;letter-spacing:.6px' }, 'Current threat level'),
+    h('div', {}, h('div', { class: 'faint', style: 'font-size:var(--t-2xs);text-transform:uppercase;letter-spacing:.6px' }, 'Current threat level'),
       h('div', { style: 'font-size:20px;font-weight:560' }, severity(data.threat_level))),
     h('span', { class: 'spring', style: 'flex:1' }),
-    h('div', { class: 'faint', style: 'font-size:11px;max-width:360px;text-align:right' }, data.note)));
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);max-width:360px;text-align:right' }, data.note)));
   root.append(h('div', { class: 'stack fade', style: 'margin-top:14px' }, data.items.map(it =>
     h('div', { class: 'panel pad tk-news' },
       h('div', { class: 'row', style: 'gap:10px;align-items:flex-start' }, severity(it.severity),
         h('div', { style: 'flex:1' }, h('div', { style: 'font-weight:520;font-size:14px' }, it.title),
-          h('div', { class: 'prose', style: 'font-size:12.5px;margin-top:4px' }, it.summary),
-          h('div', { class: 'wrap', style: 'margin-top:8px' }, (it.tags || []).map(t => chip(t, 'mono')))),
-        h('div', { class: 'faint', style: 'font-size:11px;text-align:right;white-space:nowrap' }, h('div', {}, it.source), h('div', { class: 'mono', style: 'margin-top:3px' }, it.published)))))));
+          h('div', { class: 'prose', style: 'font-size:var(--t-sm);margin-top:4px' }, it.summary),
+          h('div', { class: 'wrap', style: 'margin-top:var(--s-2)' }, (it.tags || []).map(t => chip(t, 'mono')))),
+        h('div', { class: 'faint', style: 'font-size:var(--t-2xs);text-align:right;white-space:nowrap' }, h('div', {}, it.source), h('div', { class: 'mono', style: 'margin-top:3px' }, it.published)))))));
 }
 
 /* ---- Log Analyzer --------------------------------------------------- */
@@ -1542,7 +1542,7 @@ async function viewLogScan(root) {
   const out = h('div', { id: 'tk-log-out' });
   const ta = tkTextarea('tk-log-in', 'Paste syslog / auth.log / web-access lines here…', 9);
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, ta,
-    h('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);margin-top:10px' },
       h('button', { class: 'btn primary', onclick: run }, 'Analyze logs'),
       h('button', { class: 'btn', onclick: () => { ta.value = TK_LOG_SAMPLE; } }, 'Load sample'),
       h('button', { class: 'btn', onclick: () => { ta.value = ''; out.innerHTML = ''; } }, 'Clear'))));
@@ -1552,18 +1552,18 @@ async function viewLogScan(root) {
     const sc = sevClass(r.severity);
     out.innerHTML = '';
     out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
-      h('div', { class: 'row', style: 'gap:12px' }, severity(r.severity),
+      h('div', { class: 'row', style: 'gap:var(--s-3)' }, severity(r.severity),
         h('div', { style: 'flex:1' }, h('div', { style: 'font-weight:520' }, r.summary),
-          h('div', { class: 'faint', style: 'font-size:11px;margin-top:3px' }, `${r.findings.length} matched · ${r.lines} lines`)),
-        h('div', { style: 'width:160px' }, tkMeter(r.score, sc), h('div', { class: 'faint mono', style: 'font-size:10px;text-align:right;margin-top:3px' }, 'risk ' + r.score))),
-      r.recommendations.length ? h('div', { class: 'callout', style: 'margin-top:12px' }, h('strong', {}, 'Recommended: '),
+          h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:3px' }, `${r.findings.length} matched · ${r.lines} lines`)),
+        h('div', { style: 'width:160px' }, tkMeter(r.score, sc), h('div', { class: 'faint mono', style: 'font-size:var(--t-3xs);text-align:right;margin-top:3px' }, 'risk ' + r.score))),
+      r.recommendations.length ? h('div', { class: 'callout', style: 'margin-top:var(--s-3)' }, h('strong', {}, 'Recommended: '),
         h('ul', { class: 'lims' }, r.recommendations.map(t => h('li', {}, t)))) : null));
     if (r.findings.length) out.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
       h('div', { class: 'panel-h' }, h('h2', {}, 'Detected events')),
       h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
         h('thead', {}, h('tr', {}, ['Severity', 'Type', 'Log line'].map(t => h('th', {}, t)))),
         h('tbody', {}, r.findings.map(f => h('tr', { title: f.tip },
-          h('td', {}, severity(f.sev)), h('td', {}, f.type), h('td', { class: 'mono', style: 'font-size:11px;color:var(--text-2)' }, f.line))))))));
+          h('td', {}, severity(f.sev)), h('td', {}, f.type), h('td', { class: 'mono', style: 'font-size:var(--t-2xs);color:var(--text-2)' }, f.line))))))));
   }
 }
 
@@ -1583,7 +1583,7 @@ async function viewPhishing(root) {
   root.append(tkHero('Phishing email analyzer', 'Paste raw email (with headers) — live IOC extraction + 0–10 threat score, fully offline'));
   const ta = tkTextarea('tk-mail-in', 'Paste raw email content including headers (From:, Subject:, Reply-To:)…', 9);
   const hdr = h('div', { class: 'tk-hdr mono', id: 'tk-mail-hdr' });
-  const strip = h('div', { class: 'wrap', id: 'tk-mail-ioc', style: 'margin-top:8px' });
+  const strip = h('div', { class: 'wrap', id: 'tk-mail-ioc', style: 'margin-top:var(--s-2)' });
   const out = h('div', { id: 'tk-mail-out' });
   function live() {
     const r = tkEmail(ta.value);
@@ -1594,7 +1594,7 @@ async function viewPhishing(root) {
   }
   ta.addEventListener('input', live);
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, ta, hdr, strip,
-    h('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);margin-top:10px' },
       h('button', { class: 'btn primary', onclick: run }, 'Analyze email'),
       h('button', { class: 'btn', onclick: () => { ta.value = TK_MAIL_SAMPLE; live(); } }, 'Load sample'),
       h('button', { class: 'btn', onclick: () => { ta.value = ''; hdr.innerHTML = ''; strip.innerHTML = ''; out.innerHTML = ''; } }, 'Clear'))));
@@ -1606,13 +1606,13 @@ async function viewPhishing(root) {
     out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
       h('div', { class: 'row', style: 'gap:14px' },
         h('div', { class: 'tk-score ' + sc }, h('div', { class: 'n mono' }, r.score.toFixed(1)), h('div', { class: 'd' }, '/10')),
-        h('div', { style: 'flex:1' }, h('div', { class: 'row', style: 'gap:10px' }, severity(r.level), h('span', { class: 'faint', style: 'font-size:11px' }, 'confidence ' + r.confidence)),
+        h('div', { style: 'flex:1' }, h('div', { class: 'row', style: 'gap:10px' }, severity(r.level), h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'confidence ' + r.confidence)),
           tkMeter(r.score * 10, sc),
-          h('div', { class: 'prose', style: 'font-size:12.5px;margin-top:10px' }, r.recommendation))),
-      r.iocs.length ? h('div', { style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:8px' }, 'Indicators of compromise'),
-        h('div', { class: 'stack', style: 'gap:6px' }, r.iocs.map(i => h('div', { class: 'tk-iocrow' }, h('span', { class: 'tk-ioc ' + i.kind }, i.tag), h('span', { class: 'prose', style: 'font-size:12px' }, i.detail))))) : null,
+          h('div', { class: 'prose', style: 'font-size:var(--t-sm);margin-top:10px' }, r.recommendation))),
+      r.iocs.length ? h('div', { style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-2)' }, 'Indicators of compromise'),
+        h('div', { class: 'stack', style: 'gap:6px' }, r.iocs.map(i => h('div', { class: 'tk-iocrow' }, h('span', { class: 'tk-ioc ' + i.kind }, i.tag), h('span', { class: 'prose', style: 'font-size:var(--t-xs)' }, i.detail))))) : null,
       r.links.length ? h('div', { style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:6px' }, 'Embedded URLs (do not click)'),
-        h('div', { class: 'stack', style: 'gap:4px' }, r.links.map(u => h('div', { class: 'mono', style: 'font-size:11px;color:var(--warning);word-break:break-all' }, u)))) : null));
+        h('div', { class: 'stack', style: 'gap:4px' }, r.links.map(u => h('div', { class: 'mono', style: 'font-size:var(--t-2xs);color:var(--warning);word-break:break-all' }, u)))) : null));
   }
 }
 
@@ -1622,9 +1622,9 @@ async function viewCveLookup(root) {
   const inp = h('input', { id: 'tk-cve-in', class: 'tk-input mono', placeholder: 'CVE-2023-4911', spellcheck: 'false' });
   const out = h('div', { id: 'tk-cve-out' });
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
-    h('div', { class: 'row', style: 'gap:8px' }, inp,
+    h('div', { class: 'row', style: 'gap:var(--s-2)' }, inp,
       h('button', { class: 'btn primary', onclick: run }, 'Look up')),
-    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Air-gapped: resolves against VYREX\'s offline CVE/exploit store (no NVD call).')));
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Air-gapped: resolves against VYREX\'s offline CVE/exploit store (no NVD call).')));
   root.append(out);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
   async function run() {
@@ -1647,14 +1647,14 @@ async function viewCveLookup(root) {
     out.innerHTML = '';
     const sc = sevClass(ex.severity);
     out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
-      h('div', { class: 'row', style: 'gap:12px' }, h('h2', { class: 'mono', style: 'font-size:16px;font-weight:560' }, ex.id),
+      h('div', { class: 'row', style: 'gap:var(--s-3)' }, h('h2', { class: 'mono', style: 'font-size:16px;font-weight:560' }, ex.id),
         severity(ex.severity), ex.score != null ? chip('CVSS ' + (+ex.score).toFixed(1), sc === 'critical' || sc === 'high' ? 'exploit' : 'mono') : null,
         ex.cwe ? chip(ex.cwe, 'mono') : null, ex.exploited ? chip('exploit', 'exploit') : null),
-      data.description ? h('div', { class: 'prose', style: 'font-size:13px;margin-top:10px' }, data.description) : null));
+      data.description ? h('div', { class: 'prose', style: 'font-size:var(--t-sm);margin-top:10px' }, data.description) : null));
     const S = ex.sections;
-    const block = (t, body) => h('div', { class: 'panel pad', style: 'margin-top:12px' }, h('div', { class: 'sec-label', style: 'margin-bottom:6px' }, t), h('div', { class: 'prose', style: 'font-size:12.5px' }, body));
+    const block = (t, body) => h('div', { class: 'panel pad', style: 'margin-top:var(--s-3)' }, h('div', { class: 'sec-label', style: 'margin-bottom:6px' }, t), h('div', { class: 'prose', style: 'font-size:var(--t-sm)' }, body));
     out.append(h('div', { class: 'fade' }, block('What it is', S.what), block('How it works', S.how), block('Who is affected', S.who), block('How to fix it', S.fix),
-      h('div', { class: 'callout', style: 'margin-top:12px' }, h('strong', {}, 'Risk rating: '), S.risk)));
+      h('div', { class: 'callout', style: 'margin-top:var(--s-3)' }, h('strong', {}, 'Risk rating: '), S.risk)));
   }
 }
 
@@ -1665,7 +1665,7 @@ async function viewIrPlaybook(root) {
   const ta = tkTextarea('tk-ir-in', 'Paste an alert, log excerpt, or incident description…', 5);
   const out = h('div', { id: 'tk-ir-out' });
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, ta,
-    h('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);margin-top:10px' },
       h('button', { class: 'btn primary', onclick: run }, 'Generate playbook'),
       h('button', { class: 'btn', onclick: () => { ta.value = TK_IR_SAMPLE; } }, 'Load sample'),
       h('button', { class: 'btn', onclick: () => { ta.value = ''; out.innerHTML = ''; } }, 'Clear'))));
@@ -1673,14 +1673,14 @@ async function viewIrPlaybook(root) {
   function run() {
     const p = tkPlaybook(ta.value);
     out.innerHTML = '';
-    const phase = (title, items) => h('div', { class: 'panel pad', style: 'margin-top:12px' },
+    const phase = (title, items) => h('div', { class: 'panel pad', style: 'margin-top:var(--s-3)' },
       h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, title),
       h('div', { class: 'stack', style: 'gap:2px' }, items.map(s => {
         const row = h('label', { class: 'tk-ck' }, h('input', { type: 'checkbox', onchange: e => row.classList.toggle('done', e.target.checked) }), h('span', {}, s));
         return row;
       })));
-    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px;display:flex;align-items:center;gap:12px' },
-      severity(p.severity), h('div', { style: 'flex:1' }, h('div', { class: 'faint', style: 'font-size:10.5px;text-transform:uppercase;letter-spacing:.5px' }, 'Incident classification'),
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px;display:flex;align-items:center;gap:var(--s-3)' },
+      severity(p.severity), h('div', { style: 'flex:1' }, h('div', { class: 'faint', style: 'font-size:var(--t-2xs);text-transform:uppercase;letter-spacing:.5px' }, 'Incident classification'),
         h('div', { style: 'font-size:16px;font-weight:560' }, p.classification)),
       h('button', { class: 'btn sm', onclick: () => exportPlaybook(p) }, 'Export .txt')));
     out.append(h('div', { class: 'fade' },
@@ -1714,8 +1714,8 @@ async function viewPortScan(root) {
   const out = h('div', { id: 'tk-scan-out' });
   const btn = h('button', { class: 'btn primary', onclick: run }, 'Start scan');
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
-    h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, inp, mode, btn),
-    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Only scan systems you own or are authorised to test. Public IPs are refused by the server.')));
+    h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap' }, inp, mode, btn),
+    h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Only scan systems you own or are authorised to test. Public IPs are refused by the server.')));
   root.append(out);
   async function run() {
     btn.disabled = true; btn.textContent = 'Scanning…';
@@ -1726,17 +1726,17 @@ async function viewPortScan(root) {
     if (r.error) { out.append(h('div', { class: 'callout', style: 'margin-top:14px' }, r.error)); return; }
     const a = r.assessment || {};
     const posture = a.posture === 'MODERATE' ? 'MEDIUM' : (a.posture || 'LOW');
-    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px;display:flex;gap:12px;align-items:center' },
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px;display:flex;gap:var(--s-3);align-items:center' },
       severity(posture),
       h('div', { style: 'flex:1' }, h('div', { style: 'font-weight:520' }, a.summary || `${(r.open || []).length} open port(s).`),
-        h('div', { class: 'faint mono', style: 'font-size:11px;margin-top:3px' }, `${r.resolved_ip} · ${r.scanned} ports scanned · ${r.mode}`))));
+        h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs);margin-top:3px' }, `${r.resolved_ip} · ${r.scanned} ports scanned · ${r.mode}`))));
     if ((r.open || []).length) out.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
       h('div', { class: 'panel-h' }, h('h2', {}, 'Open ports'), h('span', { class: 'sub' }, '· ' + r.open.length)),
       h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
         h('thead', {}, h('tr', {}, ['Port', 'Service', 'Risk', 'Banner'].map(t => h('th', {}, t)))),
         h('tbody', {}, r.open.map(p => h('tr', {},
           h('td', { class: 'mono' }, String(p.port)), h('td', {}, p.service), h('td', {}, severity(p.risk)),
-          h('td', { class: 'mono', style: 'font-size:11px;color:var(--muted)' }, p.banner || '—'))))))));
+          h('td', { class: 'mono', style: 'font-size:var(--t-2xs);color:var(--muted)' }, p.banner || '—'))))))));
     if ((a.notes || []).length) out.append(h('div', { class: 'callout', style: 'margin-top:14px' }, h('strong', {}, 'Hardening: '),
       h('ul', { class: 'lims' }, a.notes.map(nn => h('li', {}, nn)))));
   }
