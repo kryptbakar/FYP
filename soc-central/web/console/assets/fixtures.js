@@ -353,5 +353,26 @@ const FIX = (() => {
     sightings: [
       { id: 1, indicator: '185.220.101.45', type: 'ip-dst', finding_id: 21, asset_id: 'web-prod-03', source: 'misp', seen_at: new Date(Date.now() - 12 * 60000).toISOString() },
     ],
+
+    // Analyst toolkit (ARIS-derived) — demo fallbacks for the two server-backed tools.
+    nodeVitals: {
+      os: { system: 'Linux', node: 'vyrex-api', release: '6.1.0', machine: 'x86_64', python: '3.11.9',
+        boot_time: '2026-06-17 09:00:00 UTC', uptime: '3h 12m', note: 'VYREX appliance node (demo data — /api unreachable)' },
+      cpu: { logical: 8, total_pct: 18.4, per_core: [12, 28, 9, 41, 16, 22, 7, 33], load1: 0.6, load5: 0.5, load15: 0.4 },
+      ram: { total: 16 * 2 ** 30, used: 6.1 * 2 ** 30, percent: 38.1, total_h: '16.0 GB', used_h: '6.1 GB', swap_percent: 3.0, swap_total_h: '2.0 GB' },
+      disk: { total: 256 * 2 ** 30, used: 70 * 2 ** 30, free: 186 * 2 ** 30, percent: 27.3, total_h: '256.0 GB', used_h: '70.0 GB', free_h: '186.0 GB' },
+      captured: new Date().toISOString(),
+    },
+    portScan: (target, mode) => ({
+      target: target || '127.0.0.1', resolved_ip: target || '127.0.0.1', mode: mode || 'quick', scanned: 22,
+      open: [
+        { port: 22, service: 'ssh', risk: 'MEDIUM', banner: 'SSH-2.0-OpenSSH_9.2' },
+        { port: 80, service: 'http', risk: 'MEDIUM', banner: 'HTTP/1.1 200 OK' },
+        { port: 443, service: 'https', risk: 'LOW', banner: '' },
+        { port: 5432, service: 'postgresql', risk: 'HIGH', banner: '' },
+      ],
+      assessment: { posture: 'HIGH', summary: '4 open port(s) (demo): 0 critical, 1 high. Posture HIGH. Reduce surface to required services.',
+        notes: ['Port 5432 (postgresql) is HIGH — ensure auth, patching and firewalling; should not be internet-facing.'] },
+    }),
   };
 })();

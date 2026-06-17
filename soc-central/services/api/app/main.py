@@ -34,6 +34,7 @@ from .routers import (
     response,
     risk,
     search,
+    toolkit,
     triage,
 )
 
@@ -89,6 +90,7 @@ app.include_router(analytics.router)
 app.include_router(detrules.router)
 app.include_router(alerts.router)
 app.include_router(auth.router)
+app.include_router(toolkit.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")

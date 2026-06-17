@@ -24,9 +24,17 @@ const ROUTES = {
   dashboards: { title: 'Dashboards', crumb: 'Grafana metrics & trends', icon: 'dash', key: '', sec: 'Operate', view: viewDashboards },
   model:      { title: 'Model', crumb: 'Risk model card & transparency', icon: 'model', key: '', sec: 'Operate', view: viewModel },
   settings:   { title: 'Settings', crumb: 'Identity, integrations & retention', icon: 'gear', key: '', sec: 'Operate', view: viewSettings },
+  vitals:     { title: 'Node Vitals', crumb: 'Appliance node telemetry (live /proc)', icon: 'activity', key: '', sec: 'Toolkit', view: viewVitals },
+  news:       { title: 'Threat News', crumb: 'Bundled offline intel feed', icon: 'globe', key: '', sec: 'Toolkit', view: viewNews },
+  loganalyzer:{ title: 'Log Analyzer', crumb: 'Heuristic log triage', icon: 'rules', key: '', sec: 'Toolkit', view: viewLogScan },
+  phishing:   { title: 'Phishing Analyzer', crumb: 'Email IOC extraction + threat score', icon: 'alert', key: '', sec: 'Toolkit', view: viewPhishing },
+  cvelookup:  { title: 'CVE Lookup', crumb: 'Resolve & explain a CVE (offline)', icon: 'score', key: '', sec: 'Toolkit', view: viewCveLookup },
+  irplaybook: { title: 'IR Playbook', crumb: 'NIST SP 800-61 generator', icon: 'report', key: '', sec: 'Toolkit', view: viewIrPlaybook },
+  portscan:   { title: 'Port Scanner', crumb: 'Internal TCP scan (range-guarded)', icon: 'target', key: '', sec: 'Toolkit', view: viewPortScan },
+  assistant:  { title: 'Assistant', crumb: 'Offline security knowledge Q&A', icon: 'fusion', key: '', sec: 'Toolkit', view: viewAssistant },
   search:     { title: 'Search', crumb: 'Global results', icon: 'hunt', key: '', sec: '_hidden', view: viewSearch },
 };
-const SECTIONS = ['Monitor', 'Investigate', 'Assure', 'Operate'];
+const SECTIONS = ['Monitor', 'Investigate', 'Assure', 'Operate', 'Toolkit'];
 let current = 'overview', selIdx = -1;
 
 function buildNav() {

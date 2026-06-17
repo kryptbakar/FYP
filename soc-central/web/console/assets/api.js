@@ -164,6 +164,10 @@ const API = {
   addAlertRule: (body) => API._post('/alert-rules', body, { id: Date.now(), ...body, enabled: true, simulated: true }),
   dispatchAlerts: () => API._post('/alerts/dispatch', {}, { notifications: 1, deliveries: 1, results: [{ channel: 'SOC webhook', status: 'delivered' }], simulated: true }),
 
+  // analyst toolkit (capabilities ported from A.R.I.S.) — only vitals + port-scan need the server
+  nodeVitals: () => API._get('/node/vitals', () => FIX.nodeVitals),
+  portScan: (target, mode) => API._post('/toolkit/port-scan', { target, mode }, FIX.portScan(target, mode)),
+
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
   requestAction: (incidentId, body) => API._post(`/incidents/${incidentId}/actions`, body, { id: Date.now(), status: 'proposed', simulated: true }),

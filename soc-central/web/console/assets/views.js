@@ -1420,3 +1420,310 @@ async function viewDashboards(root) {
     h('div', { class: 'panel-h' }, h('h2', {}, 'Embedded preview'), h('span', { class: 'sub' }, '· live Grafana — needs GF_SECURITY_ALLOW_EMBEDDING')),
     h('iframe', { class: 'gframe', src: base + '/d/soc-overview?theme=dark&kiosk', loading: 'lazy', referrerpolicy: 'no-referrer' })));
 }
+
+/* ===================================================================== *
+   ANALYST TOOLKIT  (capabilities ported from A.R.I.S., air-gap-adapted)
+   Engines live in toolkit.js (deterministic, offline). These are the views.
+ * ===================================================================== */
+
+function tkHero(title, sub) {
+  return h('div', { class: 'tk-hero' },
+    h('div', {}, h('div', { class: 'sec-label', style: 'letter-spacing:.6px;text-transform:uppercase;font-size:10.5px' }, 'Analyst toolkit'),
+      h('h2', { style: 'font-size:17px;font-weight:560;margin-top:3px' }, title),
+      h('div', { class: 'faint', style: 'font-size:12px;margin-top:2px' }, sub)),
+    chip('air-gapped · deterministic', 'consensus'));
+}
+function tkMeter(pct, sevCls) { // 0..100 horizontal meter
+  return h('div', { class: 'tk-meter' }, h('i', { class: 'fill ' + (sevCls || ''), style: `width:${Math.max(2, Math.min(100, pct))}%` }));
+}
+function tkTextarea(id, ph, rows) { return h('textarea', { id, class: 'tk-area', rows: String(rows || 9), placeholder: ph, spellcheck: 'false' }); }
+
+/* ---- Node Vitals ---------------------------------------------------- */
+async function viewVitals(root) {
+  let timer = null;
+  async function paint() {
+    const v = await API.nodeVitals();
+    root.innerHTML = '';
+    root.append(tkHero('Appliance node vitals', (v.os && v.os.note) || 'Local node telemetry — read from /proc, nothing egresses'));
+    const cpu = v.cpu || {}, ram = v.ram || {}, disk = v.disk || {}, os = v.os || {};
+    const tone = p => p == null ? '' : p >= 90 ? 'critical' : p >= 75 ? 'high' : p >= 50 ? 'warn' : 'ok';
+    root.append(h('div', { class: 'kpis fade' },
+      kpiCard('CPU load', (cpu.total_pct == null ? '—' : cpu.total_pct + '%'), `${cpu.logical || '—'} cores · load ${n1(cpu.load1)}`, tone(cpu.total_pct)),
+      kpiCard('Memory', (ram.percent == null ? '—' : ram.percent + '%'), `${ram.used_h || '—'} / ${ram.total_h || '—'}`, tone(ram.percent)),
+      kpiCard('Disk', (disk.percent == null ? '—' : disk.percent + '%'), `${disk.used_h || '—'} / ${disk.total_h || '—'}`, tone(disk.percent)),
+      kpiCard('Uptime', os.uptime || '—', 'since ' + (os.boot_time || '—'), 'ok')));
+
+    const cores = (cpu.per_core || []);
+    if (cores.length) root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+      h('div', { class: 'sec-label', style: 'margin-bottom:12px' }, 'Per-core utilisation'),
+      h('div', { class: 'tk-cores' }, cores.map((c, i) =>
+        h('div', { class: 'tk-core' }, h('div', { class: 'lb' }, 'c' + i),
+          h('div', { class: 'gbar' }, h('i', { class: c >= 85 ? 'critical' : c >= 60 ? 'high' : '', style: `height:${Math.max(3, c || 0)}%` })),
+          h('div', { class: 'vv mono' }, (c == null ? '—' : Math.round(c))))))));
+
+    root.append(h('div', { class: 'tk-grid2 fade', style: 'margin-top:14px' },
+      h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'Resource usage'),
+        h('div', { class: 'tk-usage' }, h('div', { class: 'k' }, 'Memory'), tkMeter(ram.percent || 0, tone(ram.percent)), h('div', { class: 'mono v' }, (ram.percent ?? '—') + '%')),
+        h('div', { class: 'tk-usage' }, h('div', { class: 'k' }, 'Disk'), tkMeter(disk.percent || 0, tone(disk.percent)), h('div', { class: 'mono v' }, (disk.percent ?? '—') + '%')),
+        h('div', { class: 'tk-usage' }, h('div', { class: 'k' }, 'Swap'), tkMeter(ram.swap_percent || 0, tone(ram.swap_percent)), h('div', { class: 'mono v' }, (ram.swap_percent ?? 0) + '%'))),
+      h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'System'),
+        h('div', { class: 'kv' },
+          h('div', { class: 'k' }, 'Host'), h('div', { class: 'mono' }, os.node || '—'),
+          h('div', { class: 'k' }, 'OS'), h('div', {}, `${os.system || '—'} ${os.release || ''}`),
+          h('div', { class: 'k' }, 'Arch'), h('div', { class: 'mono' }, os.machine || '—'),
+          h('div', { class: 'k' }, 'Python'), h('div', { class: 'mono' }, os.python || '—'),
+          h('div', { class: 'k' }, 'Captured'), h('div', { class: 'mono' }, ago(v.captured))))));
+  }
+  root.append(loading('Reading node telemetry…'));
+  await paint();
+  timer = setInterval(paint, 6000);
+  window._viewCleanup = () => clearInterval(timer);
+}
+
+/* ---- Threat News ---------------------------------------------------- */
+async function viewNews(root) {
+  const data = tkNews();
+  const sc = sevClass(data.threat_level);
+  root.append(tkHero('Threat news', 'Bundled offline intel feed · threat level derived from item severity'));
+  root.append(h('div', { class: 'panel pad fade tk-threatbar ' + sc, style: 'margin-top:14px;display:flex;align-items:center;gap:14px' },
+    h('div', { class: 'tk-pulse ' + sc }),
+    h('div', {}, h('div', { class: 'faint', style: 'font-size:10.5px;text-transform:uppercase;letter-spacing:.6px' }, 'Current threat level'),
+      h('div', { style: 'font-size:20px;font-weight:560' }, severity(data.threat_level))),
+    h('span', { class: 'spring', style: 'flex:1' }),
+    h('div', { class: 'faint', style: 'font-size:11px;max-width:360px;text-align:right' }, data.note)));
+  root.append(h('div', { class: 'stack fade', style: 'margin-top:14px' }, data.items.map(it =>
+    h('div', { class: 'panel pad tk-news' },
+      h('div', { class: 'row', style: 'gap:10px;align-items:flex-start' }, severity(it.severity),
+        h('div', { style: 'flex:1' }, h('div', { style: 'font-weight:520;font-size:14px' }, it.title),
+          h('div', { class: 'prose', style: 'font-size:12.5px;margin-top:4px' }, it.summary),
+          h('div', { class: 'wrap', style: 'margin-top:8px' }, (it.tags || []).map(t => chip(t, 'mono')))),
+        h('div', { class: 'faint', style: 'font-size:11px;text-align:right;white-space:nowrap' }, h('div', {}, it.source), h('div', { class: 'mono', style: 'margin-top:3px' }, it.published)))))));
+}
+
+/* ---- Log Analyzer --------------------------------------------------- */
+const TK_LOG_SAMPLE = `Jan 12 10:22:01 web01 sshd[2211]: Failed password for invalid user admin from 203.0.113.7 port 51244 ssh2
+Jan 12 10:22:03 web01 sshd[2213]: Failed password for invalid user root from 203.0.113.7 port 51250 ssh2
+Jan 12 10:24:18 web01 kernel: nf_conntrack: too many connections from 203.0.113.7
+Jan 12 10:31:55 web01 nginx: 198.51.100.4 "GET /index.php?id=1' UNION SELECT password FROM users--"
+Jan 12 10:40:12 web01 sudo: deploy : TTY=pts/0 ; COMMAND=/usr/bin/apt-get install nmap
+Jan 12 10:41:09 web01 useradd[3120]: new user: name=svc_backup, uid=0`;
+async function viewLogScan(root) {
+  root.append(tkHero('AI log analyzer', 'Paste raw log lines — heuristic detection flags suspicious activity, no data leaves the appliance'));
+  const out = h('div', { id: 'tk-log-out' });
+  const ta = tkTextarea('tk-log-in', 'Paste syslog / auth.log / web-access lines here…', 9);
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, ta,
+    h('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+      h('button', { class: 'btn primary', onclick: run }, 'Analyze logs'),
+      h('button', { class: 'btn', onclick: () => { ta.value = TK_LOG_SAMPLE; } }, 'Load sample'),
+      h('button', { class: 'btn', onclick: () => { ta.value = ''; out.innerHTML = ''; } }, 'Clear'))));
+  root.append(out);
+  function run() {
+    const r = tkLog(ta.value);
+    const sc = sevClass(r.severity);
+    out.innerHTML = '';
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+      h('div', { class: 'row', style: 'gap:12px' }, severity(r.severity),
+        h('div', { style: 'flex:1' }, h('div', { style: 'font-weight:520' }, r.summary),
+          h('div', { class: 'faint', style: 'font-size:11px;margin-top:3px' }, `${r.findings.length} matched · ${r.lines} lines`)),
+        h('div', { style: 'width:160px' }, tkMeter(r.score, sc), h('div', { class: 'faint mono', style: 'font-size:10px;text-align:right;margin-top:3px' }, 'risk ' + r.score))),
+      r.recommendations.length ? h('div', { class: 'callout', style: 'margin-top:12px' }, h('strong', {}, 'Recommended: '),
+        h('ul', { class: 'lims' }, r.recommendations.map(t => h('li', {}, t)))) : null));
+    if (r.findings.length) out.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+      h('div', { class: 'panel-h' }, h('h2', {}, 'Detected events')),
+      h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+        h('thead', {}, h('tr', {}, ['Severity', 'Type', 'Log line'].map(t => h('th', {}, t)))),
+        h('tbody', {}, r.findings.map(f => h('tr', { title: f.tip },
+          h('td', {}, severity(f.sev)), h('td', {}, f.type), h('td', { class: 'mono', style: 'font-size:11px;color:var(--text-2)' }, f.line))))))));
+  }
+}
+
+/* ---- Phishing Email Analyzer ---------------------------------------- */
+const TK_MAIL_SAMPLE = `From: Security Team <no-reply@paypa1-secure.com>
+Reply-To: collect@mail.ru
+Subject: Urgent: your account will be suspended within 24 hours
+
+Dear customer,
+
+We detected unusual activity. You must verify your login and password
+immediately or your account will be suspended. Click here:
+http://bit.ly/secure-verify-now
+
+Attachment: invoice.zip`;
+async function viewPhishing(root) {
+  root.append(tkHero('Phishing email analyzer', 'Paste raw email (with headers) — live IOC extraction + 0–10 threat score, fully offline'));
+  const ta = tkTextarea('tk-mail-in', 'Paste raw email content including headers (From:, Subject:, Reply-To:)…', 9);
+  const hdr = h('div', { class: 'tk-hdr mono', id: 'tk-mail-hdr' });
+  const strip = h('div', { class: 'wrap', id: 'tk-mail-ioc', style: 'margin-top:8px' });
+  const out = h('div', { id: 'tk-mail-out' });
+  function live() {
+    const r = tkEmail(ta.value);
+    hdr.innerHTML = '';
+    hdr.append(h('span', { class: 'faint' }, 'FROM '), h('span', {}, r.from || '—'), h('span', { class: 'faint', style: 'margin-left:14px' }, 'SUBJ '), h('span', {}, r.subject || '—'));
+    strip.innerHTML = '';
+    r.iocs.forEach(i => strip.append(h('span', { class: 'tk-ioc ' + i.kind, title: i.detail }, i.tag)));
+  }
+  ta.addEventListener('input', live);
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, ta, hdr, strip,
+    h('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+      h('button', { class: 'btn primary', onclick: run }, 'Analyze email'),
+      h('button', { class: 'btn', onclick: () => { ta.value = TK_MAIL_SAMPLE; live(); } }, 'Load sample'),
+      h('button', { class: 'btn', onclick: () => { ta.value = ''; hdr.innerHTML = ''; strip.innerHTML = ''; out.innerHTML = ''; } }, 'Clear'))));
+  root.append(out);
+  function run() {
+    const r = tkEmail(ta.value);
+    const sc = sevClass(r.level);
+    out.innerHTML = '';
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+      h('div', { class: 'row', style: 'gap:14px' },
+        h('div', { class: 'tk-score ' + sc }, h('div', { class: 'n mono' }, r.score.toFixed(1)), h('div', { class: 'd' }, '/10')),
+        h('div', { style: 'flex:1' }, h('div', { class: 'row', style: 'gap:10px' }, severity(r.level), h('span', { class: 'faint', style: 'font-size:11px' }, 'confidence ' + r.confidence)),
+          tkMeter(r.score * 10, sc),
+          h('div', { class: 'prose', style: 'font-size:12.5px;margin-top:10px' }, r.recommendation))),
+      r.iocs.length ? h('div', { style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:8px' }, 'Indicators of compromise'),
+        h('div', { class: 'stack', style: 'gap:6px' }, r.iocs.map(i => h('div', { class: 'tk-iocrow' }, h('span', { class: 'tk-ioc ' + i.kind }, i.tag), h('span', { class: 'prose', style: 'font-size:12px' }, i.detail))))) : null,
+      r.links.length ? h('div', { style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:6px' }, 'Embedded URLs (do not click)'),
+        h('div', { class: 'stack', style: 'gap:4px' }, r.links.map(u => h('div', { class: 'mono', style: 'font-size:11px;color:var(--warning);word-break:break-all' }, u)))) : null));
+  }
+}
+
+/* ---- CVE Lookup ----------------------------------------------------- */
+async function viewCveLookup(root) {
+  root.append(tkHero('CVE lookup', 'Resolve a CVE against the bundled intelligence store + a deterministic plain-English brief'));
+  const inp = h('input', { id: 'tk-cve-in', class: 'tk-input mono', placeholder: 'CVE-2023-4911', spellcheck: 'false' });
+  const out = h('div', { id: 'tk-cve-out' });
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'row', style: 'gap:8px' }, inp,
+      h('button', { class: 'btn primary', onclick: run }, 'Look up')),
+    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Air-gapped: resolves against VYREX\'s offline CVE/exploit store (no NVD call).')));
+  root.append(out);
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  async function run() {
+    const id = (inp.value || '').trim().toUpperCase();
+    if (!/^CVE-\d{4}-\d+/.test(id)) { out.innerHTML = ''; out.append(h('div', { class: 'callout', style: 'margin-top:14px' }, 'Enter a valid CVE id, e.g. CVE-2023-4911.')); return; }
+    out.innerHTML = ''; out.append(loading('Resolving ' + id + '…'));
+    const d = (await API.entityCve(id).catch(() => ({}))) || {};
+    const m = d.meta || d;   // live response nests CVE fields under .meta; demo is flat
+    const data = {
+      cve_id: id,
+      description: m.description || d.description,
+      cvss_score: m.cvss_score != null ? m.cvss_score : (d.cvss_score != null ? d.cvss_score : d.cvss),
+      severity: m.cvss_severity || m.severity || d.severity,
+      cwe: m.cwe || d.cwe,
+      kev: !!d.kev,
+      exploit_available: (d.exploits || []).length > 0 || d.exploit_available,
+      exploit_refs: d.exploits || d.exploit_refs,
+    };
+    const ex = tkCveExplain(data);
+    out.innerHTML = '';
+    const sc = sevClass(ex.severity);
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+      h('div', { class: 'row', style: 'gap:12px' }, h('h2', { class: 'mono', style: 'font-size:16px;font-weight:560' }, ex.id),
+        severity(ex.severity), ex.score != null ? chip('CVSS ' + (+ex.score).toFixed(1), sc === 'critical' || sc === 'high' ? 'exploit' : 'mono') : null,
+        ex.cwe ? chip(ex.cwe, 'mono') : null, ex.exploited ? chip('exploit', 'exploit') : null),
+      data.description ? h('div', { class: 'prose', style: 'font-size:13px;margin-top:10px' }, data.description) : null));
+    const S = ex.sections;
+    const block = (t, body) => h('div', { class: 'panel pad', style: 'margin-top:12px' }, h('div', { class: 'sec-label', style: 'margin-bottom:6px' }, t), h('div', { class: 'prose', style: 'font-size:12.5px' }, body));
+    out.append(h('div', { class: 'fade' }, block('What it is', S.what), block('How it works', S.how), block('Who is affected', S.who), block('How to fix it', S.fix),
+      h('div', { class: 'callout', style: 'margin-top:12px' }, h('strong', {}, 'Risk rating: '), S.risk)));
+  }
+}
+
+/* ---- IR Playbook ---------------------------------------------------- */
+const TK_IR_SAMPLE = 'Multiple failed SSH logins from 203.0.113.7 followed by a successful root login and creation of a new uid-0 account on web01.';
+async function viewIrPlaybook(root) {
+  root.append(tkHero('IR playbook generator', 'Paste an alert — get a NIST SP 800-61 phased, incident-type-specific checklist'));
+  const ta = tkTextarea('tk-ir-in', 'Paste an alert, log excerpt, or incident description…', 5);
+  const out = h('div', { id: 'tk-ir-out' });
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, ta,
+    h('div', { class: 'row', style: 'gap:8px;margin-top:10px' },
+      h('button', { class: 'btn primary', onclick: run }, 'Generate playbook'),
+      h('button', { class: 'btn', onclick: () => { ta.value = TK_IR_SAMPLE; } }, 'Load sample'),
+      h('button', { class: 'btn', onclick: () => { ta.value = ''; out.innerHTML = ''; } }, 'Clear'))));
+  root.append(out);
+  function run() {
+    const p = tkPlaybook(ta.value);
+    out.innerHTML = '';
+    const phase = (title, items) => h('div', { class: 'panel pad', style: 'margin-top:12px' },
+      h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, title),
+      h('div', { class: 'stack', style: 'gap:2px' }, items.map(s => {
+        const row = h('label', { class: 'tk-ck' }, h('input', { type: 'checkbox', onchange: e => row.classList.toggle('done', e.target.checked) }), h('span', {}, s));
+        return row;
+      })));
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px;display:flex;align-items:center;gap:12px' },
+      severity(p.severity), h('div', { style: 'flex:1' }, h('div', { class: 'faint', style: 'font-size:10.5px;text-transform:uppercase;letter-spacing:.5px' }, 'Incident classification'),
+        h('div', { style: 'font-size:16px;font-weight:560' }, p.classification)),
+      h('button', { class: 'btn sm', onclick: () => exportPlaybook(p) }, 'Export .txt')));
+    out.append(h('div', { class: 'fade' },
+      phase('Immediate actions — first 15 minutes', p.immediate),
+      phase('Short-term containment — first hour', p.containment),
+      phase('Investigation checklist', p.investigation),
+      phase('Escalation', p.escalation),
+      phase('Lessons learned', p.lessons)));
+  }
+  function exportPlaybook(p) {
+    const lines = [`VYREX — Incident Response Playbook`, `Classification: ${p.classification}`, `Severity: ${p.severity}`, ''];
+    const sec = (t, a) => { lines.push(t.toUpperCase()); a.forEach(s => lines.push('  [ ] ' + s)); lines.push(''); };
+    sec('Immediate actions (first 15 min)', p.immediate); sec('Short-term containment (first hour)', p.containment);
+    sec('Investigation checklist', p.investigation); sec('Escalation', p.escalation); sec('Lessons learned', p.lessons);
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const a = h('a', { href: URL.createObjectURL(blob), download: `ir-playbook-${p.classification.replace(/\W+/g, '-').toLowerCase()}.txt` });
+    document.body.append(a); a.click(); a.remove();
+    if (typeof toast === 'function') toast('Playbook exported', true);
+  }
+}
+
+/* ---- Port Scanner --------------------------------------------------- */
+async function viewPortScan(root) {
+  root.append(tkHero('Port scanner', 'Multithreaded TCP scan — restricted to localhost & private ranges (10/8, 172.16/12, 192.168/16)'));
+  const inp = h('input', { id: 'tk-scan-target', class: 'tk-input mono', value: '127.0.0.1', spellcheck: 'false' });
+  const mode = h('select', { id: 'tk-scan-mode', class: 'tk-input', style: 'max-width:200px' },
+    h('option', { value: 'quick' }, 'Quick — 22 key ports'),
+    h('option', { value: 'attack' }, 'Attack surface — 21 ports'),
+    h('option', { value: 'top100' }, 'Top 100'),
+    h('option', { value: 'full' }, 'Full — 1–1024'));
+  const out = h('div', { id: 'tk-scan-out' });
+  const btn = h('button', { class: 'btn primary', onclick: run }, 'Start scan');
+  root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'row', style: 'gap:8px;flex-wrap:wrap' }, inp, mode, btn),
+    h('div', { class: 'faint', style: 'font-size:11px;margin-top:8px' }, 'Only scan systems you own or are authorised to test. Public IPs are refused by the server.')));
+  root.append(out);
+  async function run() {
+    btn.disabled = true; btn.textContent = 'Scanning…';
+    out.innerHTML = ''; out.append(loading('Scanning ' + inp.value + '…'));
+    const r = await API.portScan(inp.value.trim(), mode.value).catch(() => ({ error: 'scan failed' }));
+    btn.disabled = false; btn.textContent = 'Start scan';
+    out.innerHTML = '';
+    if (r.error) { out.append(h('div', { class: 'callout', style: 'margin-top:14px' }, r.error)); return; }
+    const a = r.assessment || {};
+    const posture = a.posture === 'MODERATE' ? 'MEDIUM' : (a.posture || 'LOW');
+    out.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px;display:flex;gap:12px;align-items:center' },
+      severity(posture),
+      h('div', { style: 'flex:1' }, h('div', { style: 'font-weight:520' }, a.summary || `${(r.open || []).length} open port(s).`),
+        h('div', { class: 'faint mono', style: 'font-size:11px;margin-top:3px' }, `${r.resolved_ip} · ${r.scanned} ports scanned · ${r.mode}`))));
+    if ((r.open || []).length) out.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+      h('div', { class: 'panel-h' }, h('h2', {}, 'Open ports'), h('span', { class: 'sub' }, '· ' + r.open.length)),
+      h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+        h('thead', {}, h('tr', {}, ['Port', 'Service', 'Risk', 'Banner'].map(t => h('th', {}, t)))),
+        h('tbody', {}, r.open.map(p => h('tr', {},
+          h('td', { class: 'mono' }, String(p.port)), h('td', {}, p.service), h('td', {}, severity(p.risk)),
+          h('td', { class: 'mono', style: 'font-size:11px;color:var(--muted)' }, p.banner || '—'))))))));
+    if ((a.notes || []).length) out.append(h('div', { class: 'callout', style: 'margin-top:14px' }, h('strong', {}, 'Hardening: '),
+      h('ul', { class: 'lims' }, a.notes.map(nn => h('li', {}, nn)))));
+  }
+}
+
+/* ---- Security Assistant --------------------------------------------- */
+async function viewAssistant(root) {
+  root.append(tkHero('Security assistant', 'Offline knowledge base — deterministic answers on core SOC concepts (no LLM, no egress)'));
+  const log = h('div', { class: 'tk-chat', id: 'tk-chat' });
+  const inp = h('input', { id: 'tk-chat-in', class: 'tk-input', placeholder: 'Ask about CVSS, KEV, ATT&CK, phishing, ransomware, IR…', autocomplete: 'off' });
+  function bubble(who, text) { log.append(h('div', { class: 'tk-msg ' + who }, h('div', { class: 'b' }, text))); log.scrollTop = log.scrollHeight; }
+  function send(q) { q = (q || inp.value).trim(); if (!q) return; bubble('me', q); inp.value = ''; const r = tkAssistant(q); setTimeout(() => bubble('ai', r.answer), 120); }
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' }, log,
+    h('div', { class: 'tk-chatbar' }, inp, h('button', { class: 'btn primary', onclick: () => send() }, 'Ask'))));
+  bubble('ai', 'I\'m the VYREX security assistant — fully offline. Ask me about CVSS, KEV, EPSS, ATT&CK, phishing, ransomware, incident response, or port exposure.');
+  root.append(h('div', { class: 'wrap fade', style: 'margin-top:10px' },
+    ['What is CVSS?', 'KEV vs EPSS?', 'How do I handle ransomware?', 'Explain MITRE ATT&CK'].map(s =>
+      h('button', { class: 'chip tool', onclick: () => send(s) }, s))));
+}
