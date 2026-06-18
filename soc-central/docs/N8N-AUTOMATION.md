@@ -85,6 +85,23 @@ All open on the internal network (the console reaches them the same way via the 
 | POST | `/reports` `{type}` | generate posture / compliance / executive report |
 | POST | `/incidents/{id}/actions` | propose containment (still two-person-approved in VYREX) |
 
+## Email fan-out (self-hosted, air-gap-safe)
+
+The **Alert intake** workflow (`04-alert-intake.json`) emails every routed alert to the SOC team via
+a **self-hosted [Mailpit](https://mailpit.axllent.org/)** SMTP sink that comes up with `n8n-up`:
+
+- **Mailpit UI:** http://localhost:8025 — every message n8n sends lands here (nothing leaves the box).
+- The email node *continues on error*, so the loop still works before the credential exists.
+
+**One-time setup** (n8n can't auto-create credentials — they're encrypted in its store): in n8n →
+**Credentials → New → SMTP**, name it exactly **`Mailpit SMTP`**, host **`mailpit`**, port **`1025`**,
+SSL/TLS **off**, no user/pass. Save. From then on, every alert routed to n8n is emailed and visible in
+Mailpit. (Swap Mailpit for a real internal mail relay or a Mattermost incoming-webhook node to fan out
+to chat — same pattern, still on-prem.)
+
+> Verified the sink works end-to-end (`smtplib → mailpit:1025` → message visible via Mailpit's API);
+> the n8n email node uses it once the `Mailpit SMTP` credential above is created.
+
 ## Safety & air-gap notes
 
 - **Containment stays human-gated.** n8n can *propose* a containment action, but VYREX still

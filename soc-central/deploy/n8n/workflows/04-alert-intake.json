@@ -35,7 +35,7 @@
       "name": "Critical?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [ -20, 300 ]
+      "position": [ -20, 240 ]
     },
     {
       "parameters": {
@@ -50,7 +50,7 @@
       "name": "Escalate (correlate)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [ 220, 200 ]
+      "position": [ 220, 160 ]
     },
     {
       "parameters": {
@@ -62,16 +62,33 @@
       "name": "Ack",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [ 460, 300 ]
+      "position": [ 460, 240 ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "vyrex@soc.local",
+        "toEmail": "soc-team@soc.local",
+        "subject": "=VYREX alert — {{ $json.body.subject || 'notification' }}",
+        "emailFormat": "text",
+        "text": "=A VYREX alert was routed to n8n.\n\nSeverity: {{ $json.body.severity }}\nSubject:  {{ $json.body.subject }}\nBody:     {{ $json.body.body }}\n\n(Air-gapped demo: this email lands in Mailpit at http://localhost:8025)",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0005-4d01-8d01-000000000005",
+      "name": "Email the SOC team",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [ -20, 440 ],
+      "credentials": { "smtp": { "id": "vyrexMailpitSmtp", "name": "Mailpit SMTP" } },
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
-    "Alert webhook (/webhook/vyrex-alert)": { "main": [ [ { "node": "Critical?", "type": "main", "index": 0 } ] ] },
+    "Alert webhook (/webhook/vyrex-alert)": { "main": [ [ { "node": "Critical?", "type": "main", "index": 0 }, { "node": "Email the SOC team", "type": "main", "index": 0 } ] ] },
     "Critical?": { "main": [ [ { "node": "Escalate (correlate)", "type": "main", "index": 0 } ], [ { "node": "Ack", "type": "main", "index": 0 } ] ] },
     "Escalate (correlate)": { "main": [ [ { "node": "Ack", "type": "main", "index": 0 } ] ] }
   },
   "active": false,
   "settings": { "executionOrder": "v1" },
   "pinData": {},
-  "meta": { "description": "Receives VYREX alert-channel deliveries at /webhook/vyrex-alert. Critical alerts trigger a correlate; everything is acknowledged. This is where you'd fan out to Slack/email/ticketing in your own deployment." }
+  "meta": { "description": "Receives VYREX alert-channel deliveries at /webhook/vyrex-alert. Critical alerts trigger a correlate; every alert is emailed to the SOC team (self-hosted Mailpit, air-gap-safe) and acknowledged. The email node 'continues on error', so the loop still works before you create the one-time 'Mailpit SMTP' credential (host mailpit, port 1025, no auth/SSL)." }
 }

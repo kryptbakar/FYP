@@ -41,11 +41,11 @@ switch ($Target) {
   'risk-score' { Invoke-Expression "$Compose --profile ml run --rm risk-engine score" }
   'clone-tools'  { bash scripts/clone-references-tools.sh }
   'n8n-up'   {
-    Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n"
-    Write-Host "n8n is starting at http://localhost:5678 — open it, create the owner account, then"
-    Write-Host "import the workflows from deploy/n8n/workflows/ (or /workflows inside the container)."
+    Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n mailpit"
+    Write-Host "n8n     -> http://localhost:5678 (create the owner account, import deploy/n8n/workflows/)"
+    Write-Host "Mailpit -> http://localhost:8025 (self-hosted email sink for the alert fan-out)"
   }
-  'n8n-down' { Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.n8n.yml stop n8n" }
+  'n8n-down' { Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.n8n.yml stop n8n mailpit" }
   'wazuh-pull'   {
     $ct = "$Compose -f docker-compose.yml -f docker-compose.tools.yml"
     Invoke-Expression "$ct build wazuh-bridge"

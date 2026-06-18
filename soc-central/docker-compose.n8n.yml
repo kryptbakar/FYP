@@ -40,5 +40,19 @@ services:
     networks:
       - default
 
+  # Self-hosted email sink (air-gap-safe) so n8n alert fan-out has somewhere to land. Mailpit
+  # catches SMTP on :1025 (internal) and shows every message in a web UI on :8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: soc-central-mailpit
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    networks:
+      - default
+
 volumes:
   n8ndata:
