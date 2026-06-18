@@ -7,8 +7,14 @@ overlay) — nothing egresses.
 | File | Trigger | What it automates |
 |---|---|---|
 | `01-auto-triage-loop.json` | schedule, every 15 min | Pull the ranked queue → correlate high-risk findings into incidents → route alerts. The unattended tier-1 loop. |
-| `02-critical-responder.json` | webhook `POST /webhook/vyrex` (fired *by* VYREX) | On a High/Critical hand-off from a VYREX playbook, call back into VYREX to correlate + dispatch, then answer. Closes the detection→response loop. |
+| `02-critical-responder.json` | webhook `POST /webhook/vyrex` (fired *by* a VYREX playbook) | On a High/Critical hand-off, call back into VYREX to correlate + dispatch, then answer. Closes the detection→response loop. |
 | `03-daily-posture-report.json` | schedule, daily 08:00 | Generate a posture report and notify channels. Unattended executive reporting. |
+| `04-alert-intake.json` | webhook `POST /webhook/vyrex-alert` (fired by the **n8n alert channel**) | Receives every dispatched VYREX alert; critical ones trigger a correlate. This is where you fan out to Slack/email/ticketing in your own deployment. |
+| `05-sla-escalation.json` | schedule, hourly | Pull incidents → count SLA breaches → if any, escalate alerts + generate an executive report. The manager-tier automation. |
+| `06-ioc-responder.json` | schedule, every 20 min | Scan the ranked queue for high-risk findings backed by a live MISP IOC → correlate + dispatch. The threat-intel-driven responder. |
+
+> Workflows 04–06 plus the `n8n automation` alert channel (seeded in the DB) mean **both** VYREX
+> playbooks *and* the alerting pipeline feed n8n.
 
 ## Import
 

@@ -1,0 +1,77 @@
+{
+  "id": "vyrexAlertIntake",
+  "name": "VYREX — Alert intake (channel → n8n)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-alert",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0001-4d01-8d01-000000000001",
+      "name": "Alert webhook (/webhook/vyrex-alert)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [ -260, 300 ],
+      "webhookId": "vyrex-alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "version": 2 },
+          "combinator": "or",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.severity }}",
+              "rightValue": "critical",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d4e5f6a7-0002-4d01-8d01-000000000002",
+      "name": "Critical?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [ -20, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"min_score\": 60, \"window_hours\": 24 }",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0003-4d01-8d01-000000000003",
+      "name": "Escalate (correlate)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 220, 200 ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"received\", \"by\": \"vyrex-n8n\" }",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0004-4d01-8d01-000000000004",
+      "name": "Ack",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [ 460, 300 ]
+    }
+  ],
+  "connections": {
+    "Alert webhook (/webhook/vyrex-alert)": { "main": [ [ { "node": "Critical?", "type": "main", "index": 0 } ] ] },
+    "Critical?": { "main": [ [ { "node": "Escalate (correlate)", "type": "main", "index": 0 } ], [ { "node": "Ack", "type": "main", "index": 0 } ] ] },
+    "Escalate (correlate)": { "main": [ [ { "node": "Ack", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Receives VYREX alert-channel deliveries at /webhook/vyrex-alert. Critical alerts trigger a correlate; everything is acknowledged. This is where you'd fan out to Slack/email/ticketing in your own deployment." }
+}

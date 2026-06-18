@@ -1,0 +1,99 @@
+{
+  "id": "vyrexIocRespond1",
+  "name": "VYREX — Live-IOC responder",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 20 } ] }
+      },
+      "id": "f6a7b8c9-0001-4f01-8f01-000000000001",
+      "name": "Every 20 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [ -280, 300 ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=50",
+        "options": {}
+      },
+      "id": "f6a7b8c9-0002-4f01-8f01-000000000002",
+      "name": "Pull ranking",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ -60, 300 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const hot = $input.all().filter(i => i.json && i.json.threat_intel && Number(i.json.risk_score) >= 60);\nreturn [{ json: { count: hot.length, indicators: hot.map(h => ({ id: h.json.id, cve: h.json.cve_id, ioc: (h.json.threat_intel || {}).indicator, score: h.json.risk_score })) } }];"
+      },
+      "id": "f6a7b8c9-0003-4f01-8f01-000000000003",
+      "name": "Filter live IOCs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ 160, 300 ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2 },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f6a7b8c9-0004-4f01-8f01-000000000004",
+      "name": "Any live IOC?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [ 380, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"min_score\": 60, \"window_hours\": 24 }",
+        "options": {}
+      },
+      "id": "f6a7b8c9-0005-4f01-8f01-000000000005",
+      "name": "Correlate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 600, 200 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "f6a7b8c9-0006-4f01-8f01-000000000006",
+      "name": "Dispatch alerts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 820, 200 ]
+    }
+  ],
+  "connections": {
+    "Every 20 minutes": { "main": [ [ { "node": "Pull ranking", "type": "main", "index": 0 } ] ] },
+    "Pull ranking": { "main": [ [ { "node": "Filter live IOCs", "type": "main", "index": 0 } ] ] },
+    "Filter live IOCs": { "main": [ [ { "node": "Any live IOC?", "type": "main", "index": 0 } ] ] },
+    "Any live IOC?": { "main": [ [ { "node": "Correlate", "type": "main", "index": 0 } ], [] ] },
+    "Correlate": { "main": [ [ { "node": "Dispatch alerts", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Every 20 min: scan the ranked queue for high-risk findings backed by a live MISP IOC, and if any are present, correlate them into incidents and route alerts. The threat-intel-driven responder." }
+}

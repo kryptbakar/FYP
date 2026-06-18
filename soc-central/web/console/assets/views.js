@@ -1043,11 +1043,12 @@ async function viewPlaybooks(root) {
       h('div', { style: 'flex:1;min-width:0' },
         h('div', { style: 'font-weight:560;font-size:var(--t-md)' }, 'Automation engine — n8n'),
         h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:2px;line-height:var(--lh-base)' },
-          'Self-hosted & air-gapped. VYREX hands a finding to n8n (the “Hand off to n8n automation” playbook), and n8n calls back into the API to correlate, alert & report — the unattended analyst loop. Containment still needs two-person approval.')),
+          'Self-hosted & air-gapped. VYREX hands findings to n8n (the “Hand off to n8n automation” playbook) and routes alerts to it via a webhook channel; n8n calls back into the API to correlate, alert & report — the unattended analyst loop. Containment still needs two-person approval.')),
       h('a', { class: 'btn sm', href: location.protocol + '//' + location.hostname + ':5678', target: '_blank', rel: 'noopener',
         html: ic('globe') + '<span style="margin-left:6px">Open n8n</span>' })),
     h('div', { class: 'wrap', style: 'margin-top:var(--s-3)' },
-      chip('auto-triage · 15m', 'mono'), chip('critical responder · webhook', 'mono'), chip('daily posture report · 08:00', 'mono')),
+      chip('auto-triage · 15m', 'mono'), chip('critical responder · webhook', 'mono'), chip('alert intake · webhook', 'mono'),
+      chip('SLA escalation · hourly', 'mono'), chip('IOC responder · 20m', 'mono'), chip('daily report · 08:00', 'mono')),
     h('div', { class: 'faint', style: 'font-size:var(--t-3xs);margin-top:var(--s-2);font-family:var(--mono)' },
       'pwsh scripts/dev.ps1 n8n-up · import deploy/n8n/workflows/ · docs/N8N-AUTOMATION.md')));
 

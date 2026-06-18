@@ -1,0 +1,99 @@
+{
+  "id": "vyrexSlaEscal01",
+  "name": "VYREX — SLA-breach escalation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "hours", "hoursInterval": 1 } ] }
+      },
+      "id": "e5f6a7b8-0001-4e01-8e01-000000000001",
+      "name": "Hourly",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [ -280, 300 ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/incidents?limit=200",
+        "options": {}
+      },
+      "id": "e5f6a7b8-0002-4e01-8e01-000000000002",
+      "name": "Get incidents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ -60, 300 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const breached = $input.all().filter(i => i.json && i.json.sla_breached === true);\nreturn [{ json: { breached: breached.length, incidents: breached.map(b => ({ id: b.json.id, title: b.json.title, severity: b.json.severity })) } }];"
+      },
+      "id": "e5f6a7b8-0003-4e01-8e01-000000000003",
+      "name": "Count breached",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ 160, 300 ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "version": 2 },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.breached }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5f6a7b8-0004-4e01-8e01-000000000004",
+      "name": "Any breached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [ 380, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "e5f6a7b8-0005-4e01-8e01-000000000005",
+      "name": "Escalate alerts",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 600, 200 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"type\": \"executive\" }",
+        "options": {}
+      },
+      "id": "e5f6a7b8-0006-4e01-8e01-000000000006",
+      "name": "Executive report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 820, 200 ]
+    }
+  ],
+  "connections": {
+    "Hourly": { "main": [ [ { "node": "Get incidents", "type": "main", "index": 0 } ] ] },
+    "Get incidents": { "main": [ [ { "node": "Count breached", "type": "main", "index": 0 } ] ] },
+    "Count breached": { "main": [ [ { "node": "Any breached?", "type": "main", "index": 0 } ] ] },
+    "Any breached?": { "main": [ [ { "node": "Escalate alerts", "type": "main", "index": 0 } ], [] ] },
+    "Escalate alerts": { "main": [ [ { "node": "Executive report", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Hourly: pull incidents, count SLA breaches; if any, escalate alerts and generate an executive report. The manager-tier automation." }
+}

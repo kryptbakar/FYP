@@ -226,6 +226,17 @@ CREATE TABLE IF NOT EXISTS alert_deliveries (
 );
 CREATE INDEX IF NOT EXISTS alert_deliveries_time ON alert_deliveries (created_at DESC);
 
+-- Seed an n8n automation alert channel + a routing rule, so dispatched alerts also flow into
+-- the n8n automation engine (not just playbook hand-offs). Idempotent (guarded by target/name).
+INSERT INTO alert_channels (name, type, target)
+  SELECT 'n8n automation', 'webhook', 'http://n8n:5678/webhook/vyrex-alert'
+  WHERE NOT EXISTS (SELECT 1 FROM alert_channels WHERE target = 'http://n8n:5678/webhook/vyrex-alert');
+INSERT INTO alert_rules (name, min_severity, kind, channel_id)
+  SELECT 'Route high/critical to n8n', 'high', 'any', c.id
+  FROM alert_channels c
+  WHERE c.target = 'http://n8n:5678/webhook/vyrex-alert'
+    AND NOT EXISTS (SELECT 1 FROM alert_rules WHERE name = 'Route high/critical to n8n');
+
 -- Detection rules (Sigma/Suricata/YARA/domain) as manageable content: enable/tune/track
 -- hits, not just a read-only catalog. The detections-as-content surface every SIEM has.
 CREATE TABLE IF NOT EXISTS detection_rules (
