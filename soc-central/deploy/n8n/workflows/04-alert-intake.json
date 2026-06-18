@@ -80,10 +80,26 @@
       "position": [ -20, 440 ],
       "credentials": { "smtp": { "id": "vyrexMailpitSmtp", "name": "Mailpit SMTP" } },
       "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"**VYREX alert** — {{ $json.body.subject || 'notification' }}\\nSeverity: {{ $json.body.severity }}\\n{{ $json.body.body }}\" }",
+        "options": {}
+      },
+      "id": "d4e5f6a7-0006-4d01-8d01-000000000006",
+      "name": "Post to chat",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 220, 440 ],
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
-    "Alert webhook (/webhook/vyrex-alert)": { "main": [ [ { "node": "Critical?", "type": "main", "index": 0 }, { "node": "Email the SOC team", "type": "main", "index": 0 } ] ] },
+    "Alert webhook (/webhook/vyrex-alert)": { "main": [ [ { "node": "Critical?", "type": "main", "index": 0 }, { "node": "Email the SOC team", "type": "main", "index": 0 }, { "node": "Post to chat", "type": "main", "index": 0 } ] ] },
     "Critical?": { "main": [ [ { "node": "Escalate (correlate)", "type": "main", "index": 0 } ], [ { "node": "Ack", "type": "main", "index": 0 } ] ] },
     "Escalate (correlate)": { "main": [ [ { "node": "Ack", "type": "main", "index": 0 } ] ] }
   },

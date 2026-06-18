@@ -109,6 +109,9 @@ services:
       # Active response (Phase 6): agent token + Ed25519 command-signing key.
       INGEST_AGENT_TOKEN: ${INGEST_AGENT_TOKEN:-change_me_agent_token}
       COMMAND_SIGNING_KEY: /keys/command_signing.key
+      # Automation (n8n): optional API key lights up live execution status in the Automation view.
+      N8N_BASE_URL: ${N8N_BASE_URL:-http://n8n:5678}
+      N8N_API_KEY: ${N8N_API_KEY:-}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:

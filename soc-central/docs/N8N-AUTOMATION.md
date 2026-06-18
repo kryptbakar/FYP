@@ -102,6 +102,19 @@ to chat — same pattern, still on-prem.)
 > Verified the sink works end-to-end (`smtplib → mailpit:1025` → message visible via Mailpit's API);
 > the n8n email node uses it once the `Mailpit SMTP` credential above is created.
 
+**Chat fan-out (optional).** The alert-intake workflow also has a **"Post to chat"** node that POSTs a
+Mattermost/Slack/Rocket.Chat-compatible payload (`{username, text}`) to `CHAT_WEBHOOK_URL`. Set that
+env (in `.env`) to a **self-hosted** chat server's *incoming webhook* URL and every routed alert lands
+in your channel — still on-prem, no credential needed (incoming webhooks are URL-authed). Left blank,
+the node continues on error and does nothing.
+
+## Live execution status in the console
+
+The console's **Operate → Automation** view shows reachability, the workflow catalogue, and the
+alerts/hand-offs VYREX sent to n8n — with no key. To also show **live n8n execution status**, create an
+API key in **n8n → Settings → n8n API**, put it in `.env` as `N8N_API_KEY=…`, and restart the api
+(`docker compose up -d api`). The view then adds an *n8n executions* table pulled from n8n's own API.
+
 ## Safety & air-gap notes
 
 - **Containment stays human-gated.** n8n can *propose* a containment action, but VYREX still
