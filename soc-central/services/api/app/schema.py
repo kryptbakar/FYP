@@ -305,7 +305,11 @@ INSERT INTO playbooks (id, name, description, trigger, actions) VALUES
   ('pb-sla-escalate', 'SLA-breach escalation',
    'On an SLA breach: raise a high-severity alert and notify the on-call owner.',
    'sla_breach',
-   '[{"type":"notify","params":{"severity":"high"}}]')
+   '[{"type":"notify","params":{"severity":"high"}}]'),
+  ('pb-n8n-automation', 'Hand off to n8n automation',
+   'Open a case, then hand the finding to the n8n automation engine to run the full automated-analyst workflow (enrich → correlate → alert → report).',
+   'manual',
+   '[{"type":"notify","params":{"severity":"high"}},{"type":"open_incident","params":{}},{"type":"webhook","params":{}}]')
 ON CONFLICT (id) DO NOTHING;
 """
 

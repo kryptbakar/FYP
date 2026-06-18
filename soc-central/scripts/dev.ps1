@@ -7,7 +7,7 @@
 #>
 param(
   [Parameter(Position = 0)]
-  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','console','mirror-sync','airgap-up','airgap-verify','seed','test','agent-run')]
+  [ValidateSet('help','env','certs','up','down','clean','restart','ps','logs','health','clone-refs','clone-tools','produce','feeds-seed','feeds-sync','assess','risk-train','risk-score','sensors-test','wazuh-pull','scan-ingest','intel-enrich','console','mirror-sync','airgap-up','airgap-verify','seed','test','agent-run','n8n-up','n8n-down')]
   [string]$Target = 'help',
   [int]$N = 500
 )
@@ -40,6 +40,12 @@ switch ($Target) {
   'risk-train' { Invoke-Expression "$Compose --profile ml run --rm risk-engine train" }
   'risk-score' { Invoke-Expression "$Compose --profile ml run --rm risk-engine score" }
   'clone-tools'  { bash scripts/clone-references-tools.sh }
+  'n8n-up'   {
+    Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n"
+    Write-Host "n8n is starting at http://localhost:5678 — open it, create the owner account, then"
+    Write-Host "import the workflows from deploy/n8n/workflows/ (or /workflows inside the container)."
+  }
+  'n8n-down' { Invoke-Expression "$Compose -f docker-compose.yml -f docker-compose.n8n.yml stop n8n" }
   'wazuh-pull'   {
     $ct = "$Compose -f docker-compose.yml -f docker-compose.tools.yml"
     Invoke-Expression "$ct build wazuh-bridge"

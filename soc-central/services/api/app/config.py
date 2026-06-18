@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     nats_host: str = "nats"
     nats_port: int = 4222
 
+    # Automation: default n8n webhook a playbook "webhook" step POSTs to (self-hosted, internal).
+    n8n_webhook_url: str = "http://n8n:5678/webhook/vyrex"
+
     # Active response (Phase 6): shared agent token + Ed25519 command-signing key path.
     ingest_agent_token: str = ""
     command_signing_key: str = "/keys/command_signing.key"

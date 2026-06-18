@@ -1,0 +1,53 @@
+{
+  "name": "VYREX — Daily posture report",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 8 * * *" } ] }
+      },
+      "id": "c3d4e5f6-0001-4c01-8c01-000000000001",
+      "name": "Daily at 08:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [ -200, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"type\": \"posture\" }",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0002-4c01-8c01-000000000002",
+      "name": "Generate posture report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 40, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "c3d4e5f6-0003-4c01-8c01-000000000003",
+      "name": "Notify channels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 280, 300 ]
+    }
+  ],
+  "connections": {
+    "Daily at 08:00": { "main": [ [ { "node": "Generate posture report", "type": "main", "index": 0 } ] ] },
+    "Generate posture report": { "main": [ [ { "node": "Notify channels", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Every morning at 08:00, generate a fresh posture report via the VYREX API and route a notification to the configured channels. Unattended executive reporting." }
+}

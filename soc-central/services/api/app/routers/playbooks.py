@@ -11,10 +11,12 @@ import json
 import uuid
 from typing import Annotated
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import audit, db
+from ..config import settings
 
 router = APIRouter(tags=["soar"])
 
@@ -111,6 +113,17 @@ async def run_playbook(playbook_id: str, r: RunIn,
                                  {"playbook": playbook_id, "agent_id": finding["asset_id"]})
                     steps.append({"action": "propose_containment", "ok": True,
                                   "detail": f"action #{act['id']} pending two-person approval"})
+            elif kind == "webhook":
+                # Hand off to the n8n automation engine (or any internal webhook). This is the
+                # bridge that lets VYREX kick off a full n8n workflow as a SOAR step.
+                url = params.get("url") or settings.n8n_webhook_url
+                payload = {"event": "vyrex.playbook.webhook", "playbook": playbook_id,
+                           "trigger_ref": trigger_ref, "incident_id": incident_id, "finding": finding}
+                async with httpx.AsyncClient(timeout=5) as client:
+                    resp = await client.post(url, json=payload)
+                steps.append({"action": "webhook", "ok": resp.status_code < 400,
+                              "detail": f"POST n8n → {resp.status_code}"})
+
             else:
                 steps.append({"action": kind, "ok": False, "detail": "unknown action"})
         except Exception as e:  # one bad step shouldn't abort the run

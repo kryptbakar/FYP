@@ -1,0 +1,44 @@
+# VYREX × n8n — automation overlay.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d n8n
+#   (or: pwsh scripts/dev.ps1 n8n-up)
+#
+# Runs a SELF-HOSTED n8n on the same internal compose network so it can reach the VYREX API
+# at http://api:8000 with no egress. All phone-home / telemetry is disabled so the air-gap
+# guarantee holds — n8n is the automation brain, fully on-prem. For a true air-gapped deploy,
+# move n8n onto `socnet` (the internal:true network in docker-compose.airgap.yml).
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: soc-central-n8n
+    restart: unless-stopped
+    ports:
+      - "${N8N_PORT:-5678}:5678"
+    environment:
+      # --- air-gap hygiene: no telemetry, no version checks, no template fetches ---
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_HIRING_BANNER_ENABLED: "false"
+      EXTERNAL_FRONTEND_HOOKS_URLS: ""
+      N8N_DIAGNOSTICS_CONFIG_FRONTEND: ""
+      N8N_DIAGNOSTICS_CONFIG_BACKEND: ""
+      # --- local dev over http ---
+      N8N_SECURE_COOKIE: "false"
+      N8N_PROTOCOL: http
+      N8N_HOST: localhost
+      N8N_PORT: "5678"
+      WEBHOOK_URL: "http://localhost:${N8N_PORT:-5678}/"
+      GENERIC_TIMEZONE: UTC
+      # --- VYREX target the imported workflows call back into (open on the internal net) ---
+      VYREX_API: "http://api:8000"
+    volumes:
+      - n8ndata:/home/node/.n8n
+      # importable workflow library is mounted read-only for convenience
+      - ./deploy/n8n/workflows:/workflows:ro
+    networks:
+      - default
+
+volumes:
+  n8ndata:

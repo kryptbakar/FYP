@@ -1,0 +1,65 @@
+{
+  "name": "VYREX — Auto-triage loop",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "minutes", "minutesInterval": 15 } ] }
+      },
+      "id": "a1b2c3d4-0001-4a01-8a01-000000000001",
+      "name": "Every 15 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [ -240, 300 ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=50",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0002-4a01-8a01-000000000002",
+      "name": "Pull ranked findings",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 0, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"min_score\": 70, \"window_hours\": 24 }",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0003-4a01-8a01-000000000003",
+      "name": "Correlate into incidents",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 240, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0004-4a01-8a01-000000000004",
+      "name": "Route alerts to channels",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 480, 300 ]
+    }
+  ],
+  "connections": {
+    "Every 15 minutes": { "main": [ [ { "node": "Pull ranked findings", "type": "main", "index": 0 } ] ] },
+    "Pull ranked findings": { "main": [ [ { "node": "Correlate into incidents", "type": "main", "index": 0 } ] ] },
+    "Correlate into incidents": { "main": [ [ { "node": "Route alerts to channels", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Every 15 min: pull the ranked queue, correlate high-risk findings into incidents, then route alerts to channels — the unattended tier-1 analyst loop. Calls only the internal VYREX API ($env.VYREX_API)." }
+}
