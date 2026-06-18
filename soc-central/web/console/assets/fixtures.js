@@ -363,6 +363,26 @@ const FIX = (() => {
       disk: { total: 256 * 2 ** 30, used: 70 * 2 ** 30, free: 186 * 2 ** 30, percent: 27.3, total_h: '256.0 GB', used_h: '70.0 GB', free_h: '186.0 GB' },
       captured: new Date().toISOString(),
     },
+    automationStatus: {
+      engine: 'n8n', reachable: false, base_url: 'http://n8n:5678', webhook_url: 'http://n8n:5678/webhook/vyrex',
+      api_key_configured: false, channel: { id: 4, name: 'n8n automation', target: 'http://n8n:5678/webhook/vyrex-alert', enabled: true },
+      workflows: [
+        { id: 'vyrexAutoTriage1', name: 'Auto-triage loop', trigger: 'every 15 min', kind: 'schedule', does: 'pull ranking → correlate → dispatch alerts' },
+        { id: 'vyrexCriticalRsp', name: 'Critical finding responder', trigger: 'webhook /webhook/vyrex', kind: 'webhook', does: 'branch on severity → correlate → dispatch → respond' },
+        { id: 'vyrexAlertIntake', name: 'Alert intake', trigger: 'webhook /webhook/vyrex-alert', kind: 'webhook', does: 'receive dispatched alerts; escalate criticals; fan out' },
+        { id: 'vyrexSlaEscal01', name: 'SLA-breach escalation', trigger: 'hourly', kind: 'schedule', does: 'count SLA breaches → escalate + executive report' },
+        { id: 'vyrexIocRespond1', name: 'Live-IOC responder', trigger: 'every 20 min', kind: 'schedule', does: 'high-risk findings with a live MISP IOC → correlate + dispatch' },
+        { id: 'vyrexDailyReport', name: 'Daily posture report', trigger: 'daily 08:00', kind: 'schedule', does: 'generate report → notify' },
+      ],
+      executions: [],
+      deliveries: [
+        { channel_name: 'n8n automation', subject: 'Critical: CVE-2023-4911 on web-prod-03', status: 'delivered', detail: 'HTTP 200', created_at: new Date(Date.now() - 6 * 60000).toISOString() },
+        { channel_name: 'n8n automation', subject: 'VYREX test alert', status: 'delivered', detail: 'HTTP 200', created_at: new Date(Date.now() - 22 * 60000).toISOString() },
+      ],
+      handoffs: [
+        { id: 8, playbook_id: 'pb-n8n-automation', trigger_ref: 'finding:11', status: 'completed', created_at: new Date(Date.now() - 8 * 60000).toISOString() },
+      ],
+    },
     portScan: (target, mode) => ({
       target: target || '127.0.0.1', resolved_ip: target || '127.0.0.1', mode: mode || 'quick', scanned: 22,
       open: [

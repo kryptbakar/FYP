@@ -39,6 +39,8 @@ class Settings(BaseSettings):
 
     # Automation: default n8n webhook a playbook "webhook" step POSTs to (self-hosted, internal).
     n8n_webhook_url: str = "http://n8n:5678/webhook/vyrex"
+    n8n_base_url: str = "http://n8n:5678"
+    n8n_api_key: str = ""   # optional: enables live execution status in the Automation view
 
     # Active response (Phase 6): shared agent token + Ed25519 command-signing key path.
     ingest_agent_token: str = ""

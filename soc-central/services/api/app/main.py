@@ -18,6 +18,7 @@ from .routers import (
     alerts,
     analytics,
     auth,
+    automation,
     casework,
     compliance,
     detrules,
@@ -91,6 +92,7 @@ app.include_router(detrules.router)
 app.include_router(alerts.router)
 app.include_router(auth.router)
 app.include_router(toolkit.router)
+app.include_router(automation.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")

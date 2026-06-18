@@ -1468,6 +1468,57 @@ async function viewDashboards(root) {
     h('iframe', { class: 'gframe', src: base + '/d/soc-overview?theme=dark&kiosk', loading: 'lazy', referrerpolicy: 'no-referrer' })));
 }
 
+/* ---- Automation (n8n engine status) --------------------------------- */
+async function viewAutomation(root) {
+  root.append(skPanel(['80%', '60%']), h('div', { style: 'height:14px' }), skPanel());
+  const s = await API.automationStatus();
+  root.innerHTML = '';
+
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'row', style: 'gap:var(--s-3);align-items:flex-start' },
+      h('span', { html: ic('fusion'), style: 'width:24px;height:24px;color:var(--accent);flex:none' }),
+      h('div', { style: 'flex:1;min-width:0' },
+        h('div', { class: 'row', style: 'gap:var(--s-2)' }, h('div', { style: 'font-weight:560;font-size:var(--t-md)' }, 'Automation engine — n8n'),
+          h('span', { class: 'live ' + (s.reachable ? 'live' : 'demo') }, h('span', { class: 'dot' }), s.reachable ? 'reachable' : 'unreachable')),
+        h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:2px;line-height:var(--lh-base)' },
+          'Self-hosted & air-gapped. VYREX feeds n8n from playbook hand-offs and the alert channel; n8n calls back into the API to triage, alert & report. Containment still needs two-person approval.')),
+      h('a', { class: 'btn sm', href: location.protocol + '//' + location.hostname + ':5678', target: '_blank', rel: 'noopener',
+        html: ic('globe') + '<span style="margin-left:6px">Open n8n</span>' })),
+    h('div', { class: 'kv', style: 'margin-top:var(--s-3)' },
+      h('div', { class: 'k' }, 'Webhook'), h('div', { class: 'mono', style: 'font-size:var(--t-2xs)' }, s.webhook_url || '—'),
+      h('div', { class: 'k' }, 'Alert channel'), h('div', {}, s.channel ? (h('span', { class: 'mono', style: 'font-size:var(--t-2xs)' }, s.channel.target) ) : chip('not configured', 'warn')),
+      h('div', { class: 'k' }, 'Live status'), h('div', {}, s.api_key_configured ? chip('n8n API linked', 'ok') : chip('VYREX-side activity', 'mono')))));
+
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Workflows'), h('span', { class: 'sub' }, '· ' + (s.workflows || []).length + ' bundled')),
+    h('div', { class: 'pbgrid', style: 'padding:var(--s-4)' }, (s.workflows || []).map(w => h('div', { class: 'pbcard' },
+      h('div', { class: 'row', style: 'gap:var(--s-2)' }, h('div', { class: 'pbn' }, w.name),
+        h('span', { class: 'spring', style: 'flex:1' }), chip(w.trigger, w.kind === 'webhook' ? 'attack' : 'mono')),
+      h('div', { class: 'pbd' }, w.does))))));
+
+  if ((s.executions || []).length) root.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'n8n executions'), h('span', { class: 'sub' }, '· live from the n8n API')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Workflow', 'Status', 'Mode', 'Started'].map(t => h('th', {}, t)))),
+      h('tbody', {}, s.executions.map(e => h('tr', {},
+        h('td', {}, e.workflow || '—'), h('td', {}, chip(e.status || '—', e.status === 'success' ? 'ok' : e.status === 'error' ? 'kev' : 'warn')),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, e.mode || '—'), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(e.started)))))))));
+
+  const dtbl = (title, sub, rows, cols, rowfn) => h('div', { class: 'panel', style: 'overflow:hidden' },
+    h('div', { class: 'panel-h' }, h('h2', {}, title), h('span', { class: 'sub' }, sub)),
+    rows.length ? h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, cols.map(t => h('th', {}, t)))), h('tbody', {}, rows.map(rowfn))))
+      : emptyState('Nothing yet', 'Run a playbook hand-off or dispatch alerts to see activity flow to n8n.', 'fusion'));
+
+  root.append(h('div', { class: 'cols2 fade', style: 'margin-top:14px;align-items:start' },
+    dtbl('Alerts → n8n', '· delivered to the n8n channel', s.deliveries || [], ['Subject', 'Status', 'When'], d =>
+      h('tr', {}, h('td', {}, d.subject || '—'), h('td', {}, chip(d.status || '—', d.status === 'delivered' ? 'ok' : 'kev')),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(d.created_at)))),
+    dtbl('Playbook hand-offs → n8n', '· pb-n8n-automation runs', s.handoffs || [], ['Run', 'Trigger', 'Status', 'When'], r =>
+      h('tr', {}, h('td', { class: 'mono' }, '#' + r.id), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, r.trigger_ref || '—'),
+        h('td', {}, chip(r.status || '—', r.status === 'completed' ? 'ok' : 'warn')), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(r.created_at))))));
+}
+
 /* ===================================================================== *
    ANALYST TOOLKIT  (capabilities ported from A.R.I.S., air-gap-adapted)
    Engines live in toolkit.js (deterministic, offline). These are the views.
