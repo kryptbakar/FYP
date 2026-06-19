@@ -43,28 +43,22 @@
     "Ranking (triage)": { "main": [ [ { "node": "Correlate (triage)", "type": "main", "index": 0 } ] ] },
     "Correlate (triage)": { "main": [ [ { "node": "Dispatch (triage)", "type": "main", "index": 0 } ] ] },
 
-    "Webhook · /vyrex": { "main": [ [ { "node": "Severity high/critical?", "type": "main", "index": 0 } ] ] },
-    "Severity high/critical?": { "main": [ [ { "node": "Correlate (critical)", "type": "main", "index": 0 } ], [ { "node": "Respond (/vyrex)", "type": "main", "index": 0 } ] ] },
+    "Webhook · /vyrex": { "main": [ [ { "node": "Correlate (critical)", "type": "main", "index": 0 } ] ] },
     "Correlate (critical)": { "main": [ [ { "node": "Dispatch (critical)", "type": "main", "index": 0 } ] ] },
     "Dispatch (critical)": { "main": [ [ { "node": "Respond (/vyrex)", "type": "main", "index": 0 } ] ] },
 
     "Schedule · 08:00": { "main": [ [ { "node": "Posture report", "type": "main", "index": 0 } ] ] },
     "Posture report": { "main": [ [ { "node": "Dispatch (report)", "type": "main", "index": 0 } ] ] },
 
-    "Webhook · /vyrex-alert": { "main": [ [ { "node": "Critical alert?", "type": "main", "index": 0 }, { "node": "Email the SOC team", "type": "main", "index": 0 }, { "node": "Post to chat", "type": "main", "index": 0 } ] ] },
-    "Critical alert?": { "main": [ [ { "node": "Correlate (alert)", "type": "main", "index": 0 } ], [ { "node": "Ack (/vyrex-alert)", "type": "main", "index": 0 } ] ] },
+    "Webhook · /vyrex-alert": { "main": [ [ { "node": "Correlate (alert)", "type": "main", "index": 0 }, { "node": "Email the SOC team", "type": "main", "index": 0 }, { "node": "Post to chat", "type": "main", "index": 0 } ] ] },
     "Correlate (alert)": { "main": [ [ { "node": "Ack (/vyrex-alert)", "type": "main", "index": 0 } ] ] },
 
     "Schedule · hourly": { "main": [ [ { "node": "Get incidents", "type": "main", "index": 0 } ] ] },
-    "Get incidents": { "main": [ [ { "node": "Count breached", "type": "main", "index": 0 } ] ] },
-    "Count breached": { "main": [ [ { "node": "Any breached?", "type": "main", "index": 0 } ] ] },
-    "Any breached?": { "main": [ [ { "node": "Escalate (SLA)", "type": "main", "index": 0 } ], [] ] },
+    "Get incidents": { "main": [ [ { "node": "Escalate (SLA)", "type": "main", "index": 0 } ] ] },
     "Escalate (SLA)": { "main": [ [ { "node": "Exec report (SLA)", "type": "main", "index": 0 } ] ] },
 
     "Schedule · 20m": { "main": [ [ { "node": "Ranking (IOC)", "type": "main", "index": 0 } ] ] },
-    "Ranking (IOC)": { "main": [ [ { "node": "Filter live IOCs", "type": "main", "index": 0 } ] ] },
-    "Filter live IOCs": { "main": [ [ { "node": "Any live IOC?", "type": "main", "index": 0 } ] ] },
-    "Any live IOC?": { "main": [ [ { "node": "Correlate (IOC)", "type": "main", "index": 0 } ], [] ] },
+    "Ranking (IOC)": { "main": [ [ { "node": "Correlate (IOC)", "type": "main", "index": 0 } ] ] },
     "Correlate (IOC)": { "main": [ [ { "node": "Dispatch (IOC)", "type": "main", "index": 0 } ] ] }
   },
   "active": false,

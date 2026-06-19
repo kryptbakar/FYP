@@ -31,6 +31,9 @@ services:
       N8N_PORT: "5678"
       WEBHOOK_URL: "http://localhost:${N8N_PORT:-5678}/"
       GENERIC_TIMEZONE: UTC
+      # Workflows reference $env.VYREX_API / $env.CHAT_WEBHOOK_URL in expressions; n8n blocks env
+      # access in nodes by default, so allow it (safe here: self-hosted, air-gapped, trusted).
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       # --- VYREX target the imported workflows call back into (open on the internal net) ---
       VYREX_API: "http://api:8000"
       # --- optional self-hosted chat fan-out (Mattermost/Slack/Rocket.Chat incoming webhook URL) ---
