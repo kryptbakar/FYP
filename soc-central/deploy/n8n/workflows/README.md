@@ -1,8 +1,17 @@
 # VYREX × n8n — importable workflows
 
-Three ready-to-import n8n workflows that turn VYREX into an **automated SOC analyst**. They call
-only the internal VYREX API via the `VYREX_API` env var (`http://api:8000`, set by the compose
-overlay) — nothing egresses.
+Turn VYREX into an **automated SOC analyst**. These call only the internal VYREX API via the
+`VYREX_API` env var (`http://api:8000`, set by the compose overlay) — nothing egresses.
+
+## Quick start: one combined workflow
+
+**`vyrex-all-in-one.json`** is everything below merged into a **single workflow named `vyrex`** —
+all 6 trigger nodes (2 webhooks + 4 schedules) in one place, each running its own branch. Import just
+this one and activate it, and the whole automated-analyst loop is live. (The six files below are the
+modular source if you'd rather run them separately — but don't activate both, the webhook paths
+`/vyrex` and `/vyrex-alert` can only be claimed by one active workflow at a time.)
+
+## Or the six modular workflows
 
 | File | Trigger | What it automates |
 |---|---|---|

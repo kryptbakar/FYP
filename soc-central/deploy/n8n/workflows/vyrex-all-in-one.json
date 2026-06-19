@@ -1,0 +1,74 @@
+{
+  "id": "vyrexAllInOne",
+  "name": "vyrex",
+  "nodes": [
+    { "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 15 } ] } }, "id": "n01", "name": "Schedule · 15m", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [ -640, 0 ] },
+    { "parameters": { "url": "={{ $env.VYREX_API }}/risk/ranking?limit=50", "options": {} }, "id": "n02", "name": "Ranking (triage)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -420, 0 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/incidents/correlate", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"min_score\": 70, \"window_hours\": 24 }", "options": {} }, "id": "n03", "name": "Correlate (triage)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -200, 0 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/alerts/dispatch", "sendBody": true, "specifyBody": "json", "jsonBody": "={}", "options": {} }, "id": "n04", "name": "Dispatch (triage)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ 20, 0 ] },
+
+    { "parameters": { "httpMethod": "POST", "path": "vyrex", "responseMode": "responseNode", "options": {} }, "id": "n05", "name": "Webhook · /vyrex", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [ -640, 200 ], "webhookId": "vyrex" },
+    { "parameters": { "conditions": { "options": { "caseSensitive": false, "version": 2 }, "combinator": "or", "conditions": [ { "leftValue": "={{ $json.body.finding.severity }}", "rightValue": "CRITICAL", "operator": { "type": "string", "operation": "equals" } }, { "leftValue": "={{ $json.body.finding.severity }}", "rightValue": "HIGH", "operator": { "type": "string", "operation": "equals" } } ] }, "options": {} }, "id": "n06", "name": "Severity high/critical?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [ -420, 200 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/incidents/correlate", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"min_score\": 60, \"window_hours\": 24 }", "options": {} }, "id": "n07", "name": "Correlate (critical)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -200, 140 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/alerts/dispatch", "sendBody": true, "specifyBody": "json", "jsonBody": "={}", "options": {} }, "id": "n08", "name": "Dispatch (critical)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ 20, 140 ] },
+    { "parameters": { "respondWith": "json", "responseBody": "={ \"status\": \"handled\", \"by\": \"vyrex-n8n\" }", "options": {} }, "id": "n09", "name": "Respond (/vyrex)", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [ 240, 200 ] },
+
+    { "parameters": { "rule": { "interval": [ { "field": "cronExpression", "expression": "0 8 * * *" } ] } }, "id": "n10", "name": "Schedule · 08:00", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [ -640, 400 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/reports", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"type\": \"posture\" }", "options": {} }, "id": "n11", "name": "Posture report", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -420, 400 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/alerts/dispatch", "sendBody": true, "specifyBody": "json", "jsonBody": "={}", "options": {} }, "id": "n12", "name": "Dispatch (report)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -200, 400 ] },
+
+    { "parameters": { "httpMethod": "POST", "path": "vyrex-alert", "responseMode": "responseNode", "options": {} }, "id": "n13", "name": "Webhook · /vyrex-alert", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [ -640, 620 ], "webhookId": "vyrex-alert" },
+    { "parameters": { "conditions": { "options": { "caseSensitive": false, "version": 2 }, "combinator": "or", "conditions": [ { "leftValue": "={{ $json.body.severity }}", "rightValue": "critical", "operator": { "type": "string", "operation": "equals" } } ] }, "options": {} }, "id": "n14", "name": "Critical alert?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [ -420, 580 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/incidents/correlate", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"min_score\": 60, \"window_hours\": 24 }", "options": {} }, "id": "n15", "name": "Correlate (alert)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -200, 540 ] },
+    { "parameters": { "respondWith": "json", "responseBody": "={ \"status\": \"received\", \"by\": \"vyrex-n8n\" }", "options": {} }, "id": "n16", "name": "Ack (/vyrex-alert)", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1, "position": [ 240, 580 ] },
+    { "parameters": { "fromEmail": "vyrex@soc.local", "toEmail": "soc-team@soc.local", "subject": "=VYREX alert — {{ $json.body.subject || 'notification' }}", "emailFormat": "text", "text": "=A VYREX alert was routed to n8n.\n\nSeverity: {{ $json.body.severity }}\nSubject:  {{ $json.body.subject }}\nBody:     {{ $json.body.body }}\n\n(Air-gapped demo: lands in Mailpit at http://localhost:8025)", "options": {} }, "id": "n17", "name": "Email the SOC team", "type": "n8n-nodes-base.emailSend", "typeVersion": 2.1, "position": [ -420, 760 ], "credentials": { "smtp": { "id": "vyrexMailpitSmtp", "name": "Mailpit SMTP" } }, "onError": "continueRegularOutput" },
+    { "parameters": { "method": "POST", "url": "={{ $env.CHAT_WEBHOOK_URL }}", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"**VYREX alert** — {{ $json.body.subject || 'notification' }}\\nSeverity: {{ $json.body.severity }}\\n{{ $json.body.body }}\" }", "options": {} }, "id": "n18", "name": "Post to chat", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -200, 760 ], "onError": "continueRegularOutput" },
+
+    { "parameters": { "rule": { "interval": [ { "field": "hours", "hoursInterval": 1 } ] } }, "id": "n19", "name": "Schedule · hourly", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [ -640, 940 ] },
+    { "parameters": { "url": "={{ $env.VYREX_API }}/incidents?limit=200", "options": {} }, "id": "n20", "name": "Get incidents", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -420, 940 ] },
+    { "parameters": { "jsCode": "const b = $input.all().filter(i => i.json && i.json.sla_breached === true);\nreturn [{ json: { breached: b.length } }];" }, "id": "n21", "name": "Count breached", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [ -200, 940 ] },
+    { "parameters": { "conditions": { "options": { "version": 2 }, "combinator": "and", "conditions": [ { "leftValue": "={{ $json.breached }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } } ] }, "options": {} }, "id": "n22", "name": "Any breached?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [ 20, 940 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/alerts/dispatch", "sendBody": true, "specifyBody": "json", "jsonBody": "={}", "options": {} }, "id": "n23", "name": "Escalate (SLA)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ 240, 900 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/reports", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"type\": \"executive\" }", "options": {} }, "id": "n24", "name": "Exec report (SLA)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ 460, 900 ] },
+
+    { "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 20 } ] } }, "id": "n25", "name": "Schedule · 20m", "type": "n8n-nodes-base.scheduleTrigger", "typeVersion": 1.2, "position": [ -640, 1160 ] },
+    { "parameters": { "url": "={{ $env.VYREX_API }}/risk/ranking?limit=50", "options": {} }, "id": "n26", "name": "Ranking (IOC)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ -420, 1160 ] },
+    { "parameters": { "jsCode": "const hot = $input.all().filter(i => i.json && i.json.threat_intel && Number(i.json.risk_score) >= 60);\nreturn [{ json: { count: hot.length } }];" }, "id": "n27", "name": "Filter live IOCs", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [ -200, 1160 ] },
+    { "parameters": { "conditions": { "options": { "version": 2 }, "combinator": "and", "conditions": [ { "leftValue": "={{ $json.count }}", "rightValue": 0, "operator": { "type": "number", "operation": "gt" } } ] }, "options": {} }, "id": "n28", "name": "Any live IOC?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [ 20, 1160 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/incidents/correlate", "sendBody": true, "specifyBody": "json", "jsonBody": "={ \"min_score\": 60, \"window_hours\": 24 }", "options": {} }, "id": "n29", "name": "Correlate (IOC)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ 240, 1120 ] },
+    { "parameters": { "method": "POST", "url": "={{ $env.VYREX_API }}/alerts/dispatch", "sendBody": true, "specifyBody": "json", "jsonBody": "={}", "options": {} }, "id": "n30", "name": "Dispatch (IOC)", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2, "position": [ 460, 1120 ] }
+  ],
+  "connections": {
+    "Schedule · 15m": { "main": [ [ { "node": "Ranking (triage)", "type": "main", "index": 0 } ] ] },
+    "Ranking (triage)": { "main": [ [ { "node": "Correlate (triage)", "type": "main", "index": 0 } ] ] },
+    "Correlate (triage)": { "main": [ [ { "node": "Dispatch (triage)", "type": "main", "index": 0 } ] ] },
+
+    "Webhook · /vyrex": { "main": [ [ { "node": "Severity high/critical?", "type": "main", "index": 0 } ] ] },
+    "Severity high/critical?": { "main": [ [ { "node": "Correlate (critical)", "type": "main", "index": 0 } ], [ { "node": "Respond (/vyrex)", "type": "main", "index": 0 } ] ] },
+    "Correlate (critical)": { "main": [ [ { "node": "Dispatch (critical)", "type": "main", "index": 0 } ] ] },
+    "Dispatch (critical)": { "main": [ [ { "node": "Respond (/vyrex)", "type": "main", "index": 0 } ] ] },
+
+    "Schedule · 08:00": { "main": [ [ { "node": "Posture report", "type": "main", "index": 0 } ] ] },
+    "Posture report": { "main": [ [ { "node": "Dispatch (report)", "type": "main", "index": 0 } ] ] },
+
+    "Webhook · /vyrex-alert": { "main": [ [ { "node": "Critical alert?", "type": "main", "index": 0 }, { "node": "Email the SOC team", "type": "main", "index": 0 }, { "node": "Post to chat", "type": "main", "index": 0 } ] ] },
+    "Critical alert?": { "main": [ [ { "node": "Correlate (alert)", "type": "main", "index": 0 } ], [ { "node": "Ack (/vyrex-alert)", "type": "main", "index": 0 } ] ] },
+    "Correlate (alert)": { "main": [ [ { "node": "Ack (/vyrex-alert)", "type": "main", "index": 0 } ] ] },
+
+    "Schedule · hourly": { "main": [ [ { "node": "Get incidents", "type": "main", "index": 0 } ] ] },
+    "Get incidents": { "main": [ [ { "node": "Count breached", "type": "main", "index": 0 } ] ] },
+    "Count breached": { "main": [ [ { "node": "Any breached?", "type": "main", "index": 0 } ] ] },
+    "Any breached?": { "main": [ [ { "node": "Escalate (SLA)", "type": "main", "index": 0 } ], [] ] },
+    "Escalate (SLA)": { "main": [ [ { "node": "Exec report (SLA)", "type": "main", "index": 0 } ] ] },
+
+    "Schedule · 20m": { "main": [ [ { "node": "Ranking (IOC)", "type": "main", "index": 0 } ] ] },
+    "Ranking (IOC)": { "main": [ [ { "node": "Filter live IOCs", "type": "main", "index": 0 } ] ] },
+    "Filter live IOCs": { "main": [ [ { "node": "Any live IOC?", "type": "main", "index": 0 } ] ] },
+    "Any live IOC?": { "main": [ [ { "node": "Correlate (IOC)", "type": "main", "index": 0 } ], [] ] },
+    "Correlate (IOC)": { "main": [ [ { "node": "Dispatch (IOC)", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "All six VYREX automations in one workflow: 2 webhook triggers (/vyrex critical responder, /vyrex-alert intake with email+chat fan-out) and 4 schedule triggers (auto-triage 15m, daily report 08:00, SLA escalation hourly, live-IOC responder 20m). Each trigger runs its own branch; calls only the internal VYREX API." }
+}
