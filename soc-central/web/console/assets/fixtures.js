@@ -363,6 +363,19 @@ const FIX = (() => {
       disk: { total: 256 * 2 ** 30, used: 70 * 2 ** 30, free: 186 * 2 ** 30, percent: 27.3, total_h: '256.0 GB', used_h: '70.0 GB', free_h: '186.0 GB' },
       captured: new Date().toISOString(),
     },
+    agentStatus: { engine: 'ollama', reachable: false, url: 'http://ollama:11434', model: 'llama3.2:3b', models_available: [], model_ready: false },
+    agentRuns: [
+      { id: 2, model: 'llama3.2:3b', considered: 8, escalated: 3, summary: 'Three known-exploited findings on internet-facing hosts dominate the queue; the rest are low-EPSS noise.', decisions: [], created_at: new Date(Date.now() - 9 * 60000).toISOString() },
+    ],
+    agentTriage: {
+      model: 'llama3.2:3b', considered: 6, escalated: 2,
+      summary: 'CVE-2023-4911 (KEV, 3-tool consensus) on web-prod-03 is the clear top priority; Log4Shell on an internet-facing service is second. The bash overflow is low EPSS — monitor.',
+      decisions: [
+        { id: 10, title: 'CVE-2023-4911 (Looney Tunables) — local privilege escalation in glibc', asset_id: 'web-prod-03', severity: 'HIGH', decision: 'ESCALATE', reason: 'KEV + 3 independent tools agree + internet-exposed asset — open an incident now.' },
+        { id: 33, title: 'Apache Log4Shell (CVE-2021-44228) RCE', asset_id: 'scan-target-01', severity: 'CRITICAL', decision: 'ESCALATE', reason: 'KEV, CVSS 10, EPSS 0.94 on an internet-facing service — emergency patch.' },
+        { id: 55, title: 'CVE-2022-3715 — bash heap buffer overflow', asset_id: 'db-core-01', severity: 'HIGH', decision: 'MONITOR', reason: 'EPSS 0.001, single tool, not exposed — patch in the normal cycle.' },
+      ],
+    },
     automationStatus: {
       engine: 'n8n', reachable: false, base_url: 'http://n8n:5678', webhook_url: 'http://n8n:5678/webhook/vyrex',
       api_key_configured: false, channel: { id: 4, name: 'n8n automation', target: 'http://n8n:5678/webhook/vyrex-alert', enabled: true },

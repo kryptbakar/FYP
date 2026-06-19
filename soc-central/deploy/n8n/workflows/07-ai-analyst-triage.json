@@ -1,0 +1,52 @@
+{
+  "id": "vyrexAgentTriage",
+  "name": "VYREX — AI analyst triage",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [ { "field": "minutes", "minutesInterval": 30 } ] } },
+      "id": "g7a8b9c0-0001-4g01-8g01-000000000001",
+      "name": "Every 30 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [ -240, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/agent/triage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"limit\": 8 }",
+        "options": { "timeout": 180000 }
+      },
+      "id": "g7a8b9c0-0002-4g01-8g01-000000000002",
+      "name": "Run AI analyst (Ollama)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 0, 300 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "id": "g7a8b9c0-0003-4g01-8g01-000000000003",
+      "name": "Dispatch the agent's escalations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 240, 300 ]
+    }
+  ],
+  "connections": {
+    "Every 30 minutes": { "main": [ [ { "node": "Run AI analyst (Ollama)", "type": "main", "index": 0 } ] ] },
+    "Run AI analyst (Ollama)": { "main": [ [ { "node": "Dispatch the agent's escalations", "type": "main", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Every 30 min, run the VYREX agentic AI analyst (POST /agent/triage) — a self-hosted Ollama LLM reasons over the open, already-explained findings and records ESCALATE/MONITOR/DISMISS decisions with reasoning — then dispatch the escalations to channels. The agent only proposes; containment stays behind two-person approval. To wire the *native* n8n AI Agent node (Ollama model + VYREX HTTP tools) instead, see docs/N8N-AUTOMATION.md." }
+}

@@ -20,6 +20,7 @@ const ROUTES = {
   detections: { title: 'Detections', crumb: 'Detection-rule management', icon: 'rules', key: '', sec: 'Operate', view: viewDetections },
   alerting:   { title: 'Alerting', crumb: 'Channels, routing & delivery', icon: 'alert', key: '', sec: 'Operate', view: viewAlerting },
   playbooks:  { title: 'Playbooks', crumb: 'SOAR automation', icon: 'fusion', key: '', sec: 'Operate', view: viewPlaybooks },
+  agent:      { title: 'AI Analyst', crumb: 'Agentic triage — self-hosted LLM', icon: 'model', key: '', sec: 'Operate', view: viewAgent },
   automation: { title: 'Automation', crumb: 'n8n engine — status & workflows', icon: 'activity', key: '', sec: 'Operate', view: viewAutomation },
   reports:    { title: 'Reports', crumb: 'Posture, compliance & executive reports', icon: 'report', key: '', sec: 'Operate', view: viewReports },
   dashboards: { title: 'Dashboards', crumb: 'Grafana metrics & trends', icon: 'dash', key: '', sec: 'Operate', view: viewDashboards },

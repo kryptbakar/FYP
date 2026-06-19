@@ -1468,6 +1468,61 @@ async function viewDashboards(root) {
     h('iframe', { class: 'gframe', src: base + '/d/soc-overview?theme=dark&kiosk', loading: 'lazy', referrerpolicy: 'no-referrer' })));
 }
 
+/* ---- AI Analyst (agentic, self-hosted LLM) -------------------------- */
+async function viewAgent(root) {
+  root.append(skPanel(['70%', '50%']));
+  const s = await API.agentStatus();
+  root.innerHTML = '';
+  const ready = s.reachable && s.model_ready;
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'row', style: 'gap:var(--s-3);align-items:flex-start' },
+      h('span', { html: ic('model'), style: 'width:24px;height:24px;color:var(--accent);flex:none' }),
+      h('div', { style: 'flex:1;min-width:0' },
+        h('div', { class: 'row', style: 'gap:var(--s-2)' }, h('div', { style: 'font-weight:560;font-size:var(--t-md)' }, 'AI analyst — agentic triage'),
+          h('span', { class: 'live ' + (ready ? 'live' : 'demo') }, h('span', { class: 'dot' }), ready ? 'LLM ready' : (s.reachable ? 'model not pulled' : 'LLM offline'))),
+        h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:2px;line-height:var(--lh-base)' },
+          'A self-hosted ' + (s.model || 'LLM') + ' reasons over your already-explained findings and proposes governed triage decisions — fully air-gapped, nothing egresses. It can escalate / monitor / dismiss; containment still needs two-person approval.')),
+      h('button', { class: 'btn primary', disabled: ready ? null : 'disabled', onclick: run, html: ic('model') + '<span style="margin-left:6px">Run AI triage</span>' })),
+    !ready ? h('div', { class: 'callout', style: 'margin-top:var(--s-3)' }, 'Self-hosted LLM not ready. Pull the model once: ',
+      h('span', { class: 'mono', style: 'font-size:var(--t-2xs)' }, 'docker exec soc-central-ollama ollama pull ' + (s.model || 'llama3.2:3b'))) : null));
+  const out = h('div', { id: 'agent-out' }); root.append(out);
+  const runs = await API.agentRuns().catch(() => []);
+  const runsBox = h('div', {}); if ((runs || []).length) runsBox.append(agentRunsPanel(runs)); root.append(runsBox);
+
+  async function run() {
+    out.innerHTML = ''; out.append(loading('The AI analyst is reasoning over open findings…'));
+    const r = await API.agentTriage(8).catch(() => ({ error: 'request failed' }));
+    out.innerHTML = '';
+    if (r.error) { out.append(h('div', { class: 'callout', style: 'margin-top:14px' }, r.error)); return; }
+    out.append(agentDecisionsPanel(r));
+    try { runsBox.innerHTML = ''; runsBox.append(agentRunsPanel(await API.agentRuns())); } catch {}
+  }
+}
+function agentDecisionsPanel(r) {
+  const decChip = d => chip(d || '—', d === 'ESCALATE' ? 'exploit' : d === 'DISMISS' ? 'mono' : 'warn');
+  return h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap' }, h('div', { style: 'font-weight:560' }, 'AI triage'),
+      chip(r.model || 'llm', 'mono'), chip((r.considered || 0) + ' considered', 'mono'), chip((r.escalated || 0) + ' escalated', r.escalated ? 'exploit' : 'ok')),
+    r.summary ? h('div', { class: 'prose', style: 'font-size:var(--t-sm);margin-top:var(--s-2);line-height:var(--lh-base)' }, r.summary) : null,
+    (r.decisions || []).length ? h('div', { style: 'overflow-x:auto;margin-top:var(--s-3)' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Decision', 'Finding', 'Asset', 'Reasoning'].map(t => h('th', {}, t)))),
+      h('tbody', {}, r.decisions.map(d => h('tr', { onclick: () => d.id && openFinding(d.id) },
+        h('td', {}, decChip(d.decision)), h('td', {}, d.title || ('#' + d.id)),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, d.asset_id || '—'),
+        h('td', { class: 'prose', style: 'font-size:var(--t-xs)' }, d.reason || '—')))))) : null);
+}
+function agentRunsPanel(runs) {
+  return h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Recent AI-analyst runs'), h('span', { class: 'sub' }, '· governed: proposes only')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Run', 'Model', 'Considered', 'Escalated', 'Summary', 'When'].map(t => h('th', {}, t)))),
+      h('tbody', {}, runs.map(r => h('tr', {},
+        h('td', { class: 'mono' }, '#' + r.id), h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, r.model || '—'),
+        h('td', {}, String(r.considered)), h('td', {}, chip(String(r.escalated), r.escalated ? 'exploit' : 'ok')),
+        h('td', { class: 'prose', style: 'font-size:var(--t-xs);max-width:320px' }, (r.summary || '').slice(0, 120)),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(r.created_at))))))));
+}
+
 /* ---- Automation (n8n engine status) --------------------------------- */
 async function viewAutomation(root) {
   root.append(skPanel(['80%', '60%']), h('div', { style: 'height:14px' }), skPanel());

@@ -174,6 +174,11 @@ const API = {
   // automation engine (n8n) status
   automationStatus: () => API._get('/automation/status', () => FIX.automationStatus),
 
+  // agentic AI analyst (self-hosted Ollama LLM)
+  agentStatus: () => API._get('/agent/status', () => FIX.agentStatus),
+  agentRuns: () => API._get('/agent/runs', () => FIX.agentRuns),
+  agentTriage: (limit) => API._post('/agent/triage', { limit: limit || 8 }, FIX.agentTriage),
+
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
   requestAction: (incidentId, body) => API._post(`/incidents/${incidentId}/actions`, body, { id: Date.now(), status: 'proposed', simulated: true }),

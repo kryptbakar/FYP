@@ -226,6 +226,19 @@ CREATE TABLE IF NOT EXISTS alert_deliveries (
 );
 CREATE INDEX IF NOT EXISTS alert_deliveries_time ON alert_deliveries (created_at DESC);
 
+-- Agentic AI analyst runs (air-gapped LLM triage). Records the model, shift summary, and per-finding
+-- decisions+reasoning so the console can show the agent's work. Governed: the agent only proposes.
+CREATE TABLE IF NOT EXISTS agent_runs (
+    id          bigserial PRIMARY KEY,
+    model       text,
+    summary     text,
+    considered  int DEFAULT 0,
+    escalated   int DEFAULT 0,
+    decisions   jsonb,
+    created_at  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS agent_runs_time ON agent_runs (created_at DESC);
+
 -- Seed an n8n automation alert channel + a routing rule, so dispatched alerts also flow into
 -- the n8n automation engine (not just playbook hand-offs). Idempotent (guarded by target/name).
 INSERT INTO alert_channels (name, type, target)

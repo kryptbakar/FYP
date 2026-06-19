@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     n8n_base_url: str = "http://n8n:5678"
     n8n_api_key: str = ""   # optional: enables live execution status in the Automation view
 
+    # Self-hosted LLM (air-gapped) for the agentic AI-analyst loop.
+    ollama_url: str = "http://ollama:11434"
+    ollama_model: str = "llama3.2:3b"
+
     # Active response (Phase 6): shared agent token + Ed25519 command-signing key path.
     ingest_agent_token: str = ""
     command_signing_key: str = "/keys/command_signing.key"

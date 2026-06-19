@@ -59,5 +59,20 @@ services:
     networks:
       - default
 
+  # Self-hosted LLM (air-gapped) — the reasoning engine for the agentic SOC. Runs entirely on-prem;
+  # n8n's AI Agent node and VYREX's /agent/* loop both talk to it at http://ollama:11434. Pull a
+  # tool-capable model once:  docker exec soc-central-ollama ollama pull llama3.2:3b
+  ollama:
+    image: ollama/ollama:latest
+    container_name: soc-central-ollama
+    restart: unless-stopped
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - ollamadata:/root/.ollama
+    networks:
+      - default
+
 volumes:
   n8ndata:
+  ollamadata:
