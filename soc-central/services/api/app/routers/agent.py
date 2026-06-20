@@ -136,7 +136,106 @@ async def agent_triage(req: TriageReq) -> dict:
 @router.get("/agent/runs", summary="Recent AI-analyst runs")
 async def agent_runs(limit: int = 10) -> list[dict]:
     return await db.fetch(
-        "SELECT id, model, summary, considered, escalated, decisions, created_at "
-        "FROM agent_runs ORDER BY id DESC LIMIT %(l)s",
+        "SELECT id, kind, model, summary, considered, escalated, ref_id, decisions, created_at "
+        "FROM agent_runs WHERE kind = 'triage' ORDER BY id DESC LIMIT %(l)s",
+        {"l": limit},
+    )
+
+
+# ───────────────────────────── investigation agent ───────────────────────────
+SYSTEM_INVESTIGATE = (
+    "You are VYREX, a senior incident responder. You receive an incident and ALL its correlated "
+    "findings (each with asset, CVE, ATT&CK technique, IOC indicator, detecting tool, severity). "
+    "Pivot across them and produce a focused investigation. Reply with ONLY compact JSON, no prose: "
+    '{"narrative":"<2-4 sentences: what most likely happened and why it matters>",'
+    '"timeline":[{"step":"<short label>","detail":"<what/where, cite the finding or asset>"}],'
+    '"killchain":[{"tactic":"<ATT&CK tactic>","technique":"<Txxxx>","evidence":"<which finding/IOC>"}],'
+    '"recommendations":["<concrete next investigative or containment step; containment is proposal-only>"]}'
+    " Order the timeline and kill-chain by attack progression (initial access → execution → ... → impact)."
+)
+
+
+class InvestigateReq(BaseModel):
+    incident_id: int
+
+
+@router.post("/agent/investigate", summary="Investigation agent — LLM pivots an incident into a narrative + kill-chain")
+async def agent_investigate(req: InvestigateReq) -> dict:
+    inc = await db.fetch_one(
+        "SELECT id, title, severity, status, created_at FROM incidents WHERE id = %(id)s",
+        {"id": req.incident_id},
+    )
+    if not inc:
+        return {"error": f"incident #{req.incident_id} not found"}
+    findings = await db.fetch(
+        "SELECT fd.id, fd.title, fd.severity, fd.risk_score, fd.cve_id, fd.kev, fd.asset_id, "
+        "fd.attack, fd.threat_intel, fd.source_tool, fd.cvss_score, fd.epss "
+        "FROM incident_findings link JOIN findings fd ON fd.id = link.finding_id "
+        "WHERE link.incident_id = %(id)s ORDER BY fd.risk_score DESC NULLS LAST",
+        {"id": req.incident_id},
+    )
+    if not findings:
+        return {"error": f"incident #{req.incident_id} has no linked findings to investigate"}
+
+    # deterministic pivot: collect the entities the agent reasons over
+    assets = sorted({f["asset_id"] for f in findings if f.get("asset_id")})
+    techniques = sorted({f["attack"] for f in findings if f.get("attack")})
+    tools = sorted({f["source_tool"] for f in findings if f.get("source_tool")})
+    iocs = []
+    for f in findings:
+        ti = f.get("threat_intel")
+        if isinstance(ti, dict) and ti.get("indicator"):
+            iocs.append(f"{ti.get('indicator')} ({ti.get('type', 'ioc')})")
+
+    lines = [f"INCIDENT #{inc['id']}: {inc['title']} [{(inc.get('severity') or '').upper()}]"]
+    lines.append(f"Assets: {', '.join(assets) or '-'} | Tools: {', '.join(tools) or '-'} | "
+                 f"IOCs: {', '.join(sorted(set(iocs))) or 'none'}")
+    lines.append("Findings:")
+    for f in findings:
+        lines.append(
+            f"  #{f['id']} [{(f.get('severity') or '').upper()}] {(f.get('title') or '')[:90]} | "
+            f"{'KEV ' if f.get('kev') else ''}CVSS {f.get('cvss_score') or '-'} | "
+            f"asset {f.get('asset_id')} | ATT&CK {f.get('attack') or '-'} | tool {f.get('source_tool')}"
+        )
+
+    payload = {
+        "model": settings.ollama_model, "stream": False, "format": "json",
+        "options": {"temperature": 0.2},
+        "messages": [{"role": "system", "content": SYSTEM_INVESTIGATE},
+                     {"role": "user", "content": "\n".join(lines)}],
+    }
+    try:
+        async with httpx.AsyncClient(timeout=240) as c:
+            r = await c.post(f"{settings.ollama_url}/api/chat", json=payload)
+            r.raise_for_status()
+            content = ((r.json().get("message") or {}).get("content")) or ""
+    except Exception as e:
+        return {"error": f"self-hosted LLM unreachable — pull the model first. {str(e)[:120]}",
+                "model": settings.ollama_model}
+
+    try:
+        result = json.loads(content)
+    except Exception:
+        result = {"narrative": content[:600], "timeline": [], "killchain": [], "recommendations": []}
+
+    result.setdefault("entities", {})
+    result["entities"] = {"assets": assets, "techniques": techniques, "tools": tools,
+                          "iocs": sorted(set(iocs)), "findings": len(findings)}
+
+    run = await db.execute(
+        "INSERT INTO agent_runs (kind, model, summary, considered, ref_id, decisions) "
+        "VALUES ('investigation',%(m)s,%(s)s,%(c)s,%(rid)s,%(d)s) RETURNING id, created_at",
+        {"m": settings.ollama_model, "s": (result.get("narrative") or "")[:400],
+         "c": len(findings), "rid": str(req.incident_id), "d": json.dumps(result)},
+    )
+    return {"model": settings.ollama_model, "incident": dict(inc), "considered": len(findings),
+            "result": result, "run_id": (run or {}).get("id")}
+
+
+@router.get("/agent/investigations", summary="Recent investigation runs")
+async def agent_investigations(limit: int = 10) -> list[dict]:
+    return await db.fetch(
+        "SELECT id, model, summary, considered, ref_id, decisions, created_at "
+        "FROM agent_runs WHERE kind = 'investigation' ORDER BY id DESC LIMIT %(l)s",
         {"l": limit},
     )

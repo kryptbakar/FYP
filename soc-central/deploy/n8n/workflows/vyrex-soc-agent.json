@@ -1,0 +1,106 @@
+{
+  "id": "vyrexSocAgent",
+  "name": "VYREX — SOC AI agent (chat)",
+  "nodes": [
+    {
+      "parameters": { "options": {} },
+      "id": "ag-0001-chat-trigger-000000000001",
+      "name": "When chat message received",
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [ -360, 200 ],
+      "webhookId": "vyrex-soc-agent"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "You are VYREX, an air-gapped SOC analyst assistant. Use the provided tools to query the VYREX API and answer the analyst with concrete evidence (finding ids, scores, ATT&CK techniques). Prioritise by exploitability (KEV/EPSS), multi-tool consensus, and asset exposure. You may PROPOSE containment, but never claim to have executed any destructive action — containment requires two-person approval in VYREX. Be concise."
+        }
+      },
+      "id": "ag-0002-agent-00000000000000001",
+      "name": "VYREX SOC Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [ -60, 200 ]
+    },
+    {
+      "parameters": { "model": "llama3.2:3b", "options": { "temperature": 0.2 } },
+      "id": "ag-0003-ollama-0000000000000001",
+      "name": "Ollama Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [ -160, 420 ],
+      "credentials": { "ollamaApi": { "id": "vyrexOllama", "name": "VYREX Ollama" } }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get the current ranked queue of the top open security findings (each with severity, risk score, KEV flag, EPSS, multi-tool consensus, ATT&CK technique and asset). Use this first to see what matters.",
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=12",
+        "options": {}
+      },
+      "id": "ag-0004-tool-ranking-000000000001",
+      "name": "get_ranking",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [ 180, 420 ]
+    },
+    {
+      "parameters": {
+        "toolDescription": "Get the explainable SHAP breakdown for ONE finding by its numeric id — why it scored the way it did (factor contributions, consensus, counterfactuals).",
+        "url": "={{ $env.VYREX_API }}/findings/{id}/explain",
+        "placeholderDefinitions": { "values": [ { "name": "id", "description": "the finding id (integer)", "type": "number" } ] },
+        "options": {}
+      },
+      "id": "ag-0005-tool-explain-000000000001",
+      "name": "explain_finding",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [ 360, 420 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "toolDescription": "Run the VYREX investigation agent on an incident by its numeric id — returns a narrative, timeline and ATT&CK kill-chain assembled from the incident's findings.",
+        "url": "={{ $env.VYREX_API }}/agent/investigate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"incident_id\": {incident_id} }",
+        "placeholderDefinitions": { "values": [ { "name": "incident_id", "description": "the incident id (integer)", "type": "number" } ] },
+        "options": {}
+      },
+      "id": "ag-0006-tool-investig-00000000001",
+      "name": "investigate_incident",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [ 540, 420 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "toolDescription": "Route VYREX's unacknowledged alerts to the configured channels (idempotent). Call this when the analyst asks to notify or escalate.",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {}
+      },
+      "id": "ag-0007-tool-dispatch-00000000001",
+      "name": "dispatch_alerts",
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1.1,
+      "position": [ 720, 420 ]
+    }
+  ],
+  "connections": {
+    "When chat message received": { "main": [ [ { "node": "VYREX SOC Agent", "type": "main", "index": 0 } ] ] },
+    "Ollama Chat Model": { "ai_languageModel": [ [ { "node": "VYREX SOC Agent", "type": "ai_languageModel", "index": 0 } ] ] },
+    "get_ranking": { "ai_tool": [ [ { "node": "VYREX SOC Agent", "type": "ai_tool", "index": 0 } ] ] },
+    "explain_finding": { "ai_tool": [ [ { "node": "VYREX SOC Agent", "type": "ai_tool", "index": 0 } ] ] },
+    "investigate_incident": { "ai_tool": [ [ { "node": "VYREX SOC Agent", "type": "ai_tool", "index": 0 } ] ] },
+    "dispatch_alerts": { "ai_tool": [ [ { "node": "VYREX SOC Agent", "type": "ai_tool", "index": 0 } ] ] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "pinData": {},
+  "meta": { "description": "Native n8n AI Agent: chat with a VYREX SOC analyst backed by a self-hosted Ollama model. The agent calls VYREX endpoints as TOOLS (get_ranking, explain_finding, investigate_incident, dispatch_alerts) to answer with real evidence. One-time setup: create an 'Ollama' credential in n8n (Base URL http://ollama:11434) named 'VYREX Ollama'. Open the workflow and use the built-in Chat. Containment stays behind two-person approval. See docs/AI-ANALYST.md." }
+}

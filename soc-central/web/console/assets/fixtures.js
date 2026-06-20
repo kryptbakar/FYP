@@ -376,6 +376,23 @@ const FIX = (() => {
         { id: 55, title: 'CVE-2022-3715 — bash heap buffer overflow', asset_id: 'db-core-01', severity: 'HIGH', decision: 'MONITOR', reason: 'EPSS 0.001, single tool, not exposed — patch in the normal cycle.' },
       ],
     },
+    agentInvestigate: {
+      model: 'llama3.2:3b', considered: 2, run_id: 3,
+      incident: { id: 2, title: 'Correlated activity on scan-target-01', severity: 'CRITICAL' },
+      result: {
+        narrative: 'Initial access via an unpatched glibc privilege-escalation flaw on scan-target-01, followed by Log4Shell remote code execution on the same internet-facing host — a single attack chain across two corroborated findings.',
+        timeline: [
+          { step: 'Initial Access', detail: 'CVE-2023-4911 (Looney Tunables) in libc6 on scan-target-01 (#5072)' },
+          { step: 'Execution', detail: 'Apache Log4Shell RCE detected by nuclei on scan-target-01 (#5075)' },
+        ],
+        killchain: [
+          { tactic: 'Initial Access', technique: 'T1190', evidence: '#5072 glibc' },
+          { tactic: 'Execution', technique: 'T1190', evidence: '#5075 Log4Shell' },
+        ],
+        recommendations: ['Isolate scan-target-01 (propose containment — two-person approval).', 'Pull web/proxy logs around the Log4Shell hit to confirm exploitation.', 'Patch glibc + the Log4j component on the host.'],
+        entities: { assets: ['scan-target-01'], techniques: ['T1190'], tools: ['trivy', 'nuclei'], iocs: [], findings: 2 },
+      },
+    },
     automationStatus: {
       engine: 'n8n', reachable: false, base_url: 'http://n8n:5678', webhook_url: 'http://n8n:5678/webhook/vyrex',
       api_key_configured: false, channel: { id: 4, name: 'n8n automation', target: 'http://n8n:5678/webhook/vyrex-alert', enabled: true },

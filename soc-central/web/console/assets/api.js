@@ -178,6 +178,7 @@ const API = {
   agentStatus: () => API._get('/agent/status', () => FIX.agentStatus),
   agentRuns: () => API._get('/agent/runs', () => FIX.agentRuns),
   agentTriage: (limit) => API._post('/agent/triage', { limit: limit || 8 }, FIX.agentTriage),
+  agentInvestigate: (incidentId) => API._post('/agent/investigate', { incident_id: incidentId }, FIX.agentInvestigate),
 
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),

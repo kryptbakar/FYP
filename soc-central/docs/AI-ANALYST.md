@@ -34,8 +34,18 @@ escalations are recorded as governed notifications. `OLLAMA_MODEL` (default `lla
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/agent/status` | LLM reachability + whether the model is pulled |
-| POST | `/agent/triage` `{limit}` | run the agent over the top open findings → decisions + reasoning |
-| GET | `/agent/runs` | recent run history |
+| POST | `/agent/triage` `{limit}` | triage agent — reason over the top open findings → decisions + reasoning |
+| POST | `/agent/investigate` `{incident_id}` | **investigation agent** — pivot an incident's findings → assets → IOCs → ATT&CK into a narrative + timeline + kill-chain + next steps |
+| GET | `/agent/runs` · `/agent/investigations` | recent triage / investigation history |
+
+### Investigation agent
+
+In the console → **Cases** → open an incident → **Investigate with AI**. The agent deterministically
+gathers the incident's correlated findings, affected assets, IOCs and ATT&CK techniques, then the
+self-hosted LLM assembles a **narrative**, an ordered **timeline**, the **ATT&CK kill-chain**, and
+**recommended next steps** (containment proposed, never executed). Verified live: on a 2-finding
+incident it produced "Initial access via an unpatched glibc flaw → Log4Shell RCE on the same
+internet-facing host," mapped to Initial-Access → Execution (T1190).
 
 The `07-ai-analyst-triage.json` n8n workflow schedules `POST /agent/triage` every 30 min and
 dispatches the agent's escalations — unattended agentic triage.
@@ -45,12 +55,16 @@ dispatches the agent's escalations — unattended agentic triage.
 1. **VYREX-hosted agent (shipped, robust):** n8n simply calls `POST /agent/triage`. The reasoning
    loop + governance live in VYREX, so it's deterministic to operate and easy to audit. This is the
    `07-ai-analyst-triage.json` workflow.
-2. **Native n8n AI Agent node (advanced):** build an **AI Agent** node in n8n with an **Ollama Chat
-   Model** sub-node (Base URL `http://ollama:11434`, model `llama3.2:3b`) and add **HTTP Request
-   Tool** sub-nodes wrapping VYREX endpoints (`/risk/ranking`, `/findings/{id}/explain`,
-   `/incidents/correlate`, `/alerts/dispatch`) as the agent's tools. The agent then plans and calls
-   those tools itself (ReAct). Create the Ollama credential once in n8n → Credentials → Ollama. This
-   is the more "agentic" surface; VYREX's approval gate still governs any containment.
+2. **Native n8n AI Agent node (chat, advanced):** import
+   [`deploy/n8n/workflows/vyrex-soc-agent.json`](../deploy/n8n/workflows/vyrex-soc-agent.json) — a
+   **chat-triggered AI Agent** with an **Ollama Chat Model** and VYREX endpoints wired as callable
+   **HTTP Request Tools** (`get_ranking`, `explain_finding`, `investigate_incident`,
+   `dispatch_alerts`). The agent plans and calls those tools itself (ReAct), so you can *chat* with a
+   VYREX SOC analyst in n8n. **One-time setup:** create an **Ollama** credential in n8n →
+   Credentials → New → Ollama, Base URL `http://ollama:11434`, named exactly **`VYREX Ollama`**; open
+   the workflow and use the built-in **Chat**. (A 3B model does basic tool-calling; for reliable
+   multi-tool ReAct, point `OLLAMA_MODEL` at `qwen2.5:7b` or `llama3.1:8b`.) VYREX's approval gate
+   still governs any containment.
 
 ## Roadmap (the agentic SOC, staged)
 

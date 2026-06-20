@@ -230,13 +230,17 @@ CREATE INDEX IF NOT EXISTS alert_deliveries_time ON alert_deliveries (created_at
 -- decisions+reasoning so the console can show the agent's work. Governed: the agent only proposes.
 CREATE TABLE IF NOT EXISTS agent_runs (
     id          bigserial PRIMARY KEY,
+    kind        text DEFAULT 'triage',      -- triage | investigation
     model       text,
     summary     text,
     considered  int DEFAULT 0,
     escalated   int DEFAULT 0,
-    decisions   jsonb,
+    ref_id      text,                        -- incident id for investigations
+    decisions   jsonb,                       -- triage decisions OR investigation result
     created_at  timestamptz DEFAULT now()
 );
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS kind text DEFAULT 'triage';
+ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS ref_id text;
 CREATE INDEX IF NOT EXISTS agent_runs_time ON agent_runs (created_at DESC);
 
 -- Seed an n8n automation alert channel + a routing rule, so dispatched alerts also flow into

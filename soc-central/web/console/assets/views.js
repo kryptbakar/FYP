@@ -390,6 +390,21 @@ function openIncident(inc, actions) {
   b.append(block('SLA', h('div', { class: 'row' }, inc.sla_breached ? chip('breached', 'kev') : chip('on track', 'ok'),
     h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'due ' + (inc.sla_due || '—')))));
 
+  // AI investigation (agentic — self-hosted LLM pivots the incident into a narrative + kill-chain)
+  const aiBox = h('div', {});
+  b.append(block('AI investigation', h('div', {},
+    h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap' },
+      h('button', { class: 'btn primary sm', onclick: runInvestigate, html: ic('model') + '<span style="margin-left:6px">Investigate with AI</span>' }),
+      h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'self-hosted LLM · pivots findings → assets → IOCs → ATT&CK')),
+    aiBox)));
+  async function runInvestigate() {
+    aiBox.innerHTML = ''; aiBox.append(loading('The AI is investigating this incident…'));
+    const r = await API.agentInvestigate(inc.id).catch(() => ({ error: 'request failed' }));
+    aiBox.innerHTML = '';
+    if (r.error) { aiBox.append(h('div', { class: 'callout', style: 'margin-top:var(--s-2)' }, r.error)); return; }
+    aiBox.append(investigationView(r.result || {}));
+  }
+
   // attack chain (kill-chain order over the linked findings' ATT&CK techniques)
   const chain = killChain(evidence);
   if (chain) b.append(block('Attack chain (MITRE ATT&CK)', chain));
@@ -411,6 +426,19 @@ function openIncident(inc, actions) {
   const tasksBox = h('div', {}, loading('Loading tasks…')); b.append(block('Tasks', tasksBox));
   const obsBox = h('div', {}, loading('Loading observables…')); b.append(block('Observables', obsBox));
   loadCasework(inc.id, tasksBox, obsBox);
+}
+function investigationView(res) {
+  const sec = (label, body) => h('div', { style: 'margin-top:var(--s-3)' },
+    h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-1)' }, label), body);
+  return h('div', { class: 'fade', style: 'margin-top:var(--s-2)' },
+    res.narrative ? h('div', { class: 'summary', style: 'font-size:var(--t-sm)' }, res.narrative) : null,
+    (res.timeline || []).length ? sec('Timeline', h('div', { class: 'stack', style: 'gap:6px' }, res.timeline.map((t, i) =>
+      h('div', { class: 'row', style: 'gap:var(--s-2);align-items:flex-start' },
+        h('span', { class: 'mono faint', style: 'font-size:var(--t-2xs);min-width:18px' }, (i + 1) + '.'),
+        h('div', {}, h('span', { style: 'font-weight:520' }, t.step || ''), t.detail ? h('span', { class: 'prose', style: 'font-size:var(--t-xs)' }, ' — ' + t.detail) : null))))) : null,
+    (res.killchain || []).length ? sec('Kill-chain (ATT&CK)', h('div', { class: 'wrap' }, res.killchain.map(k =>
+      h('span', { class: 'chip attack', title: k.evidence || '' }, (k.tactic || '') + ' · ' + (k.technique || ''))))) : null,
+    (res.recommendations || []).length ? sec('Recommended next steps', h('ul', { class: 'lims' }, res.recommendations.map(x => h('li', {}, x)))) : null);
 }
 const TASK_NEXT = { todo: 'in_progress', in_progress: 'done', done: 'todo' };
 async function loadCasework(incId, tasksBox, obsBox) {
