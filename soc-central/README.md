@@ -1,4 +1,4 @@
-# SOC Central
+# VYREX
 
 A centralized **Security Operations Center** and vulnerability-intelligence platform.
 Bachelor's senior design project (GIKI, BS Cyber Security), built as a proof-of-concept

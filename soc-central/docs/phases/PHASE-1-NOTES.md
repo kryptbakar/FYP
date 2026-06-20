@@ -19,7 +19,7 @@ fake-producer ──mTLS+token──> ingest-edge ──validate──> NATS Jet
 | `fake-producer` (Python) | [tools/fake-producer/](../tools/fake-producer/) | Agent stand-in; generates all 5 telemetry kinds, posts over mTLS. Replaced by the Go agent in Phase 2. |
 | Dev PKI | `scripts/gen-certs.sh` → `certs/` (gitignored) | CA + ingest-edge server cert + `agent-001` client cert. |
 
-Design rationale is in [DECISIONS.md](DECISIONS.md) D-011…D-014.
+Design rationale is in [DECISIONS.md](../DECISIONS.md) D-011…D-014.
 
 ## How to run
 

@@ -1,0 +1,25 @@
+# Normalize line endings: store LF in the repo, check out LF everywhere (the stack runs in Linux
+# containers, and shell scripts / Dockerfiles need LF). Silences the "LF will be replaced by CRLF"
+# warnings on Windows commits.
+* text=auto eol=lf
+
+# Scripts that MUST be LF
+*.sh   text eol=lf
+Makefile text eol=lf
+Dockerfile text eol=lf
+
+# Binary assets — never touch line endings
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.gz   binary
+*.zip  binary
+*.woff  binary
+*.woff2 binary
+*.pcap binary
+*.joblib binary
+*.pkl  binary
+*.model binary
