@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vyrex/schema/telemetry/v1/envelope.schema.json",
+  "title": "SOC Central Telemetry Envelope v1",
+  "description": "The unified, versioned wire format every agent ships and every worker consumes. Breaking changes require a v2 schema + a new subject namespace (telemetry.v2.>).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "agent_id", "host", "collected_at", "kind", "payload"],
+  "properties": {
+    "schema_version": {
+      "description": "Envelope contract version. Pinned so consumers can route/validate by version.",
+      "type": "string",
+      "const": "1.0"
+    },
+    "event_id": {
+      "description": "Globally unique id for this event (used as the OpenSearch _id for idempotency).",
+      "type": "string",
+      "format": "uuid"
+    },
+    "agent_id": {
+      "description": "Logical id of the shipping agent. Cross-checked against the mTLS client-cert CN at ingest.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host_id", "hostname"],
+      "properties": {
+        "host_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "hostname": { "type": "string", "maxLength": 253 },
+        "os": { "type": "string", "maxLength": 64 },
+        "ip": { "type": "string", "maxLength": 45 }
+      }
+    },
+    "collected_at": {
+      "description": "When the agent observed the event (RFC 3339).",
+      "type": "string",
+      "format": "date-time"
+    },
+    "ingested_at": {
+      "description": "Stamped by ingest-edge on receipt. Agents leave this null/absent.",
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "kind": {
+      "description": "Telemetry category; also the last token of the JetStream subject telemetry.v1.<kind>. Tool-integration kinds (ids_alert, traffic_metadata, scan_finding, ioc_match, runtime_alert) are added by the tool-integration expansion; their payloads stay generic until each tool's phase tightens them.",
+      "type": "string",
+      "enum": ["system_info", "process_event", "network_flow", "fim_event", "osquery_result",
+               "ids_alert", "traffic_metadata", "scan_finding", "ioc_match", "runtime_alert", "yara_match"]
+    },
+    "source_tool": {
+      "description": "Which producer emitted this (e.g. agent, suricata, zeek, nuclei, trivy, wazuh, falco, sigma). Defaults to the agent when absent.",
+      "type": "string",
+      "maxLength": 64
+    },
+    "raw_ref": {
+      "description": "Pointer back to the source record (e.g. OpenSearch _id, eve.json offset, scan report id) for drill-down/provenance.",
+      "type": "string",
+      "maxLength": 512
+    },
+    "labels": {
+      "description": "Optional free-form string key/values for routing and filtering.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "payload": {
+      "description": "Kind-specific body. Minimal required fields are enforced per-kind below.",
+      "type": "object"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "process_event" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["pid", "name", "action"],
+            "properties": {
+              "pid": { "type": "integer", "minimum": 0 },
+              "ppid": { "type": "integer", "minimum": 0 },
+              "name": { "type": "string" },
+              "cmdline": { "type": "string" },
+              "user": { "type": "string" },
+              "action": { "type": "string", "enum": ["exec", "fork", "exit"] }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "network_flow" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["proto", "direction", "remote_ip"],
+            "properties": {
+              "proto": { "type": "string", "enum": ["tcp", "udp", "icmp"] },
+              "direction": { "type": "string", "enum": ["inbound", "outbound"] },
+              "local_ip": { "type": "string" },
+              "local_port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+              "remote_ip": { "type": "string" },
+              "remote_port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+              "bytes": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "fim_event" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["path", "change"],
+            "properties": {
+              "path": { "type": "string" },
+              "change": { "type": "string", "enum": ["created", "modified", "deleted", "attr"] },
+              "sha256": { "type": "string" },
+              "size": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "system_info" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["metric", "value"],
+            "properties": {
+              "metric": { "type": "string" },
+              "value": { "type": "number" },
+              "unit": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "kind": { "const": "osquery_result" } } },
+      "then": {
+        "properties": {
+          "payload": {
+            "type": "object",
+            "required": ["query_name", "columns"],
+            "properties": {
+              "query_name": { "type": "string" },
+              "columns": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

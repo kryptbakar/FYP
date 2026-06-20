@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": 2,
+  "ArtifactName": "vyrex-api:latest",
+  "ArtifactType": "container_image",
+  "Results": [
+    {
+      "Target": "vyrex-api:latest (debian 12.4)",
+      "Class": "os-pkgs",
+      "Type": "debian",
+      "Vulnerabilities": [
+        {"VulnerabilityID": "CVE-2023-4911", "PkgName": "libc6", "InstalledVersion": "2.36-9+deb12u3", "FixedVersion": "2.36-9+deb12u4", "Severity": "HIGH", "Title": "glibc: buffer overflow in ld.so via GLIBC_TUNABLES (Looney Tunables)", "CVSS": {"nvd": {"V3Score": 7.8}}, "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2023-4911"},
+        {"VulnerabilityID": "CVE-2023-0286", "PkgName": "libssl3", "InstalledVersion": "3.0.2-0", "FixedVersion": "3.0.8-1", "Severity": "HIGH", "Title": "openssl: X.400 address type confusion in X.509 GeneralName", "CVSS": {"nvd": {"V3Score": 7.4}}, "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2023-0286"},
+        {"VulnerabilityID": "CVE-2022-1304", "PkgName": "e2fsprogs", "InstalledVersion": "1.47.0-2", "FixedVersion": "1.47.0-2+deb12u1", "Severity": "MEDIUM", "Title": "e2fsprogs: out-of-bounds read/write via crafted filesystem", "CVSS": {"nvd": {"V3Score": 5.5}}, "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2022-1304"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+VYREX — Proprietary License
+Copyright (c) 2026 Hamza Safwan (kryptbakar <hamzasafwan2004@gmail.com>). All rights reserved.
+
+This repository contains the original VYREX source code and documentation, created as a
+final-year project (GIKI, BS Cyber Security) and a proof-of-concept for an air-gapped /
+on-premises government deployment.
+
+1. The VYREX original code and docs may be VIEWED for evaluation, academic assessment, and
+   portfolio review.
+
+2. No license is granted to use, copy, modify, distribute, sublicense, or create derivative
+   works of the VYREX original code without the prior written permission of the copyright holder.
+
+3. THIRD-PARTY SOFTWARE. VYREX integrates and orchestrates third-party open-source software
+   (including, without limitation, Suricata, Zeek, Wazuh, Falco, Trivy, Nuclei, Sigma, MISP,
+   OpenCTI, n8n, Ollama, PostgreSQL, TimescaleDB, OpenSearch, NATS, Grafana, Mailpit, and others).
+   Each such component is licensed under ITS OWN license and remains the property of its respective
+   authors; see ATTRIBUTIONS.md (in the project directory). Nothing in this notice grants, alters,
+   or overrides the rights granted by those upstream licenses.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.
+
+To request a different (e.g. open-source) license for the VYREX original code, contact the
+copyright holder.

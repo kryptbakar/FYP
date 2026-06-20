@@ -1,0 +1,68 @@
+# Weekly TLS cert rotation from Vault PKI (runs rotate-certs.sh in-cluster).
+# The ServiceAccount is bound (RBAC below) to manage the soc-tls Secret and restart the
+# API/ingest Deployments. Vault auth uses the Kubernetes auth method via the SA token.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: soc-cert-rotation
+  namespace: vyrex
+spec:
+  schedule: "0 3 * * 1" # 03:00 every Monday
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          serviceAccountName: soc-cert-rotator
+          restartPolicy: Never
+          containers:
+            - name: rotate
+              image: registry.soc.local/vyrex/toolbox:1.0.0 # has vault + kubectl + jq
+              command: ["/bin/bash", "/scripts/rotate-certs.sh"]
+              env:
+                - { name: NAMESPACE, value: vyrex }
+                - { name: VAULT_ADDR, value: "https://vault.vyrex.svc:8200" }
+                - { name: PKI_ROLE, value: soc-server }
+                - { name: COMMON_NAME, value: api.vyrex.svc }
+                - { name: TTL, value: "72h" }
+              volumeMounts:
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+          volumes:
+            - name: scripts
+              configMap:
+                name: soc-cert-rotation-scripts
+                defaultMode: 0755
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: soc-cert-rotator
+  namespace: vyrex
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: soc-cert-rotator
+  namespace: vyrex
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"] # rollout restart patches the pod template annotation
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: soc-cert-rotator
+  namespace: vyrex
+subjects:
+  - kind: ServiceAccount
+    name: soc-cert-rotator
+    namespace: vyrex
+roleRef:
+  kind: Role
+  name: soc-cert-rotator
+  apiGroup: rbac.authorization.k8s.io

@@ -1,9 +1,9 @@
-# --- Repo-root safety net (the real rules live in soc-central/.gitignore) ---
+# --- Repo-root safety net (the real rules live in vyrex/.gitignore) ---
 
 # Personal Claude Code / IDE tooling config — not a project deliverable.
 .claude/
 
-# Secrets — never publish (belt-and-suspenders; also ignored in soc-central/).
+# Secrets — never publish (belt-and-suspenders; also ignored in vyrex/).
 .env
 **/.env
 !**/.env.example

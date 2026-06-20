@@ -1,0 +1,17 @@
+apiVersion: v2
+name: vyrex
+description: |
+  SOC Central — centralized SOC & vulnerability-intelligence platform.
+  This chart deploys the product workloads (API, analyst console, ingestion edge,
+  stream workers, and the enrichment/risk/feed-sync jobs) onto an air-gapped K3s
+  cluster, plus the security primitives (default-deny NetworkPolicies, OIDC ingress).
+  The stateful backends (PostgreSQL via CloudNativePG, OpenSearch via its operator,
+  NATS JetStream) and platform add-ons (Vault, Keycloak, Velero, ArgoCD) are managed
+  as cluster prerequisites — see deploy/README.md.
+type: application
+version: 0.8.0          # chart version (Phase 8)
+appVersion: "1.0.0"
+keywords: [soc, siem, vulnerability, air-gapped, k3s]
+maintainers:
+  - name: SOC Central
+home: https://github.com/kryptbakar/FYP
