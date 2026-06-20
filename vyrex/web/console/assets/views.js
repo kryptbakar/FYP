@@ -290,16 +290,22 @@ async function viewCompliance(root) {
   const score = Math.round(((by.pass || 0) / graded) * 100);
   const regressed = (summary.per_asset || []).filter(a => +a.score_pct < 50).length;
 
-  root.append(h('div', { class: 'stack fade' },
-    h('div', { class: 'panel pad' },
-      h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-2)' }, 'Posture'),
-      h('div', { style: 'font-size:16px;font-weight:560;line-height:1.4' },
-        `CIS posture ${score}% — ${by.fail || 0} controls failing across the estate` + (regressed ? `, ${regressed} host(s) below 50%.` : '.')),
-      h('div', { class: 'row', style: 'margin-top:14px;gap:var(--s-2)' },
+  const scoreBand = score < 50 ? 'critical' : score < 75 ? 'high' : 'info';
+  root.append(bento(
+    tile({ span: 4, hero: true, title: 'CIS posture', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n ' + scoreBand }, score + '%'),
+        h('div', {}, h('div', { class: 'hero-of' }, 'controls passing'),
+          h('div', { class: 'hero-sub' }, `${by.fail || 0} failing across the estate`))),
+      h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap' },
         chip('chain ' + (chain.ok ? 'verified ✓' : 'BROKEN ✗'), chain.ok ? 'ok' : 'kev'),
-        chip(`${chain.length ?? 0} evidence records`, 'mono'),
-        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'head ' + (chain.head_hash || '—').slice(0, 16)))),
-    compTable(results), evidencePanel(evidence)));
+        chip(`${chain.length ?? 0} evidence records`, 'mono')),
+      h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'head ' + (chain.head_hash || '—').slice(0, 16))),
+    statTile(2, 'Passing', String(by.pass || 0), kpiDelta('cis_pass', by.pass || 0, 'up'), 'controls met', 'ok'),
+    statTile(2, 'Failing', String(by.fail || 0), kpiDelta('cis_fail', by.fail || 0), 'need remediation', (by.fail || 0) ? 'crit' : 'ok'),
+    statTile(2, 'Partial', String(by.partial || 0), kpiDelta('cis_partial', by.partial || 0), 'partially met', (by.partial || 0) ? 'warn' : 'ok'),
+    statTile(2, 'At-risk hosts', String(regressed), kpiDelta('cis_hosts', regressed), 'below 50% posture', regressed ? 'warn' : 'ok')));
+  root.append(h('div', { class: 'stack fade' }, compTable(results), evidencePanel(evidence)));
 }
 function evidencePanel(evidence) {
   return h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Evidence records'),
@@ -723,10 +729,15 @@ async function viewTrust(root) {
   const [resp, comp, events, actions, access] = await Promise.all([API.auditVerify(), API.chain(), API.auditEvents(40), API.actions(), API.accessAudit(50)]);
   root.innerHTML = '';
 
-  root.append(h('div', { class: 'kpis fade' },
-    integrityCard('Response audit chain', resp),
-    integrityCard('Compliance evidence chain', comp),
-    kpiCard('Air-gap egress', 'sealed', 'only feed-sync may reach the internet', 'ok')));
+  root.append(bento(
+    tile({ span: 4, hero: true, title: 'Air-gap egress', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n info', style: 'font-size:38px' }, 'SEALED'),
+        h('div', {}, h('div', { class: 'hero-of' }, 'network containment'),
+          h('div', { class: 'hero-sub' }, 'only feed-sync may reach the internet'))),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'every other service is egress-denied by network policy')),
+    integrityTile(4, 'Response audit chain', resp),
+    integrityTile(4, 'Compliance evidence chain', comp)));
 
   const EGRESS = [
     ['feed-sync', 'NVD · EPSS · KEV mirror', 'allowed (sole egress)', true],
@@ -773,6 +784,15 @@ function integrityCard(label, v) {
     h('div', { class: 'vv', style: 'font-size:20px' }, ok ? 'intact ✓' : 'check ✗'),
     h('div', { class: 'sb mono' }, `${v && v.length != null ? v.length : '—'} records · head ${((v && v.head_hash) || '—').slice(0, 12)}`));
 }
+/* bento variant of integrityCard — a tile with a reusable hero number */
+function integrityTile(span, label, v) {
+  const ok = v && v.ok;
+  return tile({ span, title: label, cls: 'fade' },
+    h('div', { class: 'hero', style: 'align-items:flex-end;gap:8px' },
+      h('div', { class: 'hero-n ' + (ok ? 'info' : 'critical'), style: 'font-size:30px' }, ok ? 'intact ✓' : 'check ✗'),
+      h('div', {}, h('div', { class: 'hero-of' }, `${v && v.length != null ? v.length : '—'} records`))),
+    h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'head ' + ((v && v.head_hash) || '—').slice(0, 16)));
+}
 function auditEventRow(e, actions) {
   const act = (actions || []).find(a => a.id === e.action_id);
   const rec = e.record || {};
@@ -815,10 +835,10 @@ async function viewModel(root) {
         h('div', { class: 'c' }, (+v).toFixed(2)))))));
 
   const sc = m.scope || {};
-  root.append(h('div', { class: 'kpis fade', style: 'margin-top:14px' },
-    kpiCard('Findings scored (ML)', String(sc.findings_scored_by_ml ?? '—'), 'by the XGBoost re-ranker', ''),
-    kpiCard('Findings scored (composite)', String(sc.findings_scored_by_composite ?? '—'), 'by the weighted formula', ''),
-    kpiCard('Analyst labels', String(sc.analyst_labels_captured ?? 0), 'feedback weighted 5× in retrain', (sc.analyst_labels_captured ? 'ok' : 'warn'))));
+  root.append(h('div', { style: 'height:14px' }), bento(
+    statTile(4, 'Findings scored (ML)', String(sc.findings_scored_by_ml ?? '—'), null, 'by the XGBoost re-ranker'),
+    statTile(4, 'Findings scored (composite)', String(sc.findings_scored_by_composite ?? '—'), null, 'by the weighted formula'),
+    statTile(4, 'Analyst labels', String(sc.analyst_labels_captured ?? 0), null, 'weighted 5× in retrain', sc.analyst_labels_captured ? 'ok' : 'warn')));
 
   const lims = m.limitations || [];
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
@@ -839,6 +859,18 @@ async function viewAssets(root) {
   root.innerHTML = '';
   const cnt = {}, top = {};
   ranking.forEach(r => { cnt[r.asset_id] = (cnt[r.asset_id] || 0) + 1; top[r.asset_id] = Math.max(top[r.asset_id] || 0, +r.risk_score); });
+
+  const intExposed = (assets || []).filter(a => a.exposure === 'internet').length;
+  const peak = Math.max(0, ...Object.values(top));
+  root.append(bento(
+    tile({ span: 4, hero: true, title: 'Estate', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n info' }, String((assets || []).length)),
+        h('div', {}, h('div', { class: 'hero-of' }, 'hosts monitored'),
+          h('div', { class: 'hero-sub' }, `${intExposed} internet-exposed`)))),
+    statTile(3, 'Internet-exposed', String(intExposed), kpiDelta('as_int', intExposed), 'attack surface', intExposed ? 'warn' : 'ok'),
+    statTile(3, 'Open findings', String(ranking.length), kpiDelta('as_find', ranking.length), 'across all hosts', ranking.length ? 'warn' : 'ok'),
+    statTile(2, 'Peak risk', peak ? n0(peak) : '—', null, 'highest host', peak >= 80 ? 'crit' : peak >= 60 ? 'warn' : 'ok')));
 
   const tbl = h('table', { class: 'tbl' },
     h('thead', {}, h('tr', {}, ['Host', 'OS', 'IP', 'Exposure', 'Criticality', 'Findings', 'Top risk'].map(t => h('th', {}, t)))),
@@ -910,11 +942,16 @@ async function viewManager(root) {
   const open = incidents.filter(i => !/resolved|closed|remediated/i.test(i.status || ''));
   const breaches = incidents.filter(i => i.sla_breached);
 
-  root.append(h('div', { class: 'kpis fade' },
-    kpiCard('Queue depth', String(ranking.length), `${bands.critical} critical · ${bands.high} high`, bands.critical ? 'crit' : 'ok'),
-    kpiCard('Open incidents', String(open.length), `${incidents.length} total`, ''),
-    kpiCard('SLA breaches', String(breaches.length), breaches.length ? 'attention required' : 'all within SLA', breaches.length ? 'crit' : 'ok'),
-    kpiCard('Assets monitored', String(stats.assets ?? '—'), 'across the estate', '')));
+  root.append(bento(
+    tile({ span: 4, hero: true, title: 'Decision queue', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n ' + (bands.critical ? 'critical' : 'info') }, String(ranking.length)),
+        h('div', {}, h('div', { class: 'hero-of' }, 'findings ranked'),
+          h('div', { class: 'hero-sub' }, `${bands.critical} critical · ${bands.high} high`))),
+      h('div', { style: 'margin-top:2px' }, riskBandBar(bands, ranking.length))),
+    statTile(3, 'Open incidents', String(open.length), kpiDelta('mgr_open', open.length), `${incidents.length} total`, open.length ? 'warn' : 'ok'),
+    statTile(3, 'SLA breaches', String(breaches.length), kpiDelta('mgr_sla', breaches.length), breaches.length ? 'attention required' : 'within SLA', breaches.length ? 'crit' : 'ok'),
+    statTile(2, 'Assets', String(stats.assets ?? '—'), kpiDelta('mgr_assets', stats.assets || 0, 'up'), 'monitored', 'ok')));
 
   // analyst workload
   const byAssignee = {}; incidents.forEach(i => { const k = i.assignee || 'unassigned'; byAssignee[k] = byAssignee[k] || { open: 0, total: 0 }; byAssignee[k].total++; if (!/resolved|closed|remediated/i.test(i.status || '')) byAssignee[k].open++; });
