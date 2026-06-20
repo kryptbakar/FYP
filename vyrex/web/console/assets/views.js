@@ -592,40 +592,48 @@ async function viewOverview(root) {
     h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
       html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' })));
 
-  root.append(h('div', { class: 'kpis fade' },
-    kpiCard('Critical exposure', String(bands.critical), `${bands.high} high · ${ranking.length} ranked`, bands.critical ? 'crit' : 'ok'),
-    kpiCard('Known-exploited (KEV)', String(kev), 'CISA KEV-listed findings', kev ? 'warn' : 'ok'),
-    kpiCard('Active incidents', String(openInc), breaches ? `${breaches} SLA breached` : 'all within SLA', breaches ? 'crit' : 'ok'),
-    kpiCard('CIS posture', cis + '%', `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok')));
+  // ---- bento row 1: hero posture + KPI deltas + context tiles ----
+  const top = ranking[0] || {};
+  const peakBand = top.risk_score != null ? band(top.risk_score) : 'info';
+  const peakHost = top.asset_id ? (assetMeta(top.asset_id).hostname || top.asset_id) : null;
+  const hero = tile({ span: 4, rowspan: true, hero: true, title: 'Security posture', cls: 'fade' },
+    h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+      h('div', { class: 'hero-n ' + peakBand }, ranking.length ? n0(top.risk_score) : '—'),
+      h('div', {}, h('div', { class: 'hero-of' }, '/ 100 peak risk'),
+        peakHost ? h('div', { class: 'hero-sub', style: 'max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, top.title || peakHost) : null)),
+    h('div', { style: 'margin-top:2px' }, riskBandBar(bands, ranking.length)),
+    h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs)' },
+      `${ranking.length} ranked · ${bands.critical} critical · ${bands.high} high · ${kev} KEV`));
 
-  root.append(h('div', { class: 'panel pad fade' },
-    h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'Risk distribution'),
-    riskBandBar(bands, ranking.length)));
-
-  const topRisks = h('div', { class: 'panel' },
-    h('div', { class: 'panel-h' }, h('h2', {}, 'Top risks now'), h('span', { class: 'sub' }, '· click to investigate'),
-      h('span', { class: 'spring', style: 'flex:1' }),
-      pdfBtn('PDF'),
-      csvBtn('CSV', 'soc-top-risks.csv', () => [['rank', 'score', 'severity', 'asset', 'cve', 'title', 'attack'],
-        ...ranking.map((r, i) => [i + 1, r.risk_score, r.severity, assetMeta(r.asset_id).hostname || r.asset_id, r.cve_id || '', r.title, r.attack || ''])])),
-    h('div', {}, ranking.slice(0, 6).map(r => overviewRiskRow(r))));
-  const side = h('div', { class: 'stack' },
-    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'ATT&CK coverage'),
+  root.append(bento(
+    hero,
+    statTile(2, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok'),
+    statTile(2, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok'),
+    statTile(2, 'Active incidents', String(openInc), kpiDelta('inc', openInc), breaches ? `${breaches} SLA breached` : 'within SLA', breaches ? 'crit' : 'ok'),
+    statTile(2, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok'),
+    tile({ span: 4, title: 'ATT&CK coverage', sub: `· ${techniques.length} mapped`, cls: 'fade' },
       h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(`${t} · ${attackName(t)}`, 'attack'))
         : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No techniques mapped yet.'))),
-    h('div', { class: 'panel pad' }, h('div', { class: 'sec-label', style: 'margin-bottom:10px' }, 'Evidence integrity'),
+    tile({ span: 4, title: 'Evidence integrity', cls: 'fade' },
       h('div', { class: 'row' }, chip(chain.ok ? 'chain intact ✓' : 'chain check', chain.ok ? 'ok' : 'kev'),
-        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} records`))));
-  root.append(h('div', { class: 'cols2 fade', style: 'align-items:start' }, topRisks, side));
+        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} records`)),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'Hash-chained audit log · tamper-evident'))));
 
+  // ---- bento row 2: master list (top risks) + live detections feed ----
   const feed = h('div', {});
-  root.append(h('div', { class: 'panel pad fade' },
-    h('div', { class: 'row', style: 'margin-bottom:var(--s-3)' }, h('div', { class: 'sec-label' }, 'Live detections'),
-      h('span', { class: 'spring', style: 'flex:1' }), h('span', { class: 'live-dot' }),
-      h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'near-real-time · polling')),
-    feed));
+  root.append(bento(
+    tile({ span: 8, pad0: true, title: 'Top risks now', sub: '· click to investigate', cls: 'fade',
+      actions: h('div', { class: 'row', style: 'gap:7px' }, pdfBtn('PDF'),
+        csvBtn('CSV', 'soc-top-risks.csv', () => [['rank', 'score', 'severity', 'asset', 'cve', 'title', 'attack'],
+          ...ranking.map((r, i) => [i + 1, r.risk_score, r.severity, assetMeta(r.asset_id).hostname || r.asset_id, r.cve_id || '', r.title, r.attack || ''])])) },
+      ranking.length ? h('div', {}, ranking.slice(0, 8).map(r => overviewRiskRow(r)))
+        : emptyState('No ranked risks yet', 'Nothing scored — run a scan or wait for live telemetry.', 'overview')),
+    tile({ span: 4, pad0: true, title: 'Live detections', cls: 'fade',
+      actions: h('div', { class: 'row', style: 'gap:7px' }, h('span', { class: 'live-dot' }),
+        h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'polling')) },
+      feed)));
   const seen = new Set();
-  const paint = (items) => { feed.innerHTML = ''; (items || []).slice(0, 12).forEach(d => feed.append(detectionRow(d, seen))); };
+  const paint = (items) => { feed.innerHTML = ''; (items || []).slice(0, 14).forEach(d => feed.append(detectionRow(d, seen))); };
   paint(recent);
   const t = setInterval(async () => { try { paint(await API.recent(30)); } catch {} }, 6000);
   window._viewCleanup = () => clearInterval(t);

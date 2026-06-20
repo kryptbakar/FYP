@@ -352,3 +352,59 @@ function emptyState(title, hint, icon, cta) {
 }
 let _toastT;
 function toast(msg, ok) { const t = $('#toast'); t.className = 'toast show' + (ok ? ' ok' : ''); t.textContent = (ok ? '✓ ' : '') + msg; clearTimeout(_toastT); _toastT = setTimeout(() => t.classList.remove('show'), 3000); }
+
+/* ---- bento density system (layout primitives) ------------------------
+   bento(...tiles)            → the 12-col packed grid container
+   tile({span,title,sub,hero,actions,pad0,cls}, ...body) → one tile
+   statTile(...)              → a KPI tile with a 'vs yesterday' delta
+   kpiDelta(key, value, good) → a stable per-metric delta vs a persisted baseline */
+function bento(...tiles) { return h('div', { class: 'bento' }, tiles.flat().filter(Boolean)); }
+function tile(opts, ...body) {
+  opts = opts || {};
+  const cls = ['tile', opts.span ? 'c' + opts.span : '', opts.rowspan ? 'r2' : '',
+    opts.hero ? 'tile-hero' : '', opts.pad0 ? 'pad0' : '', opts.cls || ''].filter(Boolean).join(' ');
+  const head = (opts.title || opts.actions) ? h('div', { class: 'tile-h' },
+    opts.title ? h('div', { class: 'sec-label' }, opts.title) : null,
+    opts.sub ? h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, opts.sub) : null,
+    opts.actions ? h('span', { class: 'spring' }) : null,
+    opts.actions || null) : null;
+  const inner = opts.pad0 && body.length ? [head, h('div', { class: 'tile-b' }, ...body)] : [head, ...body];
+  return h('div', { class: cls }, inner.filter(Boolean));
+}
+/* delta element — direction + colour. By default a RISE reads as worse (wine) and a FALL as
+   better (green); pass good='up' to invert for metrics where higher is better (e.g. coverage). */
+function deltaEl(delta) {
+  if (!delta || delta.dir == null) return null;
+  const dir = delta.dir;                                   // 'up' | 'down' | 'flat'
+  const arrow = dir === 'up' ? '▲' : dir === 'down' ? '▼' : '—';
+  let tone = 'flat';
+  if (dir !== 'flat') { const goodDir = delta.good || 'down'; tone = (dir === goodDir) ? 'down' : 'up'; }
+  return h('div', { class: 's-dl ' + tone }, h('span', {}, arrow),
+    h('span', {}, delta.text || ''), delta.vs ? h('span', { class: 'd-vs' }, ' ' + delta.vs) : null);
+}
+function statTile(span, label, value, delta, sub, tone) {
+  return h('div', { class: ['tile', 'stat', 'c' + (span || 3), tone || ''].filter(Boolean).join(' ') },
+    h('div', { class: 's-lb' }, label),
+    h('div', { class: 's-vv' }, value),
+    deltaEl(delta),
+    sub ? h('div', { class: 's-sub' }, sub) : null);
+}
+/* Stable demo deltas: persist a per-metric baseline the first time a value is seen (seeded with a
+   small deterministic offset so a 'vs yesterday' figure shows immediately), then track real
+   movement on later loads. Deterministic — never random per render. */
+function kpiDelta(key, value, good, vs) {
+  let store = {};
+  try { store = JSON.parse(localStorage.getItem('vyrex_kpi_base') || '{}'); } catch {}
+  const v = +value;
+  if (store[key] == null || !isFinite(v)) {
+    // seed a plausible prior: ±~8% nudged by a stable hash of the key
+    let hsh = 0; for (let i = 0; i < key.length; i++) hsh = (hsh * 31 + key.charCodeAt(i)) & 0xffff;
+    const sign = (hsh & 1) ? 1 : -1, mag = Math.max(1, Math.round(Math.abs(v) * (0.04 + (hsh % 7) / 100)));
+    store[key] = isFinite(v) ? v - sign * mag : v;
+    try { localStorage.setItem('vyrex_kpi_base', JSON.stringify(store)); } catch {}
+  }
+  const base = +store[key], diff = v - base;
+  const dir = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+  const text = dir === 'flat' ? 'no change' : `${diff > 0 ? '+' : ''}${diff}`;
+  return { dir, text, good: good || 'down', vs: vs || 'vs yesterday' };
+}

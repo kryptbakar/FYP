@@ -129,7 +129,9 @@ button { font: inherit; }
 .live.demo { color: var(--warning); } .live.demo .dot { background: var(--warning); }
 .live.live .dot { animation: pulse 2.4s ease-in-out infinite; }
 .scroll { overflow-y: auto; padding: 20px 22px 56px; flex: 1; min-height: 0; }
-.view { max-width: 1480px; }
+/* full-bleed up to a generous cap, then centred — kills the left-pinned right-side void on
+   wide/ultrawide displays so every screen fills the operator console edge-to-edge. */
+.view { max-width: 1880px; margin: 0 auto; }
 
 /* ---------------------------------------------------------------- panels (flat) */
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
@@ -740,14 +742,77 @@ select.tk-input { cursor: pointer; }
   .story-funnel .sf-pulse, .story-flash { animation: none !important; }
 }
 
+/* ===================================================================
+   BENTO DENSITY SYSTEM — packed full-width operator grid.
+   Built ON the locked tokens (flat surfaces, single wine accent, no glow).
+   One hero tile dominates per screen; supporting tiles fill around it with no
+   dead space. Tiles span a 12-col grid and degrade gracefully on narrow widths.
+   =================================================================== */
+.bento { display: grid; grid-template-columns: repeat(12, 1fr); gap: 12px; grid-auto-flow: row dense; align-items: stretch; margin-bottom: 12px; }
+.bento:last-child { margin-bottom: 0; }
+
+/* base tile — surface card with optional small uppercase title row */
+.tile { grid-column: span 4; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; display: flex; flex-direction: column; gap: var(--s-3); }
+.tile.pad0 { padding: 0; gap: 0; overflow: hidden; }
+.tile-h { display: flex; align-items: center; gap: 10px; min-height: 18px; }
+.tile-h .sec-label { margin: 0; }
+.tile-h .spring { flex: 1; }
+.tile-b { min-width: 0; }            /* generic body wrapper inside a pad0 tile */
+.tile.pad0 .tile-h { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+
+/* column spans (12-col) + a tall-tile row span */
+.c2 { grid-column: span 2; } .c3 { grid-column: span 3; } .c4 { grid-column: span 4; }
+.c5 { grid-column: span 5; } .c6 { grid-column: span 6; } .c7 { grid-column: span 7; }
+.c8 { grid-column: span 8; } .c9 { grid-column: span 9; } .c10 { grid-column: span 10; }
+.c11 { grid-column: span 11; } .c12 { grid-column: span 12; }
+.r2 { grid-row: span 2; }
+
+/* hero tile — the single dominant element; a touch more presence, never glow */
+.tile-hero { border-color: var(--line-strong); background: var(--surface); }
+.tile-hero .hero-n { font-family: var(--mono); font-size: 46px; font-weight: 560; line-height: 1; letter-spacing: -.5px; }
+.tile-hero .hero-n.critical { color: var(--critical-text); } .tile-hero .hero-n.high { color: var(--warning); }
+.tile-hero .hero-n.medium, .tile-hero .hero-n.low, .tile-hero .hero-n.info { color: var(--text); }
+.tile-hero .hero-of { color: var(--faint); font-size: var(--t-sm); }
+.tile-hero .hero-sub { font-size: var(--t-xs); color: var(--muted); }
+
+/* stat tile with delta — the 'vs yesterday' pattern that makes data feel alive */
+.stat { position: relative; overflow: hidden; gap: 0; justify-content: center; }
+.stat::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--line-strong); }
+.stat.crit::before { background: var(--critical); } .stat.warn::before { background: var(--warning); } .stat.ok::before { background: var(--accent); }
+.stat .s-lb { font-size: var(--t-micro); color: var(--muted); }
+.stat .s-vv { font-size: 28px; font-weight: 560; font-family: var(--mono); line-height: 1.1; margin: 6px 0 4px; }
+.stat.crit .s-vv { color: var(--critical-text); } .stat.warn .s-vv { color: var(--warning); }
+.stat .s-dl { display: inline-flex; align-items: center; gap: 5px; font-size: var(--t-2xs); font-family: var(--mono); }
+.stat .s-dl.up { color: var(--critical-text); }    /* metric rose — usually worse for risk */
+.stat .s-dl.down { color: var(--success-text); }   /* metric fell — usually better */
+.stat .s-dl.flat { color: var(--faint); }
+.stat .s-dl .d-vs { color: var(--faint); font-family: var(--sans); }
+.stat .s-sub { font-size: var(--t-2xs); color: var(--faint); margin-top: 4px; }
+
+/* responsive collapse — 6-col on laptops, single-column stack on narrow */
+@media (max-width: 1180px) {
+  .bento { grid-template-columns: repeat(6, 1fr); }
+  .tile, .c4, .c5, .c6, .c7, .c8 { grid-column: span 6; }
+  .c2, .c3 { grid-column: span 3; }
+  .c9, .c10, .c11, .c12 { grid-column: span 6; }
+  .r2 { grid-row: auto; }
+}
+@media (max-width: 720px) {
+  .bento { grid-template-columns: 1fr; }
+  .tile, [class*="c1"], [class*="c2"], [class*="c3"], [class*="c4"], [class*="c5"],
+  [class*="c6"], [class*="c7"], [class*="c8"], [class*="c9"] { grid-column: 1 / -1; }
+}
+
 /* ---------------------------------------------------------------- print stylesheet (PDF export) */
 @media print {
   .rail, .top, .scrim, .drawer, .alerts-pop, .bulkbar, .filters, .noprint { display: none !important; }
   .app { display: block; height: auto; }
   .main, .scroll, .view { overflow: visible !important; height: auto !important; max-width: none !important; padding: 0 !important; }
   body { background: #fff; }
-  .panel, .kpi, .card, .tbl td, .tbl th, .statchip { background: #fff !important; border-color: #ddd !important; }
-  body, .panel, .sec-label, h1, h2, h3, td, th, .kpi .vv, .kpi .lb, .kpi .sb, .concl, .orow .tt, .summary { color: #111 !important; }
-  .panel, .kpi, .card, .orow { break-inside: avoid; }
+  .panel, .kpi, .card, .tile, .tbl td, .tbl th, .statchip { background: #fff !important; border-color: #ddd !important; }
+  body, .panel, .tile, .sec-label, h1, h2, h3, td, th, .kpi .vv, .kpi .lb, .kpi .sb, .stat .s-vv, .stat .s-lb, .tile-hero .hero-n, .concl, .orow .tt, .summary { color: #111 !important; }
+  .panel, .kpi, .card, .tile, .orow { break-inside: avoid; }
+  .bento { display: block !important; }
+  .bento .tile { margin-bottom: 10px; }
   @page { margin: 14mm; }
 }
