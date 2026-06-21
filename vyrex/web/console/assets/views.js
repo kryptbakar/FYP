@@ -1242,10 +1242,16 @@ async function viewDetections(root) {
   root.append(loading('Loading detection rules…'));
   let [rules, stats] = await Promise.all([API.detectionRules(), API.ruleStats()]);
   root.innerHTML = '';
-  root.append(h('div', { class: 'kpis fade' },
-    kpiCard('Detection rules', String(stats.n ?? rules.length), `${stats.enabled ?? rules.filter(r => r.enabled).length} enabled`, 'ok'),
-    kpiCard('Total hits', String(stats.hits ?? rules.reduce((a, r) => a + (r.hits || 0), 0)), 'across all rules', ''),
-    kpiCard('Sources', String((stats.by_source || []).length || 4), 'sigma · suricata · yara · domain', '')));
+  const detHits = stats.hits ?? rules.reduce((a, r) => a + (r.hits || 0), 0);
+  root.append(bento(
+    tile({ span: 4, hero: true, title: 'Detection rules', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n info' }, String(stats.n ?? rules.length)),
+        h('div', {}, h('div', { class: 'hero-of' }, `${stats.enabled ?? rules.filter(r => r.enabled).length} enabled`),
+          h('div', { class: 'hero-sub' }, 'sigma · suricata · yara · domain'))),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'tamper-evident rule catalog')),
+    statTile(4, 'Total hits', String(detHits), kpiDelta('det_hits', detHits, 'up'), 'across all rules'),
+    statTile(4, 'Sources', String((stats.by_source || []).length || 4), null, 'rule engines')));
 
   // author a rule
   const name = h('input', { class: 'txt', placeholder: 'Rule name…' });
@@ -1293,10 +1299,15 @@ async function viewCoverage(root) {
     h('div', { class: 'sec-label' }, 'Risk posture trend'), h('span', { class: 'spring', style: 'flex:1' }),
     h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' }, `${(trends || []).length} daily snapshot(s)`)),
     trendChart(trends)));
-  root.append(h('div', { class: 'kpis fade', style: 'margin-top:14px' },
-    kpiCard('Techniques observed', String(cov.covered || 0), `of ${cov.total_known || 0} in our ATT&CK KB`, cov.covered ? 'warn' : ''),
-    kpiCard('Tactics covered', String((cov.tactics || []).length), 'across the kill chain', ''),
-    kpiCard('Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
+  root.append(h('div', { style: 'height:14px' }), bento(
+    tile({ span: 4, hero: true, title: 'ATT&CK coverage', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n ' + (cov.covered ? 'warn' : 'info') }, String(cov.covered || 0)),
+        h('div', {}, h('div', { class: 'hero-of' }, `of ${cov.total_known || 0} known`),
+          h('div', { class: 'hero-sub' }, 'techniques observed'))),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'mapped to our offline ATT&CK KB')),
+    statTile(4, 'Tactics covered', String((cov.tactics || []).length), null, 'across the kill chain'),
+    statTile(4, 'Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), null, (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'ATT&CK coverage by tactic — click a technique to investigate'),
     h('div', { class: 'attackmx' }, (cov.tactics || []).map(tac => h('div', { class: 'attcol' },
       h('div', { class: 'atth' }, tac.replace(/-/g, ' ')),
@@ -1479,11 +1490,11 @@ async function viewIntel(root) {
   const [attr, sight, clusters] = await Promise.all([API.attribution(), API.sightings(), API.clusters()]);
   root.innerHTML = '';
   const actors = attr.actors || [], malware = attr.malware || [];
-  root.append(h('div', { class: 'kpis fade' },
-    kpiCard('Threat actors', String(actors.length), actors[0] ? 'top: ' + actors[0].name : 'none attributed', actors.length ? 'crit' : ''),
-    kpiCard('Malware families', String(malware.length), malware[0] ? 'top: ' + malware[0].name : 'none seen', malware.length ? 'warn' : ''),
-    kpiCard('IOC sightings', String((sight || []).length), 'observed indicators', (sight || []).length ? 'warn' : ''),
-    kpiCard('Fusion clusters', String((clusters || []).length), 'multi-tool corroboration', '')));
+  root.append(bento(
+    statTile(3, 'Threat actors', String(actors.length), null, actors[0] ? 'top: ' + actors[0].name : 'none attributed', actors.length ? 'crit' : 'ok'),
+    statTile(3, 'Malware families', String(malware.length), null, malware[0] ? 'top: ' + malware[0].name : 'none seen', malware.length ? 'warn' : 'ok'),
+    statTile(3, 'IOC sightings', String((sight || []).length), kpiDelta('intel_ioc', (sight || []).length, 'up'), 'observed indicators', (sight || []).length ? 'warn' : 'ok'),
+    statTile(3, 'Fusion clusters', String((clusters || []).length), null, 'multi-tool corroboration', 'ok')));
 
   const actorsTbl = h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Threat actors'), h('span', { class: 'sub' }, '· by attributed findings')),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
@@ -1673,11 +1684,12 @@ async function viewVitals(root) {
     root.append(tkHero('Appliance node vitals', (v.os && v.os.note) || 'Local node telemetry — read from /proc, nothing egresses'));
     const cpu = v.cpu || {}, ram = v.ram || {}, disk = v.disk || {}, os = v.os || {};
     const tone = p => p == null ? '' : p >= 90 ? 'critical' : p >= 75 ? 'high' : p >= 50 ? 'warn' : 'ok';
-    root.append(h('div', { class: 'kpis fade' },
-      kpiCard('CPU load', (cpu.total_pct == null ? '—' : cpu.total_pct + '%'), `${cpu.logical || '—'} cores · load ${n1(cpu.load1)}`, tone(cpu.total_pct)),
-      kpiCard('Memory', (ram.percent == null ? '—' : ram.percent + '%'), `${ram.used_h || '—'} / ${ram.total_h || '—'}`, tone(ram.percent)),
-      kpiCard('Disk', (disk.percent == null ? '—' : disk.percent + '%'), `${disk.used_h || '—'} / ${disk.total_h || '—'}`, tone(disk.percent)),
-      kpiCard('Uptime', os.uptime || '—', 'since ' + (os.boot_time || '—'), 'ok')));
+    const stone = p => p == null ? 'ok' : p >= 90 ? 'crit' : p >= 50 ? 'warn' : 'ok';
+    root.append(bento(
+      statTile(3, 'CPU load', (cpu.total_pct == null ? '—' : cpu.total_pct + '%'), null, `${cpu.logical || '—'} cores · load ${n1(cpu.load1)}`, stone(cpu.total_pct)),
+      statTile(3, 'Memory', (ram.percent == null ? '—' : ram.percent + '%'), null, `${ram.used_h || '—'} / ${ram.total_h || '—'}`, stone(ram.percent)),
+      statTile(3, 'Disk', (disk.percent == null ? '—' : disk.percent + '%'), null, `${disk.used_h || '—'} / ${disk.total_h || '—'}`, stone(disk.percent)),
+      statTile(3, 'Uptime', os.uptime || '—', null, 'since ' + (os.boot_time || '—'), 'ok')));
 
     const cores = (cpu.per_core || []);
     if (cores.length) root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
