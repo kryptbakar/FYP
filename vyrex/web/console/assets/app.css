@@ -1015,13 +1015,16 @@ body.theme-light {
   --shadow-pop: 0 24px 60px rgba(40,16,28,.16);
 }
 body.theme-light .tbl tbody tr:nth-child(even) { background: rgba(40,16,28,0.025); }
-/* keep the cinematic entry screens dark regardless of theme */
-.login, .vault {
+/* keep the cinematic dark surfaces (entry screens + the Overview hero banner) dark in any theme */
+.login, .vault, .hero-banner {
   --bg: #0A0809; --surface: #130F13; --elevated: #1B151B;
   --text: #EDE8EB; --text-2: #CEC3CA; --muted: #988D94; --faint: #82777F;
   --line: rgba(237,228,233,0.09); --line-strong: rgba(237,228,233,0.17); --hover: rgba(237,228,233,0.05);
   --accent: #A82A47; --accent-text: #E47C90; --accent-soft: rgba(168,42,71,0.18);
-  --elevated-1: #181419; --elevated-2: #1d161b;
+  --critical-text: #F59A90; --critical-soft: rgba(239,83,80,0.17);
+  --warning: #E0A93C; --warning-soft: rgba(224,169,60,0.15);
+  --success-text: #6CD6AC; --success-soft: rgba(52,192,140,0.14);
+  --ent-net-fg: #E6C079; --elevated-1: #181419; --elevated-2: #1d161b;
 }
 
 /* ---------------------------------------------------------------- micro-interactions (Sportify-style lift) */
@@ -1097,6 +1100,30 @@ body.theme-light .hero-n { text-shadow: none; }
 body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28,0.13)); }
 /* chrome gets a faint top-light gradient instead of flat fills */
 .top, .rail { background: linear-gradient(180deg, var(--elevated), var(--surface)); }
+
+/* ---- Overview command-center hero banner (the 'turf hero' equivalent) ---- */
+.hero-banner { position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  margin-bottom: 14px; padding: 24px 28px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  background: linear-gradient(120deg, #1c0f15, #0c0a0c 62%); box-shadow: 0 12px 34px rgba(0,0,0,0.34); }
+.hero-banner::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(640px 320px at 10% -30%, rgba(168,42,71,0.42), transparent 60%),
+              radial-gradient(520px 280px at 92% 130%, rgba(168,42,71,0.24), transparent 60%); }
+.hero-banner::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5;
+  background: repeating-linear-gradient(0deg, transparent 0 33px, rgba(237,228,233,0.045) 33px 34px),
+              repeating-linear-gradient(90deg, transparent 0 33px, rgba(237,228,233,0.045) 33px 34px);
+  -webkit-mask-image: radial-gradient(130% 120% at 50% 0%, #000 28%, transparent 78%);
+  mask-image: radial-gradient(130% 120% at 50% 0%, #000 28%, transparent 78%); }
+.hb-main { position: relative; z-index: 1; flex: 1; min-width: 240px; }
+.hb-title { font-family: var(--display); font-size: clamp(26px, 3.2vw, 42px); font-weight: 700; letter-spacing: .04em; line-height: 1; text-transform: uppercase;
+  background: linear-gradient(180deg, #ffffff, #E47C90); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.hb-sub { color: #CEC3CA; font-size: var(--t-sm); margin-top: 9px; max-width: 560px; line-height: 1.5; }
+.hb-ribbon { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+.hb-side { position: relative; z-index: 1; display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+.hb-metric { text-align: center; }
+.hb-metric .v { font-family: var(--display); font-size: 38px; font-weight: 700; line-height: 1; color: #EDE8EB; }
+.hb-metric .v.critical { color: #F59A90; } .hb-metric .v.high { color: #E0A93C; }
+.hb-metric .l { font-size: var(--t-3xs); color: #988D94; text-transform: uppercase; letter-spacing: .14em; margin-top: 6px; }
+@media (max-width: 760px) { .hero-banner { padding: 18px; } .hb-side { gap: 16px; } }
 
 /* premium display typography on headlines + the big numbers */
 .login-display, .top h1, .brand .nm, .login-stats b, .vs-granted, .panel-h h2, .tile-h .sec-label { font-family: var(--display); }

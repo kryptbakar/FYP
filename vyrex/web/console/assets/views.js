@@ -620,22 +620,28 @@ async function viewOverview(root) {
   const techniques = [...new Set(ranking.map(r => r.attack).filter(Boolean))];
 
   const toolCount = new Set(ranking.map(r => r.source_tool || 'agent')).size;
-  root.append(h('div', { class: 'row fade', style: 'margin-bottom:14px;gap:var(--s-3);flex-wrap:wrap' },
-    h('div', { style: 'min-width:0' }, h('div', { style: 'font-size:var(--t-md);font-weight:560' }, 'Security posture'),
-      h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:1px' }, 'Live exposure, ranked. New here? Walk one threat from detection to contained.')),
-    h('div', { class: 'wrap', style: 'gap:6px;margin-left:var(--s-3)' },
-      chip('Air-gap sealed', 'ok'),
-      chip(chain.ok ? 'Evidence chain intact' : 'Evidence check', chain.ok ? 'ok' : 'kev'),
-      chip(`${toolCount}-tool fusion`, 'consensus'),
-      chip('Explainable scoring', 'intel')),
-    h('span', { class: 'spring', style: 'flex:1' }),
-    h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
-      html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' })));
-
-  // ---- bento row 1: hero posture + KPI deltas + context tiles ----
   const top = ranking[0] || {};
   const peakBand = top.risk_score != null ? band(top.risk_score) : 'info';
   const peakHost = top.asset_id ? (assetMeta(top.asset_id).hostname || top.asset_id) : null;
+
+  // ---- cinematic command-center hero banner ----
+  root.append(h('div', { class: 'hero-banner fade' },
+    h('div', { class: 'hb-main' },
+      h('div', { class: 'hb-title' }, 'Security Operations'),
+      h('div', { class: 'hb-sub' }, 'Air-gapped · explainable · cryptographically auditable — the one decision that matters, right now.'),
+      h('div', { class: 'hb-ribbon' },
+        chip('Air-gap sealed', 'ok'),
+        chip(chain.ok ? 'Evidence chain intact' : 'Evidence check', chain.ok ? 'ok' : 'kev'),
+        chip(`${toolCount}-tool fusion`, 'consensus'),
+        chip('Explainable scoring', 'intel'))),
+    h('div', { class: 'hb-side' },
+      h('div', { class: 'hb-metric' }, h('div', { class: 'v ' + peakBand }, ranking.length ? n0(top.risk_score) : '—'), h('div', { class: 'l' }, 'peak risk')),
+      h('div', { class: 'hb-metric' }, h('div', { class: 'v critical' }, String(bands.critical)), h('div', { class: 'l' }, 'critical')),
+      h('div', { class: 'hb-metric' }, h('div', { class: 'v high' }, String(kev)), h('div', { class: 'l' }, 'KEV')),
+      h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
+        html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' }))));
+
+  // ---- bento row 1: hero posture + KPI deltas + context tiles ----
   const hero = tile({ span: 4, hero: true, title: 'Security posture', cls: 'fade' },
     h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
       h('div', { class: 'hero-n ' + peakBand }, ranking.length ? n0(top.risk_score) : '—'),
