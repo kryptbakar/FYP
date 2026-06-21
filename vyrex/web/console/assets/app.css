@@ -485,15 +485,72 @@ input[type=range] { -webkit-appearance: none; appearance: none; height: 5px; bac
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--accent); cursor: pointer; }
 input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; border-radius: 50%; background: var(--accent); cursor: pointer; }
 
-/* ---------------------------------------------------------------- login gate */
-.login { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background:
-  repeating-linear-gradient(0deg, transparent 0 31px, rgba(237,228,233,0.018) 31px 32px),
-  repeating-linear-gradient(90deg, transparent 0 31px, rgba(237,228,233,0.018) 31px 32px),
-  radial-gradient(1200px 600px at 50% -10%, rgba(168,42,71,0.18), transparent 60%), var(--bg); }
-/* the author display:grid above overrides the UA [hidden]{display:none}; restore it so the
+/* ---------------------------------------------------------------- login gate (cinematic hero) */
+.login { position: fixed; inset: 0; z-index: 100; overflow: hidden;
+  background: radial-gradient(1400px 820px at 50% -15%, rgba(168,42,71,0.22), transparent 60%), var(--bg); }
+
+/* animated backdrop layers */
+.login-bg { position: absolute; inset: 0; overflow: hidden; }
+.lb-grid { position: absolute; inset: -40px;
+  background: repeating-linear-gradient(0deg, transparent 0 37px, rgba(237,228,233,0.05) 37px 38px),
+              repeating-linear-gradient(90deg, transparent 0 37px, rgba(237,228,233,0.05) 37px 38px);
+  -webkit-mask-image: radial-gradient(125% 95% at 50% 28%, #000 28%, transparent 74%);
+  mask-image: radial-gradient(125% 95% at 50% 28%, #000 28%, transparent 74%);
+  animation: lbGrid 26s linear infinite; }
+@keyframes lbGrid { to { background-position: 0 380px, 380px 0; } }
+.lb-radar { position: absolute; left: 50%; top: 30%; width: 1200px; height: 1200px; transform: translate(-50%,-50%);
+  border-radius: 50%; opacity: .45; pointer-events: none;
+  background: conic-gradient(from 0deg, rgba(196,41,63,0.32), rgba(196,41,63,0) 24%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle, #000 0 55%, transparent 60%);
+  mask-image: radial-gradient(circle, #000 0 55%, transparent 60%);
+  animation: lbSpin 9s linear infinite; }
+@keyframes lbSpin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+.lb-scan { position: absolute; inset: 0; pointer-events: none; opacity: .35;
+  background: linear-gradient(rgba(237,228,233,0.06) 1px, transparent 1px); background-size: 100% 4px;
+  animation: lbScan 7s linear infinite; }
+@keyframes lbScan { from { background-position: 0 0; } to { background-position: 0 100vh; } }
+.lb-widgets { position: absolute; inset: 0; pointer-events: none; }
+.lb-w { position: absolute; left: var(--x); top: var(--y); display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-2); padding: 6px 12px; white-space: nowrap; opacity: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--r-pill); background: rgba(19,15,19,0.5);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: lbFloat 10s ease-in-out infinite; animation-delay: var(--d); }
+.lb-w i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 9px var(--success); }
+@keyframes lbFloat { 0% { opacity: 0; transform: translateY(10px); } 14%,86% { opacity: .82; transform: translateY(0); }
+  50% { transform: translateY(-8px); } 100% { opacity: 0; transform: translateY(10px); } }
+
+/* foreground hero */
+.login-hero { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 13px; padding: 24px 18px 64px; text-align: center; }
+.login-mark { width: 56px; height: 56px; border-radius: 15px; display: grid; place-items: center; background: var(--elevated); border: 1px solid var(--line-strong); box-shadow: 0 0 46px rgba(168,42,71,0.4); animation: lbPop .7s var(--ease) both; }
+.login-mark svg { width: 31px; height: 31px; color: var(--accent-text); }
+.login-display { font-size: clamp(46px, 9vw, 82px); font-weight: 800; letter-spacing: .12em; line-height: 1; text-transform: uppercase;
+  background: linear-gradient(176deg, #ffffff 18%, #E47C90 80%); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent; animation: lbRise .7s var(--ease) both .05s; }
+.login-kicker { font-family: var(--mono); font-size: 12px; letter-spacing: .42em; color: var(--accent-text); text-transform: uppercase; animation: lbRise .7s var(--ease) both .12s; }
+.login-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 26px; margin: 6px 0 4px; animation: lbRise .7s var(--ease) both .18s; }
+.login-stats div { min-width: 62px; }
+.login-stats b { display: block; font-family: var(--mono); font-size: 22px; font-weight: 600; color: #fff; }
+.login-stats span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; }
+@keyframes lbPop { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: none; } }
+@keyframes lbRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* threat-headline ticker */
+.login-ticker { position: absolute; left: 0; right: 0; bottom: 0; height: 40px; display: flex; align-items: center; overflow: hidden;
+  border-top: 1px solid var(--line); background: rgba(8,6,7,0.72); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.lt-track { display: flex; gap: 38px; white-space: nowrap; will-change: transform; animation: ltScroll 34s linear infinite; }
+.lt-track span { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+.lt-track b { color: var(--accent-text); }
+@keyframes ltScroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .lb-grid, .lb-radar, .lb-scan, .lt-track, .login-mark, .login-display, .login-kicker, .login-stats { animation: none !important; }
+  .lb-w { animation: none !important; opacity: .82; }
+}
+@media (max-width: 560px) { .lb-w { display: none; } .login-stats { gap: 10px 16px; } }
+/* the author display above overrides the UA [hidden]{display:none}; restore it so the
    gate actually hides the overlay once the app boots. */
 .login[hidden] { display: none !important; }
-.login-card { width: 340px; max-width: 92vw; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-lg); padding: var(--s-6) var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); box-shadow: var(--shadow-pop); }
+.login-card { width: 340px; max-width: 92vw; background: rgba(19,15,19,0.72); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border: 1px solid var(--line-strong); border-radius: var(--r-lg); padding: var(--s-5) var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); box-shadow: var(--shadow-pop); margin-top: 6px; animation: lbRise .7s var(--ease) both .24s; }
 .login-brand { display: flex; align-items: center; gap: 11px; margin-bottom: 8px; }
 .login-brand .mark { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--elevated); border: 1px solid var(--line-strong); }
 .login-brand .mark svg { width: 20px; height: 20px; color: var(--accent); }
@@ -823,6 +880,20 @@ select.tk-input { cursor: pointer; }
 .gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 14px; justify-items: center; }
 .gauge-cell { display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .gauge-cell .gc-l { font-size: var(--t-2xs); color: var(--muted); }
+
+/* ---------------------------------------------------------------- micro-interactions (Sportify-style lift) */
+.card, .kcard, .pbcard, .dashcard, .sensor, .tk-news { transition: transform var(--dur) var(--ease), border-color var(--dur-fast), background var(--dur-fast); }
+.card:hover, .kcard:hover, .pbcard:hover, .dashcard:hover, .sensor:hover { transform: translateY(-2px); border-color: var(--line-strong); }
+.tile { transition: transform var(--dur) var(--ease), border-color var(--dur-fast); }
+.bento .tile:hover { border-color: var(--line-strong); }
+.nav a { transition: background var(--dur-fast), color var(--dur-fast), box-shadow var(--dur-fast), padding-left var(--dur-fast); }
+.nav a:hover { padding-left: 13px; }
+.btn { transition: background var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast), filter var(--dur-fast); }
+.btn.primary:hover { transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+  .card, .kcard, .pbcard, .dashcard, .sensor, .btn.primary, .nav a, .tile { transition: none; }
+  .card:hover, .kcard:hover, .pbcard:hover, .dashcard:hover, .sensor:hover, .btn.primary:hover { transform: none; }
+}
 
 /* ---------------------------------------------------------------- print stylesheet (PDF export) */
 @media print {
