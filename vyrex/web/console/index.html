@@ -34,8 +34,8 @@
         <div class="spring"></div>
         <div class="search">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-          <input id="q" placeholder="Search findings, assets, CVEs…" aria-label="search findings, assets and CVEs" />
-          <span class="slash" title="press / to focus search">/</span>
+          <input id="q" placeholder="Search or jump to…" aria-label="search findings, assets and CVEs" />
+          <button class="omnik" id="omnik" type="button" title="command palette (⌘K)" aria-label="open command palette">⌘K</button>
         </div>
         <div class="orgchip" id="orgchip" title="organization"></div>
         <button class="iconbtn" id="density" title="toggle table density" aria-label="toggle table density">
@@ -48,6 +48,7 @@
         <div class="live" id="live"><span class="dot"></span><span id="live-label">connecting…</span></div>
         <div class="userchip" id="userchip" title="signed-in user"></div>
       </header>
+      <nav class="tabs" id="tabs" hidden aria-label="section tabs"></nav>
       <div class="alerts-pop" id="alerts-pop" hidden></div>
       <div class="scroll" id="scroll"><div class="view" id="view"></div></div>
     </main>
@@ -57,7 +58,7 @@
     <div class="cmdk-card">
       <div class="cmdk-top">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3" stroke-linecap="round"/></svg>
-        <input id="cmdk-input" placeholder="Jump to a page…" aria-label="command palette" autocomplete="off" />
+        <input id="cmdk-input" placeholder="Search or jump to…" aria-label="command palette" autocomplete="off" />
         <span class="kbd">esc</span>
       </div>
       <div class="cmdk-list" id="cmdk-list"></div>

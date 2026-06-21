@@ -359,6 +359,14 @@ function toast(msg, ok) { const t = $('#toast'); t.className = 'toast show' + (o
    statTile(...)              → a KPI tile with a 'vs yesterday' delta
    kpiDelta(key, value, good) → a stable per-metric delta vs a persisted baseline */
 function bento(...tiles) { return h('div', { class: 'bento' }, tiles.flat().filter(Boolean)); }
+/* Make a bento tile a clickable entry point (navigation-by-dashboard). */
+function navTile(el, fn) {
+  if (!el) return el;
+  el.classList.add('tile-link'); el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0');
+  el.addEventListener('click', fn);
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fn(); } });
+  return el;
+}
 function tile(opts, ...body) {
   opts = opts || {};
   const cls = ['tile', opts.span ? 'c' + opts.span : '', opts.rowspan ? 'r2' : '',
