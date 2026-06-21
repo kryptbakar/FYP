@@ -462,8 +462,8 @@ function areaChart(data, opts) {
   const wrap = h('div', {});
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block">`
     + `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="${stroke}" stop-opacity="0.26"/><stop offset="100%" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>`
-    + `<path d="${area}" fill="url(#${gid})"/>`
-    + `<polyline points="${line}" fill="none" stroke="${stroke}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>${dots}</svg>`;
+    + `<path class="ac-fill" d="${area}" fill="url(#${gid})"/>`
+    + `<polyline class="ac-line" pathLength="1" points="${line}" fill="none" stroke="${stroke}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>${dots}</svg>`;
   if (opts.labels) return h('div', {}, wrap, h('div', { class: 'trendx' }, pts.map(p => h('span', {}, p.label || ''))));
   return wrap;
 }
@@ -483,7 +483,7 @@ function gaugeRing(pct, opts) {
    like 'SEALED', 'intact ✓' or 'T1190' is left untouched. Honours reduced-motion. */
 function animateCounts(scope) {
   if (!scope || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  $$('.hero-n, .tile.stat .s-vv', scope).forEach(el => {
+  $$('.hero-n, .tile.stat .s-vv, .chart-donut .dc-n', scope).forEach(el => {
     const m = el.textContent.trim().match(/^(\d[\d,]*)(\s*%?)$/);
     if (!m) return;
     const target = parseInt(m[1].replace(/,/g, ''), 10), suf = m[2] || '';

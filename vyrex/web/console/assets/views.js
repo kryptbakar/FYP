@@ -806,6 +806,7 @@ async function viewTrust(root) {
         { centerValue: egDenied, centerLabel: 'denied', size: 130 })),
     integrityTile(3, 'Response audit chain', resp),
     integrityTile(3, 'Compliance evidence chain', comp)));
+  animateCounts(root);
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' },
     h('div', { class: 'panel-h' }, h('h2', {}, 'Air-gap egress matrix'), h('span', { class: 'sub' }, '· default-deny; enforced by K3s NetworkPolicy / verify-egress')),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
@@ -1372,6 +1373,7 @@ async function viewCoverage(root) {
         { centerValue: Math.round((cov.covered || 0) / (cov.total_known || 1) * 100) + '%', centerLabel: 'covered', size: 140 })),
     statTile(2, 'Tactics', String((cov.tactics || []).length), null, 'kill-chain'),
     statTile(2, 'Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), null, (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
+  animateCounts(root);
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'ATT&CK coverage by tactic — click a technique to investigate'),
     h('div', { class: 'attackmx' }, (cov.tactics || []).map(tac => h('div', { class: 'attcol' },
       h('div', { class: 'atth' }, tac.replace(/-/g, ' ')),

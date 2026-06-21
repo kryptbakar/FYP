@@ -881,6 +881,31 @@ select.tk-input { cursor: pointer; }
 .gauge-cell { display: flex; flex-direction: column; align-items: center; gap: 7px; }
 .gauge-cell .gc-l { font-size: var(--t-2xs); color: var(--muted); }
 
+/* chart reveal animations — donut/gauge pop-in, area-line self-draws */
+.chart-donut svg, .chart-gauge svg { animation: chartPop .7s var(--ease) both; }
+@keyframes chartPop { from { opacity: 0; transform: rotate(-90deg) scale(.8); } to { opacity: 1; transform: rotate(-90deg) scale(1); } }
+.ac-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: acDraw 1.15s var(--ease) forwards; }
+@keyframes acDraw { to { stroke-dashoffset: 0; } }
+.ac-fill { opacity: 0; animation: acFill .7s ease forwards .55s; }
+@keyframes acFill { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .chart-donut svg, .chart-gauge svg { animation: none; }
+  .ac-line { stroke-dashoffset: 0; animation: none; }
+  .ac-fill { opacity: 1; animation: none; }
+}
+
+/* staggered cascade — bento tiles rise in sequence on view load */
+.bento .tile.fade { animation: fadeUp .45s var(--ease) both; }
+.bento .tile.fade:nth-child(1) { animation-delay: 0s; }
+.bento .tile.fade:nth-child(2) { animation-delay: .05s; }
+.bento .tile.fade:nth-child(3) { animation-delay: .1s; }
+.bento .tile.fade:nth-child(4) { animation-delay: .15s; }
+.bento .tile.fade:nth-child(5) { animation-delay: .2s; }
+.bento .tile.fade:nth-child(6) { animation-delay: .25s; }
+.bento .tile.fade:nth-child(n+7) { animation-delay: .3s; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .bento .tile.fade { animation: none; } }
+
 /* ---------------------------------------------------------------- micro-interactions (Sportify-style lift) */
 .card, .kcard, .pbcard, .dashcard, .sensor, .tk-news { transition: transform var(--dur) var(--ease), border-color var(--dur-fast), background var(--dur-fast); }
 .card:hover, .kcard:hover, .pbcard:hover, .dashcard:hover, .sensor:hover { transform: translateY(-2px); border-color: var(--line-strong); }
