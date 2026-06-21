@@ -6,7 +6,12 @@
   <title>VYREX — Analyst Console</title>
   <meta name="description" content="VYREX — explainable, air-gapped security intelligence workspace." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23A82A47' d='M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z'/></svg>" />
-  <link rel="stylesheet" href="assets/app.css?v=16" />
+  <!-- Premium type. Falls back to the system/local stack if offline (see fonts/README for the
+       self-host step that restores full air-gap purity). -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" />
+  <link rel="stylesheet" href="assets/app.css?v=17" />
 </head>
 <body>
   <div class="app">
@@ -158,12 +163,12 @@
   <aside class="drawer" id="drawer"><div id="drawer-inner" style="display:flex;flex-direction:column;height:100%"></div></aside>
   <div class="toast" id="toast"></div>
 
-  <script src="assets/fixtures.js?v=16"></script>
-  <script src="assets/api.js?v=16"></script>
-  <script src="assets/ui.js?v=16"></script>
-  <script src="assets/toolkit.js?v=16"></script>
-  <script src="assets/views.js?v=16"></script>
-  <script src="assets/app.js?v=16"></script>
-  <script src="assets/story.js?v=16"></script>
+  <script src="assets/fixtures.js?v=17"></script>
+  <script src="assets/api.js?v=17"></script>
+  <script src="assets/ui.js?v=17"></script>
+  <script src="assets/toolkit.js?v=17"></script>
+  <script src="assets/views.js?v=17"></script>
+  <script src="assets/app.js?v=17"></script>
+  <script src="assets/story.js?v=17"></script>
 </body>
 </html>

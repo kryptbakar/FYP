@@ -666,10 +666,15 @@ async function viewOverview(root) {
     { label: 'Medium', value: bands.medium, color: 'var(--muted)' },
     { label: 'Low', value: bands.low, color: 'var(--faint)' },
     { label: 'Info', value: bands.info, color: 'var(--neutral-3)' }];
-  const trendData = (trends || []).map(t => ({ v: +t.avg_risk || 0, label: (t.snap_date || '').slice(5) }));
+  let trendData = (trends || []).map(t => ({ v: +t.avg_risk || 0, label: (t.snap_date || '').slice(5) }));
+  let trendSub = '· avg composite risk · 7-day';
+  if (trendData.length < 2) {   // no historical snapshots yet → plot the live risk profile (real scores) so it never reads empty
+    trendData = ranking.slice(0, 28).map(r => ({ v: +r.risk_score || 0, label: '' }));
+    trendSub = '· risk profile · ranked findings';
+  }
   const tDist = tile({ span: 4, title: 'Risk distribution', sub: `· ${ranking.length} findings`, cls: 'fade' },
     donut(donutSegs, { centerValue: ranking.length, centerLabel: 'ranked', size: 150 }));
-  const tTrend = tile({ span: 4, title: 'Posture trend', sub: '· avg composite risk · 7-day', cls: 'fade' },
+  const tTrend = tile({ span: 4, title: 'Posture trend', sub: trendSub, cls: 'fade' },
     areaChart(trendData, { height: 150, labels: true, color: 'var(--accent)' }));
   const tRadar = tile({ span: 4, title: 'Threat radar', sub: '· live · by severity', cls: 'fade' },
     h('div', { class: 'row', style: 'gap:14px;align-items:center;justify-content:center' },
