@@ -470,3 +470,21 @@ function gaugeRing(pct, opts) {
     opts.label ? h('div', { class: 'dc-l' }, opts.label) : null));
   return g;
 }
+/* Count-up: animate hero + KPI numbers from 0 on view load (the 'alive' feel the inspo
+   dashboards have). Only animates a value that is purely a number (+ optional %), so text
+   like 'SEALED', 'intact ✓' or 'T1190' is left untouched. Honours reduced-motion. */
+function animateCounts(scope) {
+  if (!scope || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  $$('.hero-n, .tile.stat .s-vv', scope).forEach(el => {
+    const m = el.textContent.trim().match(/^(\d[\d,]*)(\s*%?)$/);
+    if (!m) return;
+    const target = parseInt(m[1].replace(/,/g, ''), 10), suf = m[2] || '';
+    if (!isFinite(target) || target <= 0) return;
+    const dur = 700, start = performance.now();
+    (function tick(now) {
+      const p = Math.min(1, (now - start) / dur), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * e).toLocaleString() + suf;
+      if (p < 1) requestAnimationFrame(tick);
+    })(start);
+  });
+}

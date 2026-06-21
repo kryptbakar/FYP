@@ -311,6 +311,7 @@ async function viewCompliance(root) {
     statTile(2, 'Failing', String(by.fail || 0), kpiDelta('cis_fail', by.fail || 0), 'need remediation', (by.fail || 0) ? 'crit' : 'ok'),
     statTile(2, 'At-risk hosts', String(regressed), kpiDelta('cis_hosts', regressed), 'below 50%', regressed ? 'warn' : 'ok')));
   root.append(h('div', { class: 'stack fade' }, compTable(results), evidencePanel(evidence)));
+  animateCounts(root);
 }
 function evidencePanel(evidence) {
   return h('div', { class: 'panel' }, h('div', { class: 'panel-h' }, h('h2', {}, 'Evidence records'),
@@ -359,6 +360,28 @@ async function viewIncidents(root) {
   const [incidents, actions, audit] = await Promise.all([API.incidents(), API.actions(), API.auditVerify()]);
   root.innerHTML = '';
   const colOf = (st) => { st = (st || '').toLowerCase(); const i = KCOLS.findIndex(c => c[1].includes(st)); return i < 0 ? 0 : i; };
+  const counts = KCOLS.map((_, ci) => incidents.filter(i => colOf(i.status) === ci).length);
+  const breaches = incidents.filter(i => i.sla_breached).length;
+  const sevDist = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
+  incidents.forEach(i => { sevDist[sevClass(i.severity)] = (sevDist[sevClass(i.severity)] || 0) + 1; });
+  const openTotal = counts[0] + counts[1] + counts[2];
+  root.append(bento(
+    tile({ span: 4, hero: true, title: 'Active cases', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
+        h('div', { class: 'hero-n ' + (breaches ? 'critical' : 'info') }, String(openTotal)),
+        h('div', {}, h('div', { class: 'hero-of' }, 'open incidents'),
+          h('div', { class: 'hero-sub' }, `${incidents.length} total · audit ${audit.ok ? 'verified ✓' : 'check'}`))),
+      h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${counts[0]} new · ${counts[1]} in progress · ${counts[2]} contained · ${counts[3]} remediated`)),
+    tile({ span: 4, title: 'Cases by severity', sub: `· ${incidents.length}`, cls: 'fade' },
+      donut([
+        { label: 'Critical', value: sevDist.critical, color: 'var(--critical)' },
+        { label: 'High', value: sevDist.high, color: 'var(--warning)' },
+        { label: 'Medium', value: sevDist.medium, color: 'var(--muted)' },
+        { label: 'Low', value: sevDist.low, color: 'var(--faint)' }],
+        { centerValue: incidents.length, centerLabel: 'cases', size: 140 })),
+    statTile(2, 'SLA breaches', String(breaches), kpiDelta('inc_sla', breaches), breaches ? 'attention required' : 'within SLA', breaches ? 'crit' : 'ok'),
+    statTile(2, 'Contained', String(counts[2] + counts[3]), null, 'contained + remediated', 'ok')));
+  animateCounts(root);
   root.append(h('div', { class: 'panel-h', style: 'border:none;padding:0 2px 14px' },
     h('h2', {}, 'Cases'), h('span', { class: 'sub' }, `· ${incidents.length} open · audit chain ${audit.ok ? 'verified ✓' : 'needs check'}`),
     h('span', { class: 'spring', style: 'flex:1' }),
@@ -664,6 +687,7 @@ async function viewOverview(root) {
   const seen = new Set();
   const paint = (items) => { feed.innerHTML = ''; (items || []).slice(0, 14).forEach(d => feed.append(detectionRow(d, seen))); };
   paint(recent);
+  animateCounts(root);
   const t = setInterval(async () => { try { paint(await API.recent(30)); } catch {} }, 6000);
   window._viewCleanup = () => clearInterval(t);
 }
@@ -752,16 +776,6 @@ async function viewTrust(root) {
   const [resp, comp, events, actions, access] = await Promise.all([API.auditVerify(), API.chain(), API.auditEvents(40), API.actions(), API.accessAudit(50)]);
   root.innerHTML = '';
 
-  root.append(bento(
-    tile({ span: 4, hero: true, title: 'Air-gap egress', cls: 'fade' },
-      h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
-        h('div', { class: 'hero-n info', style: 'font-size:38px' }, 'SEALED'),
-        h('div', {}, h('div', { class: 'hero-of' }, 'network containment'),
-          h('div', { class: 'hero-sub' }, 'only feed-sync may reach the internet'))),
-      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'every other service is egress-denied by network policy')),
-    integrityTile(4, 'Response audit chain', resp),
-    integrityTile(4, 'Compliance evidence chain', comp)));
-
   const EGRESS = [
     ['feed-sync', 'NVD · EPSS · KEV mirror', 'allowed (sole egress)', true],
     ['api', 'analyst & integration traffic', 'denied', false],
@@ -770,6 +784,21 @@ async function viewTrust(root) {
     ['console', 'analyst UI', 'denied', false],
     ['opensearch · postgres · nats', 'data plane', 'denied', false],
   ];
+  const egAllowed = EGRESS.filter(e => e[3]).length, egDenied = EGRESS.length - egAllowed;
+  root.append(bento(
+    tile({ span: 3, hero: true, title: 'Air-gap egress', cls: 'fade' },
+      h('div', { class: 'hero', style: 'align-items:flex-end;gap:8px' },
+        h('div', { class: 'hero-n info', style: 'font-size:34px' }, 'SEALED'),
+        h('div', {}, h('div', { class: 'hero-of' }, 'containment'),
+          h('div', { class: 'hero-sub' }, `${egDenied}/${EGRESS.length} services egress-denied`))),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'only feed-sync may reach the internet')),
+    tile({ span: 3, title: 'Egress map', cls: 'fade' },
+      donut([
+        { label: 'Contained', value: egDenied, color: 'var(--success)' },
+        { label: 'Egress', value: egAllowed, color: 'var(--warning)' }],
+        { centerValue: egDenied, centerLabel: 'denied', size: 130 })),
+    integrityTile(3, 'Response audit chain', resp),
+    integrityTile(3, 'Compliance evidence chain', comp)));
   root.append(h('div', { class: 'panel fade', style: 'margin-top:14px' },
     h('div', { class: 'panel-h' }, h('h2', {}, 'Air-gap egress matrix'), h('span', { class: 'sub' }, '· default-deny; enforced by K3s NetworkPolicy / verify-egress')),
     h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
@@ -1329,8 +1358,13 @@ async function viewCoverage(root) {
         h('div', {}, h('div', { class: 'hero-of' }, `of ${cov.total_known || 0} known`),
           h('div', { class: 'hero-sub' }, 'techniques observed'))),
       h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'mapped to our offline ATT&CK KB')),
-    statTile(4, 'Tactics covered', String((cov.tactics || []).length), null, 'across the kill chain'),
-    statTile(4, 'Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), null, (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
+    tile({ span: 4, title: 'Coverage map', sub: `· ${cov.total_known || 0} known`, cls: 'fade' },
+      donut([
+        { label: 'Observed', value: cov.covered || 0, color: 'var(--accent)' },
+        { label: 'Not seen', value: Math.max(0, (cov.total_known || 0) - (cov.covered || 0)), color: 'var(--neutral-3)' }],
+        { centerValue: Math.round((cov.covered || 0) / (cov.total_known || 1) * 100) + '%', centerLabel: 'covered', size: 140 })),
+    statTile(2, 'Tactics', String((cov.tactics || []).length), null, 'kill-chain'),
+    statTile(2, 'Top technique', (cov.techniques && cov.techniques[0] ? cov.techniques[0].technique : '—'), null, (cov.techniques && cov.techniques[0] ? cov.techniques[0].name : ''), 'crit')));
   root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' }, h('div', { class: 'sec-label', style: 'margin-bottom:var(--s-3)' }, 'ATT&CK coverage by tactic — click a technique to investigate'),
     h('div', { class: 'attackmx' }, (cov.tactics || []).map(tac => h('div', { class: 'attcol' },
       h('div', { class: 'atth' }, tac.replace(/-/g, ' ')),
