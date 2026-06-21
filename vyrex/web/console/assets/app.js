@@ -36,20 +36,92 @@ const ROUTES = {
   assistant:  { title: 'Assistant', crumb: 'Offline security knowledge Q&A', icon: 'fusion', key: '', sec: 'Toolkit', view: viewAssistant },
   search:     { title: 'Search', crumb: 'Global results', icon: 'hunt', key: '', sec: '_hidden', view: viewSearch },
 };
-const SECTIONS = ['Monitor', 'Investigate', 'Assure', 'Operate', 'Toolkit'];
+/* ---- hub-based information architecture ---------------------------------
+   6 primary destinations (+ Settings). Each hub owns an ordered set of child
+   routes surfaced as a sub-nav tab strip; tools are launched from a grid, not
+   the rail. Route keys are unchanged, so deep-links + ⌘K still resolve. */
+const HUBS = {
+  home:        { title: 'Home',        icon: 'overview', key: '1', children: ['overview'] },
+  triage:      { title: 'Triage',      icon: 'triage',   key: '2', children: ['triage'] },
+  investigate: { title: 'Investigate', icon: 'hunt',     key: '3', children: ['cases', 'assets', 'hunt', 'intel', 'livehunt', 'coverage'] },
+  automate:    { title: 'Automate',    icon: 'model',    key: '4', children: ['agent', 'automation', 'playbooks', 'alerting'] },
+  assurance:   { title: 'Assurance',   icon: 'shield',   key: '5', children: ['compliance', 'trust', 'reports', 'model'] },
+  operations:  { title: 'Operations',  icon: 'manager',  key: '6', children: ['fusion', 'manager', 'detections', 'dashboards'] },
+  settings:    { title: 'Settings',    icon: 'gear',     key: '',  children: ['settings'] },
+};
+const PRIMARY = ['home', 'triage', 'investigate', 'automate', 'assurance', 'operations'];
+const TOOLSET = ['vitals', 'news', 'loganalyzer', 'phishing', 'cvelookup', 'irplaybook', 'portscan', 'assistant'];
+const ROUTE_HUB = {};
+for (const [hk, hub] of Object.entries(HUBS)) for (const c of hub.children) ROUTE_HUB[c] = hk;
 let current = 'overview', selIdx = -1;
 
+/* last-visited child per hub (re-entering a hub returns you where you were) + palette recents */
+let _hubLast = {}; try { _hubLast = JSON.parse(localStorage.getItem('vyrex_hublast') || '{}'); } catch {}
+let _recent = []; try { _recent = JSON.parse(localStorage.getItem('vyrex_recent') || '[]'); } catch {}
+
+function navItem(hk) {
+  const hub = HUBS[hk];
+  return h('a', { 'data-hub': hk, tabindex: '0', onclick: () => goHub(hk),
+    onkeydown: e => { if (e.key === 'Enter') goHub(hk); },
+    html: ic(hub.icon) + `<span>${hub.title}</span>` + (hub.key ? `<span class="key">${hub.key}</span>` : '') });
+}
 function buildNav() {
   const nav = $('#nav'); nav.innerHTML = '';
-  for (const s of SECTIONS) {
-    nav.append(h('div', { class: 'nav-sec' }, s));
-    for (const [k, r] of Object.entries(ROUTES)) {
-      if (r.sec !== s) continue;
-      nav.append(h('a', { 'data-route': k, tabindex: '0', onclick: () => go(k), onkeydown: e => { if (e.key === 'Enter') go(k); },
-        html: ic(r.icon) + `<span>${r.title}</span>` + (r.key ? `<span class="key">${r.key}</span>` : '') }));
-    }
-  }
+  PRIMARY.forEach(hk => nav.append(navItem(hk)));
+  nav.append(h('div', { class: 'nav-div' }));
+  nav.append(h('a', { 'data-tools': '1', tabindex: '0', onclick: openTools,
+    onkeydown: e => { if (e.key === 'Enter') openTools(); },
+    html: ic('layers') + '<span>Tools</span>' + '<span class="key">T</span>' }));
+  nav.append(navItem('settings'));
 }
+function goHub(hk) {
+  const hub = HUBS[hk]; if (!hub) return;
+  const last = _hubLast[hk];
+  go(last && hub.children.includes(last) ? last : hub.children[0]);
+}
+function buildTabs(route) {
+  const strip = $('#tabs'); if (!strip) return;
+  const hub = HUBS[ROUTE_HUB[route]];
+  if (!hub || hub.children.length < 2) { strip.hidden = true; strip.innerHTML = ''; return; }
+  strip.hidden = false; strip.innerHTML = '';
+  hub.children.forEach(ck => {
+    const r = ROUTES[ck]; if (!r) return;
+    strip.append(h('a', { 'data-tab': ck, class: ck === route ? 'active' : '', tabindex: '0',
+      onclick: () => go(ck), onkeydown: e => { if (e.key === 'Enter') go(ck); },
+      html: ic(r.icon) + `<span>${r.title}</span>` }));
+  });
+}
+function moveTab(d) {
+  const hub = HUBS[ROUTE_HUB[current]]; if (!hub || hub.children.length < 2) return;
+  let i = hub.children.indexOf(current); if (i < 0) i = 0;
+  go(hub.children[(i + d + hub.children.length) % hub.children.length]);
+}
+function pushRecent(route) {
+  if (!ROUTES[route] || route === 'search') return;
+  _recent = [route, ..._recent.filter(r => r !== route)].slice(0, 6);
+  try { localStorage.setItem('vyrex_recent', JSON.stringify(_recent)); } catch {}
+}
+
+/* ---- Tools launcher (app-grid) — standalone analyzers, off the rail ---- */
+function openTools() {
+  if ($('#login') && !$('#login').hidden) return;
+  if ($('#tools')) return;
+  const box = h('div', { class: 'tools-modal', id: 'tools', onclick: e => { if (e.target === box) closeTools(); } },
+    h('div', { class: 'tools-card' },
+      h('div', { class: 'tools-h' }, h('strong', { style: 'font-size:14px' }, 'Tools'),
+        h('span', { class: 'faint', style: 'font-size:12px' }, 'Standalone analyzers & utilities'),
+        h('span', { class: 'spring', style: 'flex:1' }),
+        h('button', { class: 'sc-x', title: 'Close (Esc)', onclick: closeTools, html: ic('x') })),
+      h('div', { class: 'tools-grid' }, TOOLSET.map(k => {
+        const r = ROUTES[k]; if (!r) return null;
+        return h('button', { class: 'tool-tile', onclick: () => { closeTools(); go(k); } },
+          h('span', { class: 'tt-ic', html: ic(r.icon) }),
+          h('span', { class: 'tt-t' }, r.title),
+          h('span', { class: 'tt-d' }, r.crumb));
+      }))));
+  document.body.append(box);
+}
+function closeTools() { const b = $('#tools'); if (b) b.remove(); }
 function go(route) {
   if (!ROUTES[route]) route = 'overview';
   // tear down any per-view timers (e.g. the Overview live ticker) before switching
@@ -57,7 +129,10 @@ function go(route) {
   current = route; selIdx = -1; location.hash = route;
   const r = ROUTES[route];
   $('#title').textContent = r.title; $('#crumb').textContent = r.crumb;
-  $$('#nav a').forEach(a => a.classList.toggle('active', a.dataset.route === route));
+  const hk = ROUTE_HUB[route];
+  if (hk) { _hubLast[hk] = route; try { localStorage.setItem('vyrex_hublast', JSON.stringify(_hubLast)); } catch {} }
+  $$('#nav a[data-hub]').forEach(a => a.classList.toggle('active', a.dataset.hub === hk));
+  buildTabs(route); pushRecent(route);
   closeDrawer();
   const root = $('#view'); root.innerHTML = '';
   $('#scroll').scrollTop = 0;
@@ -111,12 +186,14 @@ async function boot() {
     }
     if (e.key === '/') { e.preventDefault(); q.focus(); return; }
     if (e.key === '?') { e.preventDefault(); toggleShortcuts(); return; }
-    if (e.key === 'Escape') { const sh = $('#shortcuts'); if (sh) { sh.remove(); return; } closePalette(); closeAlerts(); closeDrawer(); return; }
+    if (e.key === 'Escape') { const sh = $('#shortcuts'); if (sh) { sh.remove(); return; } if ($('#tools')) { closeTools(); return; } closePalette(); closeAlerts(); closeDrawer(); return; }
     if (e.key === 'j') { moveSel(1); return; }
     if (e.key === 'k') { moveSel(-1); return; }
     if (e.key === 'Enter') { openSel(); return; }
-    const route = Object.keys(ROUTES).find(k => ROUTES[k].key === e.key);
-    if (route) go(route);
+    if (e.key === 't' || e.key === 'T') { openTools(); return; }
+    if (e.key === '[' || e.key === ']') { moveTab(e.key === ']' ? 1 : -1); return; }
+    const hub = Object.keys(HUBS).find(k => HUBS[k].key && HUBS[k].key === e.key);
+    if (hub) goHub(hub);
   });
 
   // footer / status
@@ -142,6 +219,9 @@ async function boot() {
 
   // organization chip (multi-tenancy foundation)
   try { const orgs = await API.tenants(); const oc = $('#orgchip'); if (oc && orgs && orgs.length) { oc.textContent = orgs[0].name; oc.title = orgs.map(o => o.name).join(' · '); } } catch {}
+
+  // ⌘K omni affordance in the search bar → open the command palette
+  const omniBtn = $('#omnik'); if (omniBtn) omniBtn.addEventListener('click', e => { e.preventDefault(); openPalette(); });
 
   // table density toggle (topbar)
   const db = $('#density'); if (db) { db.addEventListener('click', toggleDensity); if (document.body.classList.contains('compact')) db.classList.add('on'); }
@@ -190,7 +270,9 @@ function toggleShortcuts() {
       h('div', { class: 'shorts-b' },
         row([K('⌘'), K('K')], 'Command palette — jump to a page or run an action'),
         row([K('/')], 'Focus the search bar'),
-        row([K('1'), h('span', { class: 'kdash' }, '–'), K('9')], 'Jump to a section'),
+        row([K('1'), h('span', { class: 'kdash' }, '–'), K('6')], 'Jump to a hub (Home · Triage · Investigate · …)'),
+        row([K('['), K(']')], 'Previous / next tab within the hub'),
+        row([K('T')], 'Open the Tools launcher'),
         row([K('j'), K('k')], 'Move selection down / up'),
         row([K('↵')], 'Open the selected item'),
         row([K('Esc')], 'Close drawer · palette · this overlay'),
@@ -234,22 +316,32 @@ const CMDK_ACTIONS = [
   { title: 'Toggle table density', sec: 'Action', icon: 'gear', run: () => toggleDensity() },
   { title: 'Sign out', sec: 'Action', icon: 'gear', run: async () => { await API.logout(); location.reload(); } },
 ];
+// Palette items are grouped: Recent (empty query only) · Actions · then pages by hub.
+function groupOf(k) { return HUBS[ROUTE_HUB[k]] ? HUBS[ROUTE_HUB[k]].title : (TOOLSET.includes(k) ? 'Tools' : 'Pages'); }
 function paletteSource(ql) {
-  const routes = Object.entries(ROUTES)
+  const items = [];
+  if (!ql) _recent.forEach(k => { const r = ROUTES[k]; if (r) items.push({ key: k, title: r.title, icon: r.icon, group: 'Recent' }); });
+  CMDK_ACTIONS.filter(a => `${a.title} ${a.sec}`.toLowerCase().includes(ql))
+    .forEach(a => items.push({ title: a.title, icon: a.icon, run: a.run, group: 'Actions' }));
+  Object.entries(ROUTES)
     .filter(([k, r]) => r.sec !== '_hidden' && `${r.title} ${r.sec} ${r.crumb}`.toLowerCase().includes(ql))
-    .map(([k, r]) => ({ key: k, title: r.title, sec: r.sec, icon: r.icon }));
-  const acts = CMDK_ACTIONS.filter(a => `${a.title} ${a.sec}`.toLowerCase().includes(ql));
-  return routes.concat(acts);
+    .forEach(([k, r]) => items.push({ key: k, title: r.title, icon: r.icon, group: groupOf(k) }));
+  return items;
 }
 function renderPalette(query) {
   const list = $('#cmdk-list');
   _cmdkItems = paletteSource((query || '').toLowerCase());
   _cmdkSel = 0; list.innerHTML = '';
   if (!_cmdkItems.length) { list.append(h('div', { class: 'faint', style: 'padding:16px;text-align:center;font-size:12px' }, 'No match.')); return; }
-  _cmdkItems.forEach((it, i) => list.append(h('div', { class: 'cmdk-item' + (i === 0 ? ' sel' : ''), onclick: () => runPaletteItem(it) },
-    h('span', { html: ic(it.icon), style: 'width:15px;height:15px;color:var(--muted);display:inline-flex' }),
-    h('span', { style: 'flex:1' }, it.title),
-    h('span', { class: it.run ? 'cmdk-tag' : 'faint', style: 'font-size:10.5px' }, it.sec))));
+  let lastGroup = null, i = 0;
+  _cmdkItems.forEach((it) => {
+    if (it.group !== lastGroup) { list.append(h('div', { class: 'cmdk-group' }, it.group)); lastGroup = it.group; }
+    const sel = i === 0; i++;
+    list.append(h('div', { class: 'cmdk-item' + (sel ? ' sel' : ''), onclick: () => runPaletteItem(it) },
+      h('span', { html: ic(it.icon), style: 'width:15px;height:15px;color:var(--muted);display:inline-flex' }),
+      h('span', { style: 'flex:1' }, it.title),
+      h('span', { class: it.run ? 'cmdk-tag' : 'faint', style: 'font-size:10.5px' }, it.run ? '↵ run' : it.group)));
+  });
 }
 function paletteNav(d) {
   if (!_cmdkItems.length) return;

@@ -647,12 +647,17 @@ async function viewOverview(root) {
       chip(chain.ok ? 'evidence intact ✓' : 'evidence check', chain.ok ? 'ok' : 'kev'),
       h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} hash-chained records`)));
 
-  root.append(bento(
-    hero,
-    statTile(2, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok'),
-    statTile(2, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok'),
-    statTile(2, 'Active incidents', String(openInc), kpiDelta('inc', openInc), breaches ? `${breaches} SLA breached` : 'within SLA', breaches ? 'crit' : 'ok'),
-    statTile(2, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok')));
+  const tCrit = statTile(2, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok');
+  const tKev = statTile(2, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok');
+  const tInc = statTile(2, 'Active incidents', String(openInc), kpiDelta('inc', openInc), breaches ? `${breaches} SLA breached` : 'within SLA', breaches ? 'crit' : 'ok');
+  const tCis = statTile(2, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok');
+  // Tiles are entry points: jump to the screen that explains the number.
+  navTile(hero, () => go('coverage'));
+  navTile(tCrit, () => { STATE.filters.severity = 'CRITICAL'; STATE.filters.kev = false; go('triage'); });
+  navTile(tKev, () => { STATE.filters.kev = true; STATE.filters.severity = ''; go('triage'); });
+  navTile(tInc, () => go('cases'));
+  navTile(tCis, () => go('compliance'));
+  root.append(bento(hero, tCrit, tKev, tInc, tCis));
 
   // ---- bento row 2: charts — donut distribution + posture trend + ATT&CK ----
   const donutSegs = [
@@ -662,14 +667,16 @@ async function viewOverview(root) {
     { label: 'Low', value: bands.low, color: 'var(--faint)' },
     { label: 'Info', value: bands.info, color: 'var(--neutral-3)' }];
   const trendData = (trends || []).map(t => ({ v: +t.avg_risk || 0, label: (t.snap_date || '').slice(5) }));
-  root.append(bento(
-    tile({ span: 4, title: 'Risk distribution', sub: `· ${ranking.length} findings`, cls: 'fade' },
-      donut(donutSegs, { centerValue: ranking.length, centerLabel: 'ranked', size: 150 })),
-    tile({ span: 5, title: 'Posture trend', sub: '· avg composite risk · 7-day', cls: 'fade' },
-      areaChart(trendData, { height: 150, labels: true, color: 'var(--accent)' })),
-    tile({ span: 3, title: 'ATT&CK coverage', sub: `· ${techniques.length}`, cls: 'fade' },
-      h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(t, 'attack'))
-        : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'None mapped yet.')))));
+  const tDist = tile({ span: 4, title: 'Risk distribution', sub: `· ${ranking.length} findings`, cls: 'fade' },
+    donut(donutSegs, { centerValue: ranking.length, centerLabel: 'ranked', size: 150 }));
+  const tTrend = tile({ span: 5, title: 'Posture trend', sub: '· avg composite risk · 7-day', cls: 'fade' },
+    areaChart(trendData, { height: 150, labels: true, color: 'var(--accent)' }));
+  const tAtt = tile({ span: 3, title: 'ATT&CK coverage', sub: `· ${techniques.length}`, cls: 'fade' },
+    h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(t, 'attack'))
+      : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'None mapped yet.')));
+  navTile(tDist, () => go('triage'));
+  navTile(tAtt, () => go('coverage'));
+  root.append(bento(tDist, tTrend, tAtt));
 
   // ---- bento row 2: master list (top risks) + live detections feed ----
   const feed = h('div', {});
