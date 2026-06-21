@@ -4,6 +4,19 @@
    ===================================================================== */
 'use strict';
 
+/* theme (light/dark) — applied before paint; toggled from the topbar, persisted locally */
+try { if (localStorage.getItem('vyrex_theme') === 'light') document.body.classList.add('theme-light'); } catch {}
+(function wireTheme() {
+  const b = document.getElementById('theme'); if (!b) return;
+  if (document.body.classList.contains('theme-light')) b.classList.add('on');
+  b.addEventListener('click', () => {
+    const light = document.body.classList.toggle('theme-light');
+    try { localStorage.setItem('vyrex_theme', light ? 'light' : 'dark'); } catch {}
+    b.classList.toggle('on', light);
+    if (typeof toast === 'function') toast(light ? 'Light theme' : 'Dark theme', true);
+  });
+})();
+
 const ROUTES = {
   overview:   { title: 'Overview', crumb: 'Security posture at a glance', icon: 'overview', key: '1', sec: 'Monitor', view: viewOverview },
   triage:     { title: 'Triage', crumb: 'Ranked decisions', icon: 'triage', key: '2', sec: 'Monitor', view: viewTriage },

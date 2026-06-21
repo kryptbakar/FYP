@@ -496,3 +496,23 @@ function animateCounts(scope) {
     })(start);
   });
 }
+
+/* Live threat radar — plots findings as blips (angle from a stable hash, radius by severity:
+   critical near the bullseye) with a rotating sweep. Pure SVG/CSS, air-gap clean. */
+function threatRadar(findings, opts) {
+  opts = opts || {};
+  const size = opts.size || 200, c = size / 2;
+  const bandR = { critical: 0.30, high: 0.48, medium: 0.64, low: 0.80, info: 0.92 };
+  const rings = [0.32, 0.58, 0.84].map(f => `<circle cx="${c}" cy="${c}" r="${(f * c).toFixed(1)}" fill="none" stroke="var(--line)" stroke-width="1"/>`).join('');
+  const cross = `<line x1="${c}" y1="6" x2="${c}" y2="${size - 6}" stroke="var(--line)" stroke-width="1"/><line x1="6" y1="${c}" x2="${size - 6}" y2="${c}" stroke="var(--line)" stroke-width="1"/>`;
+  const blips = (findings || []).slice(0, 16).map((f, i) => {
+    const id = String(f.id != null ? f.id : i); let hsh = 0;
+    for (let k = 0; k < id.length; k++) hsh = (hsh * 31 + id.charCodeAt(k)) & 0xffff;
+    const ang = (hsh % 360) * Math.PI / 180, r = (bandR[band(f.risk_score)] || 0.9) * c;
+    const x = c + Math.cos(ang) * r, y = c + Math.sin(ang) * r;
+    return `<circle class="rb rb-${band(f.risk_score)}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.4" style="animation-delay:${(i * 0.12).toFixed(2)}s"/>`;
+  }).join('');
+  const wrap = h('div', { class: 'radar', style: `width:${size}px;height:${size}px` });
+  wrap.innerHTML = `<svg viewBox="0 0 ${size} ${size}">${rings}${cross}${blips}<circle cx="${c}" cy="${c}" r="2.6" fill="var(--accent)"/></svg><div class="radar-sweep"></div>`;
+  return wrap;
+}

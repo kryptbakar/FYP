@@ -669,14 +669,19 @@ async function viewOverview(root) {
   const trendData = (trends || []).map(t => ({ v: +t.avg_risk || 0, label: (t.snap_date || '').slice(5) }));
   const tDist = tile({ span: 4, title: 'Risk distribution', sub: `· ${ranking.length} findings`, cls: 'fade' },
     donut(donutSegs, { centerValue: ranking.length, centerLabel: 'ranked', size: 150 }));
-  const tTrend = tile({ span: 5, title: 'Posture trend', sub: '· avg composite risk · 7-day', cls: 'fade' },
+  const tTrend = tile({ span: 4, title: 'Posture trend', sub: '· avg composite risk · 7-day', cls: 'fade' },
     areaChart(trendData, { height: 150, labels: true, color: 'var(--accent)' }));
-  const tAtt = tile({ span: 3, title: 'ATT&CK coverage', sub: `· ${techniques.length}`, cls: 'fade' },
-    h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(t, 'attack'))
-      : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'None mapped yet.')));
+  const tRadar = tile({ span: 4, title: 'Threat radar', sub: '· live · by severity', cls: 'fade' },
+    h('div', { class: 'row', style: 'gap:14px;align-items:center;justify-content:center' },
+      threatRadar(ranking, { size: 156 }),
+      h('div', { class: 'chart-legend', style: 'min-width:92px' },
+        h('div', { class: 'cl-row' }, h('span', { class: 'cl-dot', style: 'background:var(--critical)' }), h('span', { class: 'cl-l' }, 'Critical'), h('span', { class: 'cl-v' }, String(bands.critical))),
+        h('div', { class: 'cl-row' }, h('span', { class: 'cl-dot', style: 'background:var(--warning)' }), h('span', { class: 'cl-l' }, 'High'), h('span', { class: 'cl-v' }, String(bands.high))),
+        h('div', { class: 'cl-row' }, h('span', { class: 'cl-dot', style: 'background:var(--text-2)' }), h('span', { class: 'cl-l' }, 'Medium'), h('span', { class: 'cl-v' }, String(bands.medium))),
+        h('div', { class: 'cl-row' }, h('span', { class: 'cl-dot', style: 'background:var(--muted)' }), h('span', { class: 'cl-l' }, 'Low/Info'), h('span', { class: 'cl-v' }, String(bands.low + bands.info))))));
   navTile(tDist, () => go('triage'));
-  navTile(tAtt, () => go('coverage'));
-  root.append(bento(tDist, tTrend, tAtt));
+  navTile(tRadar, () => go('triage'));
+  root.append(bento(tDist, tTrend, tRadar));
 
   // ---- bento row 2: master list (top risks) + live detections feed ----
   const feed = h('div', {});
