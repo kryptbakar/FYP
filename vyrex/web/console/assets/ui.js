@@ -408,3 +408,65 @@ function kpiDelta(key, value, good, vs) {
   const text = dir === 'flat' ? 'no change' : `${diff > 0 ? '+' : ''}${diff}`;
   return { dir, text, good: good || 'down', vs: vs || 'vs yesterday' };
 }
+
+/* ---- inline SVG charts (dependency-free, air-gap clean) --------------
+   donut(segments, opts)  → ring chart + legend  (the signature inspo element)
+   areaChart(data, opts)  → filled trend line with a subtle gradient
+   gaugeRing(pct, opts)   → circular progress gauge with a centre %        */
+function donut(segments, opts) {
+  opts = opts || {};
+  segments = (segments || []).filter(s => (+s.value) > 0);
+  const total = segments.reduce((a, s) => a + (+s.value), 0) || 1;
+  const r = 42, th = opts.thickness || 13, C = 2 * Math.PI * r;
+  let off = 0;
+  const rings = segments.map(s => {
+    const arc = ((+s.value) / total) * C;
+    const seg = `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${s.color}" stroke-width="${th}" stroke-dasharray="${arc.toFixed(2)} ${(C - arc).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"/>`;
+    off += arc; return seg;
+  }).join('');
+  const size = opts.size || 150;
+  const ring = h('div', { class: 'chart-donut', style: `width:${size}px;height:${size}px` });
+  ring.innerHTML = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--elevated)" stroke-width="${th}"/>${rings}</svg>`;
+  if (opts.centerValue != null || opts.centerLabel)
+    ring.append(h('div', { class: 'dc-center' }, h('div', { class: 'dc-n' }, String(opts.centerValue ?? '')),
+      opts.centerLabel ? h('div', { class: 'dc-l' }, opts.centerLabel) : null));
+  if (opts.noLegend) return ring;
+  const legend = h('div', { class: 'chart-legend' }, segments.map(s =>
+    h('div', { class: 'cl-row' }, h('span', { class: 'cl-dot', style: `background:${s.color}` }),
+      h('span', { class: 'cl-l' }, s.label), h('span', { class: 'cl-v' }, String(s.value)),
+      h('span', { class: 'cl-p' }, Math.round((+s.value) / total * 100) + '%'))));
+  return h('div', { class: 'chart-wrap' }, ring, legend);
+}
+function areaChart(data, opts) {
+  opts = opts || {};
+  const pts = (data || []).map(d => (typeof d === 'number' ? { v: d, label: '' } : d));
+  if (pts.length < 2) return h('div', { class: 'faint', style: 'font-size:var(--t-xs);padding:var(--s-4) 0' }, opts.empty || 'Not enough data yet to chart.');
+  const W = 900, H = opts.height || 150, pad = 10;
+  const vals = pts.map(p => +p.v || 0);
+  const max = Math.max(opts.min0 ? 1 : -Infinity, ...vals), min = Math.min(0, ...vals);
+  const xs = pts.map((_, i) => pad + i * ((W - 2 * pad) / (pts.length - 1)));
+  const y = v => H - pad - ((v - min) / ((max - min) || 1)) * (H - 2 * pad);
+  const line = pts.map((p, i) => `${xs[i].toFixed(1)},${y(vals[i]).toFixed(1)}`).join(' ');
+  const area = `M${xs[0].toFixed(1)},${(H - pad).toFixed(1)} L${line.split(' ').join(' L')} L${xs[xs.length - 1].toFixed(1)},${(H - pad).toFixed(1)} Z`;
+  const stroke = opts.color || 'var(--accent)';
+  const gid = 'ag' + Math.random().toString(36).slice(2, 8);
+  const dots = opts.dots === false ? '' : pts.map((p, i) => `<circle cx="${xs[i].toFixed(1)}" cy="${y(vals[i]).toFixed(1)}" r="2.3" fill="var(--accent-text)"/>`).join('');
+  const wrap = h('div', {});
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:${H}px;display:block">`
+    + `<defs><linearGradient id="${gid}" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="${stroke}" stop-opacity="0.26"/><stop offset="100%" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>`
+    + `<path d="${area}" fill="url(#${gid})"/>`
+    + `<polyline points="${line}" fill="none" stroke="${stroke}" stroke-width="1.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>${dots}</svg>`;
+  if (opts.labels) return h('div', {}, wrap, h('div', { class: 'trendx' }, pts.map(p => h('span', {}, p.label || ''))));
+  return wrap;
+}
+function gaugeRing(pct, opts) {
+  opts = opts || {};
+  const p = Math.max(0, Math.min(100, +pct || 0)), r = 42, C = 2 * Math.PI * r, arc = (p / 100) * C;
+  const size = opts.size || 92, color = opts.color || 'var(--accent)';
+  const g = h('div', { class: 'chart-gauge', style: `width:${size}px;height:${size}px` });
+  g.innerHTML = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="${r}" fill="none" stroke="var(--elevated)" stroke-width="9"/>`
+    + `<circle cx="50" cy="50" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round" stroke-dasharray="${arc.toFixed(2)} ${(C - arc).toFixed(2)}"/></svg>`;
+  g.append(h('div', { class: 'dc-center' }, h('div', { class: 'dc-n', style: 'font-size:18px' }, Math.round(p) + (opts.unit || '%')),
+    opts.label ? h('div', { class: 'dc-l' }, opts.label) : null));
+  return g;
+}

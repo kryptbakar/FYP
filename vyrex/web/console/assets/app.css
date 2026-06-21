@@ -806,6 +806,23 @@ select.tk-input { cursor: pointer; }
   [class*="c6"], [class*="c7"], [class*="c8"], [class*="c9"] { grid-column: 1 / -1; }
 }
 
+/* ---------------------------------------------------------------- inline SVG charts */
+.chart-wrap { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.chart-donut, .chart-gauge { position: relative; flex: none; }
+.chart-donut svg, .chart-gauge svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.chart-donut .dc-center, .chart-gauge .dc-center { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; text-align: center; }
+.dc-center .dc-n { font-family: var(--mono); font-size: 26px; font-weight: 560; line-height: 1; color: var(--text); }
+.dc-center .dc-l { font-size: var(--t-3xs); color: var(--faint); margin-top: 3px; text-transform: uppercase; letter-spacing: .4px; }
+.chart-legend { display: flex; flex-direction: column; gap: 10px; min-width: 140px; flex: 1; }
+.chart-legend .cl-row { display: flex; align-items: center; gap: 9px; font-size: var(--t-xs); }
+.chart-legend .cl-dot { width: 9px; height: 9px; border-radius: var(--r-xs); flex: none; }
+.chart-legend .cl-l { color: var(--text-2); flex: 1; min-width: 0; }
+.chart-legend .cl-v { font-family: var(--mono); color: var(--text); }
+.chart-legend .cl-p { font-family: var(--mono); color: var(--faint); min-width: 40px; text-align: right; }
+.gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 14px; justify-items: center; }
+.gauge-cell { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+.gauge-cell .gc-l { font-size: var(--t-2xs); color: var(--muted); }
+
 /* ---------------------------------------------------------------- print stylesheet (PDF export) */
 @media print {
   .rail, .top, .scrim, .drawer, .alerts-pop, .bulkbar, .filters, .noprint { display: none !important; }

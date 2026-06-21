@@ -301,10 +301,15 @@ async function viewCompliance(root) {
         chip('chain ' + (chain.ok ? 'verified ✓' : 'BROKEN ✗'), chain.ok ? 'ok' : 'kev'),
         chip(`${chain.length ?? 0} evidence records`, 'mono')),
       h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, 'head ' + (chain.head_hash || '—').slice(0, 16))),
-    statTile(2, 'Passing', String(by.pass || 0), kpiDelta('cis_pass', by.pass || 0, 'up'), 'controls met', 'ok'),
+    tile({ span: 4, title: 'Control outcomes', sub: `· ${graded} graded`, cls: 'fade' },
+      donut([
+        { label: 'Pass', value: by.pass || 0, color: 'var(--success)' },
+        { label: 'Fail', value: by.fail || 0, color: 'var(--critical)' },
+        { label: 'Partial', value: by.partial || 0, color: 'var(--warning)' },
+        { label: 'N/A', value: by.not_applicable || 0, color: 'var(--faint)' }],
+        { centerValue: score + '%', centerLabel: 'pass', size: 140 })),
     statTile(2, 'Failing', String(by.fail || 0), kpiDelta('cis_fail', by.fail || 0), 'need remediation', (by.fail || 0) ? 'crit' : 'ok'),
-    statTile(2, 'Partial', String(by.partial || 0), kpiDelta('cis_partial', by.partial || 0), 'partially met', (by.partial || 0) ? 'warn' : 'ok'),
-    statTile(2, 'At-risk hosts', String(regressed), kpiDelta('cis_hosts', regressed), 'below 50% posture', regressed ? 'warn' : 'ok')));
+    statTile(2, 'At-risk hosts', String(regressed), kpiDelta('cis_hosts', regressed), 'below 50%', regressed ? 'warn' : 'ok')));
   root.append(h('div', { class: 'stack fade' }, compTable(results), evidencePanel(evidence)));
 }
 function evidencePanel(evidence) {
@@ -575,8 +580,8 @@ function sensorsGrid(byTool) {
 /* ---- 4.6 Overview (executive landing — the default route) ------------ */
 async function viewOverview(root) {
   root.append(skKpis(), h('div', { style: 'height:14px' }), skPanel(), h('div', { style: 'height:14px' }), skPanel(['90%', '70%']));
-  const [ranking, stats, comp, incidents, chain, recent] = await Promise.all([
-    API.ranking(), API.stats(), API.compSummary(), API.incidents(), API.chain(), API.recent(30)]);
+  const [ranking, stats, comp, incidents, chain, recent, trends] = await Promise.all([
+    API.ranking(), API.stats(), API.compSummary(), API.incidents(), API.chain(), API.recent(30), API.postureTrends()]);
   STATE.ranking = ranking;
   const assets = await API.assets(); STATE.assets = {}; (assets || []).forEach(a => STATE.assets[a.host_id] = a);
   root.innerHTML = '';
@@ -602,28 +607,40 @@ async function viewOverview(root) {
   const top = ranking[0] || {};
   const peakBand = top.risk_score != null ? band(top.risk_score) : 'info';
   const peakHost = top.asset_id ? (assetMeta(top.asset_id).hostname || top.asset_id) : null;
-  const hero = tile({ span: 4, rowspan: true, hero: true, title: 'Security posture', cls: 'fade' },
+  const hero = tile({ span: 4, hero: true, title: 'Security posture', cls: 'fade' },
     h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
       h('div', { class: 'hero-n ' + peakBand }, ranking.length ? n0(top.risk_score) : '—'),
       h('div', {}, h('div', { class: 'hero-of' }, '/ 100 peak risk'),
         peakHost ? h('div', { class: 'hero-sub', style: 'max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, top.title || peakHost) : null)),
-    h('div', { style: 'margin-top:2px' }, riskBandBar(bands, ranking.length)),
-    h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs)' },
-      `${ranking.length} ranked · ${bands.critical} critical · ${bands.high} high · ${kev} KEV`));
+    h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs);margin-top:2px' },
+      `${ranking.length} ranked · ${bands.critical} critical · ${bands.high} high · ${kev} KEV`),
+    h('div', { class: 'row', style: 'gap:var(--s-2);margin-top:auto' },
+      chip(chain.ok ? 'evidence intact ✓' : 'evidence check', chain.ok ? 'ok' : 'kev'),
+      h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} hash-chained records`)));
 
   root.append(bento(
     hero,
     statTile(2, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok'),
     statTile(2, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok'),
     statTile(2, 'Active incidents', String(openInc), kpiDelta('inc', openInc), breaches ? `${breaches} SLA breached` : 'within SLA', breaches ? 'crit' : 'ok'),
-    statTile(2, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok'),
-    tile({ span: 4, title: 'ATT&CK coverage', sub: `· ${techniques.length} mapped`, cls: 'fade' },
-      h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(`${t} · ${attackName(t)}`, 'attack'))
-        : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'No techniques mapped yet.'))),
-    tile({ span: 4, title: 'Evidence integrity', cls: 'fade' },
-      h('div', { class: 'row' }, chip(chain.ok ? 'chain intact ✓' : 'chain check', chain.ok ? 'ok' : 'kev'),
-        h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} records`)),
-      h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'Hash-chained audit log · tamper-evident'))));
+    statTile(2, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok')));
+
+  // ---- bento row 2: charts — donut distribution + posture trend + ATT&CK ----
+  const donutSegs = [
+    { label: 'Critical', value: bands.critical, color: 'var(--critical)' },
+    { label: 'High', value: bands.high, color: 'var(--warning)' },
+    { label: 'Medium', value: bands.medium, color: 'var(--muted)' },
+    { label: 'Low', value: bands.low, color: 'var(--faint)' },
+    { label: 'Info', value: bands.info, color: 'var(--neutral-3)' }];
+  const trendData = (trends || []).map(t => ({ v: +t.avg_risk || 0, label: (t.snap_date || '').slice(5) }));
+  root.append(bento(
+    tile({ span: 4, title: 'Risk distribution', sub: `· ${ranking.length} findings`, cls: 'fade' },
+      donut(donutSegs, { centerValue: ranking.length, centerLabel: 'ranked', size: 150 })),
+    tile({ span: 5, title: 'Posture trend', sub: '· avg composite risk · 7-day', cls: 'fade' },
+      areaChart(trendData, { height: 150, labels: true, color: 'var(--accent)' })),
+    tile({ span: 3, title: 'ATT&CK coverage', sub: `· ${techniques.length}`, cls: 'fade' },
+      h('div', { class: 'wrap' }, techniques.length ? techniques.map(t => chip(t, 'attack'))
+        : h('span', { class: 'faint', style: 'font-size:var(--t-xs)' }, 'None mapped yet.')))));
 
   // ---- bento row 2: master list (top risks) + live detections feed ----
   const feed = h('div', {});
@@ -1684,12 +1701,16 @@ async function viewVitals(root) {
     root.append(tkHero('Appliance node vitals', (v.os && v.os.note) || 'Local node telemetry — read from /proc, nothing egresses'));
     const cpu = v.cpu || {}, ram = v.ram || {}, disk = v.disk || {}, os = v.os || {};
     const tone = p => p == null ? '' : p >= 90 ? 'critical' : p >= 75 ? 'high' : p >= 50 ? 'warn' : 'ok';
-    const stone = p => p == null ? 'ok' : p >= 90 ? 'crit' : p >= 50 ? 'warn' : 'ok';
+    const gcolor = p => p == null ? 'var(--accent)' : p >= 90 ? 'var(--critical)' : p >= 75 ? 'var(--warning)' : 'var(--accent)';
+    const gcell = (pct, lab, sub) => h('div', { class: 'gauge-cell' }, gaugeRing(pct, { color: gcolor(pct), label: lab }), h('div', { class: 'gc-l' }, sub));
     root.append(bento(
-      statTile(3, 'CPU load', (cpu.total_pct == null ? '—' : cpu.total_pct + '%'), null, `${cpu.logical || '—'} cores · load ${n1(cpu.load1)}`, stone(cpu.total_pct)),
-      statTile(3, 'Memory', (ram.percent == null ? '—' : ram.percent + '%'), null, `${ram.used_h || '—'} / ${ram.total_h || '—'}`, stone(ram.percent)),
-      statTile(3, 'Disk', (disk.percent == null ? '—' : disk.percent + '%'), null, `${disk.used_h || '—'} / ${disk.total_h || '—'}`, stone(disk.percent)),
-      statTile(3, 'Uptime', os.uptime || '—', null, 'since ' + (os.boot_time || '—'), 'ok')));
+      tile({ span: 8, title: 'Resource utilisation', sub: '· live from /proc', cls: 'fade' },
+        h('div', { class: 'gauge-grid' },
+          gcell(cpu.total_pct, 'CPU', `${cpu.logical || '—'} cores · ${n1(cpu.load1)}`),
+          gcell(ram.percent, 'Memory', `${ram.used_h || '—'} / ${ram.total_h || '—'}`),
+          gcell(disk.percent, 'Disk', `${disk.used_h || '—'} / ${disk.total_h || '—'}`),
+          gcell(ram.swap_percent || 0, 'Swap', 'swap in use'))),
+      statTile(4, 'Uptime', os.uptime || '—', null, 'since ' + (os.boot_time || '—'), 'ok')));
 
     const cores = (cpu.per_core || []);
     if (cores.length) root.append(h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
