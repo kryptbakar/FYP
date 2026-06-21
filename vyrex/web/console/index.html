@@ -6,7 +6,7 @@
   <title>VYREX — Analyst Console</title>
   <meta name="description" content="VYREX — explainable, air-gapped security intelligence workspace." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23A82A47' d='M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5z'/></svg>" />
-  <link rel="stylesheet" href="assets/app.css?v=14" />
+  <link rel="stylesheet" href="assets/app.css?v=15" />
 </head>
 <body>
   <div class="app">
@@ -80,6 +80,10 @@
         <span class="lb-w" style="--x:87%;--y:37%;--d:1.7s">Nuclei<i></i></span>
         <span class="lb-w" style="--x:71%;--y:81%;--d:2.6s">Zeek<i></i></span>
         <span class="lb-w" style="--x:19%;--y:85%;--d:.3s">Sigma<i></i></span>
+        <span class="lb-w" style="--x:30%;--y:10%;--d:1.4s">EPSS 0.94<i></i></span>
+        <span class="lb-w" style="--x:64%;--y:88%;--d:2.0s">CIS 64%<i></i></span>
+        <span class="lb-w" style="--x:3%;--y:60%;--d:3.4s">1.2k IOCs<i></i></span>
+        <span class="lb-w" style="--x:93%;--y:50%;--d:1.0s">KEV ✓<i></i></span>
       </div>
     </div>
 
@@ -122,16 +126,41 @@
     </div>
   </div>
 
+  <!-- cinematic vault-unlock loading screen (plays on sign-in) -->
+  <div class="vault" id="vault" hidden aria-hidden="true">
+    <div class="vault-half vh-l"></div>
+    <div class="vault-half vh-r"></div>
+    <div class="vault-flash"></div>
+    <div class="vault-mech">
+      <div class="vm-ring vm-r1"></div>
+      <div class="vm-ring vm-r2"></div>
+      <div class="vm-ring vm-r3"></div>
+      <div class="vm-bolts"><i style="--a:0deg"></i><i style="--a:45deg"></i><i style="--a:90deg"></i><i style="--a:135deg"></i><i style="--a:180deg"></i><i style="--a:225deg"></i><i style="--a:270deg"></i><i style="--a:315deg"></i></div>
+      <div class="vm-spokes"><i></i><i></i><i></i><i></i></div>
+      <div class="vm-core"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 8.5 8 11 4.6-2.5 8-6 8-11V5l-8-3Z"/><path d="m9 11.5 2 2 4-4.5" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="vault-status">
+      <div class="vs-title">Securing vault</div>
+      <div class="vs-steps">
+        <div class="vs-step s1"><i></i><span>Authenticating analyst</span></div>
+        <div class="vs-step s2"><i></i><span>Verifying Ed25519 signature</span></div>
+        <div class="vs-step s3"><i></i><span>Decrypting evidence chain</span></div>
+        <div class="vs-step s4"><i></i><span>Air-gap sealed</span></div>
+      </div>
+      <div class="vs-granted">Access granted</div>
+    </div>
+  </div>
+
   <div class="scrim" id="scrim"></div>
   <aside class="drawer" id="drawer"><div id="drawer-inner" style="display:flex;flex-direction:column;height:100%"></div></aside>
   <div class="toast" id="toast"></div>
 
-  <script src="assets/fixtures.js?v=14"></script>
-  <script src="assets/api.js?v=14"></script>
-  <script src="assets/ui.js?v=14"></script>
-  <script src="assets/toolkit.js?v=14"></script>
-  <script src="assets/views.js?v=14"></script>
-  <script src="assets/app.js?v=14"></script>
-  <script src="assets/story.js?v=14"></script>
+  <script src="assets/fixtures.js?v=15"></script>
+  <script src="assets/api.js?v=15"></script>
+  <script src="assets/ui.js?v=15"></script>
+  <script src="assets/toolkit.js?v=15"></script>
+  <script src="assets/views.js?v=15"></script>
+  <script src="assets/app.js?v=15"></script>
+  <script src="assets/story.js?v=15"></script>
 </body>
 </html>

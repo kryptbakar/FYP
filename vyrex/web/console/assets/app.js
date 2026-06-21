@@ -166,6 +166,20 @@ function updateLive(mode) {
     : 'Connecting to /api…';
 }
 
+/* Cinematic vault-unlock loading screen — plays on explicit sign-in while the app boots
+   behind it. Pure CSS sequence; JS only shows it and removes it when the door has opened.
+   Honours prefers-reduced-motion (skips straight through). */
+function runVault() {
+  const v = document.getElementById('vault');
+  if (!v) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;   // no cover for reduced-motion
+  v.hidden = false;
+  // force a reflow so the .run animations start from their initial state
+  void v.offsetWidth;
+  v.classList.add('run');
+  setTimeout(() => { v.classList.remove('run'); v.hidden = true; }, 3300);
+}
+
 async function boot() {
   buildNav();
   API._onmode = updateLive;
@@ -413,7 +427,7 @@ function showLogin() {
       const r = await API.login($('#login-user').value.trim(), $('#login-pass').value);
       if (r && r.token) {
         API._setSession(r); document.body.classList.add('role-' + (r.role || 'viewer'));
-        login.hidden = true; boot(); return;
+        login.hidden = true; runVault(); boot(); return;   // cinematic vault-unlock cover while the app boots behind it
       }
       err.textContent = (r && r.error) || 'login failed';
     } catch (ex) {

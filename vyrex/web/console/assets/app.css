@@ -564,6 +564,81 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 .login-caps[hidden] { display: none; }
 .login-err { color: var(--critical-text); font-size: var(--t-xs); min-height: 14px; }
 .login-hint { font-size: var(--t-2xs); color: var(--faint); text-align: center; margin-top: 4px; }
+
+/* ---------------------------------------------------------------- vault-unlock loading screen */
+.vault { position: fixed; inset: 0; z-index: 120; overflow: hidden; background: var(--bg); }
+.vault[hidden] { display: none !important; }
+.vault.run { animation: vFade 3.3s linear forwards; }
+@keyframes vFade { 0%, 84% { opacity: 1; } 100% { opacity: 0; } }
+
+/* two steel doors that slide apart */
+.vault-half { position: absolute; top: 0; bottom: 0; width: 50.5%;
+  background: repeating-linear-gradient(90deg, transparent 0 46px, rgba(0,0,0,0.28) 46px 48px),
+    radial-gradient(150% 90% at var(--gx) 32%, rgba(168,42,71,0.16), transparent 60%), var(--surface);
+  box-shadow: inset 0 0 130px rgba(0,0,0,0.6); }
+.vault-half.vh-l { left: 0; --gx: 100%; border-right: 1px solid var(--line-strong); }
+.vault-half.vh-r { right: 0; --gx: 0%; border-left: 1px solid var(--line-strong); }
+.vault.run .vh-l { animation: vDoorL 3.3s cubic-bezier(.7,0,.2,1) forwards; }
+.vault.run .vh-r { animation: vDoorR 3.3s cubic-bezier(.7,0,.2,1) forwards; }
+@keyframes vDoorL { 0%, 60% { transform: translateX(0); } 100% { transform: translateX(-101%); } }
+@keyframes vDoorR { 0%, 60% { transform: translateX(0); } 100% { transform: translateX(101%); } }
+
+/* unlock flash */
+.vault-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 50% 42%, rgba(255,255,255,0.92), rgba(228,124,144,0.4) 22%, transparent 47%); }
+.vault.run .vault-flash { animation: vFlash 3.3s linear forwards; }
+@keyframes vFlash { 0%, 57% { opacity: 0; } 62% { opacity: .7; } 74%, 100% { opacity: 0; } }
+
+/* circular mechanism */
+.vault-mech { position: absolute; left: 50%; top: 42%; width: 300px; height: 300px; transform: translate(-50%,-50%);
+  display: grid; place-items: center; filter: drop-shadow(0 0 50px rgba(168,42,71,0.45)); }
+.vault.run .vault-mech { animation: vMech 3.3s var(--ease) forwards; }
+@keyframes vMech { 0%, 54% { opacity: 1; transform: translate(-50%,-50%) scale(1); }
+  63% { opacity: 1; transform: translate(-50%,-50%) scale(1.12); }
+  74%, 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.45); } }
+.vm-ring { position: absolute; border-radius: 50%; }
+.vm-r1 { inset: 0; border: 6px solid #221a20; box-shadow: inset 0 0 0 2px var(--line-strong), 0 0 22px rgba(0,0,0,.6); }
+.vm-r2 { inset: 26px; border: 2px solid var(--line); }
+.vm-r3 { inset: 44px; border: 2px dashed var(--accent-soft); animation: vSpin 2.4s linear infinite; }
+@keyframes vSpin { to { transform: rotate(360deg); } }
+.vm-bolts i { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px; border-radius: 50%;
+  background: var(--elevated); border: 1px solid var(--line-strong); transform: rotate(var(--a)) translateY(-138px); }
+.vault.run .vm-bolts i { animation: vBolt 3.3s var(--ease) forwards; }
+@keyframes vBolt { 0%, 48% { transform: rotate(var(--a)) translateY(-138px); background: var(--elevated); }
+  58%, 100% { transform: rotate(var(--a)) translateY(-118px); background: var(--accent); } }
+.vm-spokes { position: absolute; inset: 62px; }
+.vm-spokes i { position: absolute; left: 50%; top: 50%; width: 8px; height: 92px; margin: -46px -4px; border-radius: 4px;
+  background: linear-gradient(180deg, var(--accent), #5a1320); box-shadow: 0 0 14px rgba(168,42,71,.5); }
+.vm-spokes i:nth-child(2) { transform: rotate(45deg); }
+.vm-spokes i:nth-child(3) { transform: rotate(90deg); }
+.vm-spokes i:nth-child(4) { transform: rotate(135deg); }
+.vault.run .vm-spokes { animation: vWheel 3.3s cubic-bezier(.4,0,.2,1) forwards; }
+@keyframes vWheel { 0% { transform: rotate(0); } 50% { transform: rotate(540deg); } 60% { transform: rotate(522deg); } 100% { transform: rotate(522deg); } }
+.vm-core { position: absolute; width: 74px; height: 74px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle, var(--elevated), var(--bg)); border: 1px solid var(--line-strong); }
+.vm-core svg { width: 33px; height: 33px; color: var(--accent-text); }
+
+/* status checklist */
+.vault-status { position: absolute; left: 50%; top: calc(42% + 196px); transform: translateX(-50%); width: min(440px, 88vw); text-align: center; }
+.vs-title { font-family: var(--mono); font-size: 12px; letter-spacing: .42em; text-transform: uppercase; color: var(--accent-text); margin-bottom: 15px; }
+.vs-steps { display: inline-flex; flex-direction: column; gap: 9px; text-align: left; }
+.vs-step { display: flex; align-items: center; gap: 11px; font-size: 13px; color: var(--muted); opacity: .42; }
+.vs-step i { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line-strong); flex: none; position: relative; }
+.vs-step i::after { content: ''; position: absolute; inset: 3px; border-radius: 50%; background: transparent; }
+.vault.run .vs-step.s1 { animation: vStep .4s ease forwards .35s; }
+.vault.run .vs-step.s2 { animation: vStep .4s ease forwards .85s; }
+.vault.run .vs-step.s3 { animation: vStep .4s ease forwards 1.35s; }
+.vault.run .vs-step.s4 { animation: vStep .4s ease forwards 1.85s; }
+@keyframes vStep { to { opacity: 1; color: var(--text-2); } }
+.vault.run .vs-step.s1 i::after { animation: vDot .01s linear forwards .6s; }
+.vault.run .vs-step.s2 i::after { animation: vDot .01s linear forwards 1.1s; }
+.vault.run .vs-step.s3 i::after { animation: vDot .01s linear forwards 1.6s; }
+.vault.run .vs-step.s4 i::after { animation: vDot .01s linear forwards 2.1s; }
+@keyframes vDot { to { background: var(--success); box-shadow: 0 0 8px var(--success); } }
+.vs-granted { margin-top: 19px; font-family: var(--mono); font-size: 21px; font-weight: 700; letter-spacing: .34em; text-transform: uppercase; opacity: 0;
+  background: linear-gradient(180deg, #fff, #E47C90); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+.vault.run .vs-granted { animation: vGrant .6s var(--ease) forwards 2.05s; }
+@keyframes vGrant { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .login-tag { font-size: var(--t-2xs); color: var(--accent-text); text-align: center; margin: -2px 0 8px; letter-spacing: .2px; }
 
 /* ---------------------------------------------------------------- command palette (Cmd/Ctrl+K) */
