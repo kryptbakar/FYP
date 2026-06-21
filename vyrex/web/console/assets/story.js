@@ -22,7 +22,7 @@ const _sdelay = ms => new Promise(r => setTimeout(r, STORY_REDUCED ? 0 : ms));
 const STORY = [
   { id: 'overview', route: 'overview', title: '~500 alerts → 1 decision',
     caption: 'Raw security tools would bury an analyst in ~500 alerts a day. VYREX fuses and ranks them into one decision that matters right now.',
-    highlight: '#view .kpis', onEnter: animateFunnel },
+    highlight: '#view .bento', onEnter: animateFunnel },
   { id: 'triage', route: 'triage', title: 'The #1 ranked decision',
     caption: 'The highest-risk finding sits at the top of the decision queue — a known-exploited CVE on an internet-facing host. Open it.',
     highlight: '#view .card:first-child, #view .tbl tbody tr:first-child' },

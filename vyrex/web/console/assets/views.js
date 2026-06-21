@@ -596,9 +596,15 @@ async function viewOverview(root) {
   const cis = Math.round(((by.pass || 0) / graded) * 100);
   const techniques = [...new Set(ranking.map(r => r.attack).filter(Boolean))];
 
-  root.append(h('div', { class: 'row fade', style: 'margin-bottom:14px;gap:var(--s-3)' },
+  const toolCount = new Set(ranking.map(r => r.source_tool || 'agent')).size;
+  root.append(h('div', { class: 'row fade', style: 'margin-bottom:14px;gap:var(--s-3);flex-wrap:wrap' },
     h('div', { style: 'min-width:0' }, h('div', { style: 'font-size:var(--t-md);font-weight:560' }, 'Security posture'),
       h('div', { class: 'faint', style: 'font-size:var(--t-xs);margin-top:1px' }, 'Live exposure, ranked. New here? Walk one threat from detection to contained.')),
+    h('div', { class: 'wrap', style: 'gap:6px;margin-left:var(--s-3)' },
+      chip('Air-gap sealed', 'ok'),
+      chip(chain.ok ? 'Evidence chain intact' : 'Evidence check', chain.ok ? 'ok' : 'kev'),
+      chip(`${toolCount}-tool fusion`, 'consensus'),
+      chip('Explainable scoring', 'intel')),
     h('span', { class: 'spring', style: 'flex:1' }),
     h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
       html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' })));
