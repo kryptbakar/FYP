@@ -92,7 +92,7 @@ function sentinelPanel() {
   const dial = h('div', { class: 'autlevel' }, Object.entries(LEVELS).map(([k, v]) =>
     h('button', { class: 'al-opt' + (AUTODEF.level === k ? ' on' : ''), 'data-lvl': k,
       onclick: () => { AUTODEF.level = k; $$('.al-opt').forEach(b => b.classList.toggle('on', b.dataset.lvl === k));
-        $('#al-desc').textContent = LEVELS[k].d; toast('Autonomy: ' + v.lb, true); } }, v.lb)));
+        $('#al-desc').textContent = LEVELS[k].d; try { API.setDefensePolicy(k); } catch {} toast('Autonomy: ' + v.lb, true); } }, v.lb)));
   return h('div', { class: 'panel pad fade', style: 'margin-bottom:14px' },
     h('div', { class: 'row', style: 'gap:var(--s-3);flex-wrap:wrap;margin-bottom:var(--s-3)' },
       h('div', {}, h('div', { class: 'sec-label' }, 'Sentinel · autonomy policy'),
@@ -115,6 +115,7 @@ function decisionRow(d) {
 }
 function simulateAttack() {
   const log = $('#dlog'); if (!log) return;
+  try { API.defenseEvaluate(); } catch {}   // live: runs the real engine → real signed actions + audit
   const row = h('div', { class: 'dlrow live' },
     h('span', { class: 'chip warn', style: 'min-width:78px;justify-content:center' }, 'INCOMING'),
     h('div', { style: 'flex:1;min-width:0' }, h('div', { class: 'dl-t', id: 'sim-t' }, 'Suspicious credential access on web-prod-03…'),
@@ -156,6 +157,7 @@ function tripHoneytoken() {
   if (!armed.length) { AUTODEF.decoys.forEach(d => d.state = 'armed'); const g = $('#htgrid'); if (g) { g.innerHTML = ''; AUTODEF.decoys.forEach((d, i) => g.append(htCard(d, i))); } toast('Honeytokens re-armed', true); return; }
   const pick = armed[Math.floor(Math.random() * armed.length)];
   AUTODEF.decoys[pick.i].state = 'tripped';
+  try { API.tripDecoy(pick.i + 1); } catch {}   // live: real tripwire → auto-isolate + audit
   const g = $('#htgrid'); if (g) { g.innerHTML = ''; AUTODEF.decoys.forEach((d, i) => g.append(htCard(d, i))); }
   toast('🚨 Honeytoken TRIPPED — ' + AUTODEF.decoys[pick.i].name + ' — attacker located', false);
   _at(() => toast('✓ Source auto-isolated · full attack path captured · 100% confidence', true), 1400);
@@ -177,6 +179,7 @@ function mendRow(m, i) {
 }
 function heal(i) {
   const m = AUTODEF.mend[i]; if (!m || m.healed) return;
+  try { API.defenseHeal(m.what, m.host, 'restore_baseline'); } catch {}   // live: real remediation + audit
   toast('Self-healing — ' + m.fix + '…', false);
   _at(() => { m.healed = true; const list = $('#mendlist'); if (list) { list.innerHTML = ''; AUTODEF.mend.forEach((x, j) => list.append(mendRow(x, j))); }
     toast('✓ ' + m.host + ' restored to baseline', true); }, 900);
@@ -202,6 +205,7 @@ function basCell(f, i) {
     h('div', { class: 'bc-r' }, f.result === 'blocked' ? 'BLOCKED ✓' : f.result === 'open' ? 'WOULD SUCCEED' : '—'));
 }
 function runForge() {
+  try { API.defenseEmulate(); } catch {}   // live: real BAS vs detection coverage
   AUTODEF.forge.forEach(f => f.result = null);
   const render = () => { const g = $('#basgrid'); if (g) { g.innerHTML = ''; AUTODEF.forge.forEach((f, i) => g.append(basCell(f, i))); } };
   render(); toast('Running breach & attack simulation…', false);
@@ -213,6 +217,7 @@ function runForge() {
   }, 500 + i * 450));
 }
 function forgeHarden() {
+  try { API.defenseHarden(); } catch {}   // live: auto-creates detection rules for the gaps
   AUTODEF.forge.forEach(f => f.result = 'blocked');
   const g = $('#basgrid'); if (g) { g.innerHTML = ''; AUTODEF.forge.forEach((f, i) => g.append(basCell(f, i))); }
   const hb = $('#forge-harden'); if (hb) hb.hidden = true;

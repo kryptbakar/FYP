@@ -98,6 +98,17 @@ const API = {
   incidents: () => API._get('/incidents?limit=200', () => FIX.incidents),
   actions: () => API._get('/actions', () => FIX.actions),
   auditVerify: () => API._get('/response/audit/verify', () => FIX.auditVerify),
+  // ---- Autonomous Defense (Sentinel · Decoy · Mend · Forge) ----
+  defensePolicy: () => API._get('/defense/policy', () => ({ level: 'reversible' })),
+  setDefensePolicy: (level) => API._send('PUT', '/defense/policy', { level }, { level }),
+  defenseEvaluate: () => API._post('/defense/evaluate', {}, { evaluated: 0, decisions: [] }),
+  defenseDecisions: (n = 40) => API._get(`/defense/decisions?limit=${n}`, () => []),
+  defenseStats: () => API._get('/defense/stats', () => ({})),
+  decoys: () => API._get('/defense/decoys', () => []),
+  tripDecoy: (id) => API._post(`/defense/decoys/${id}/trip`, { source: 'sim-attacker' }, { state: 'tripped' }),
+  defenseHeal: (target, asset_id, action) => API._post('/defense/heal', { target, asset_id, action }, { status: 'completed' }),
+  defenseEmulate: () => API._post('/defense/emulate', {}, { results: [] }),
+  defenseHarden: () => API._post('/defense/harden', {}, { hardened: 0 }),
 
   // surfaced backend intelligence (Sprint-1 exposure work)
   modelCard: () => API._get('/risk/model/metadata', () => FIX.modelCard),

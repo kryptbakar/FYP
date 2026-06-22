@@ -339,6 +339,74 @@ INSERT INTO playbooks (id, name, description, trigger, actions) VALUES
    'manual',
    '[{"type":"notify","params":{"severity":"high"}},{"type":"open_incident","params":{}},{"type":"webhook","params":{}}]')
 ON CONFLICT (id) DO NOTHING;
+
+-- ============ Autonomous Defense (Sentinel · Decoy · Mend · Forge) ============
+-- Autonomy policy (singleton). advisory: propose only · reversible: auto reversible/low-blast
+-- · full: auto reversible up to med-blast. Destructive actions are NEVER auto-executed.
+CREATE TABLE IF NOT EXISTS defense_policy (
+    id         int PRIMARY KEY DEFAULT 1,
+    level      text DEFAULT 'reversible',
+    updated_by text,
+    updated_at timestamptz DEFAULT now()
+);
+INSERT INTO defense_policy (id, level) VALUES (1, 'reversible') ON CONFLICT (id) DO NOTHING;
+
+-- Every autonomous decision (the traceable 'why it acted').
+CREATE TABLE IF NOT EXISTS defense_decisions (
+    id          bigserial PRIMARY KEY,
+    finding_id  bigint,
+    asset_id    text,
+    title       text,
+    verdict     text,                    -- CONTAIN | MONITOR | DISMISS
+    action_type text,
+    blast       text,                    -- none | low | med | high
+    mode        text,                    -- autonomous | two_person_queued | advisory
+    executed    boolean DEFAULT false,
+    action_id   bigint,                  -- -> response_actions.id when an action was raised
+    reason      text,
+    latency_ms  int,
+    created_at  timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS defense_decisions_created ON defense_decisions (created_at DESC);
+
+-- Deception: honeytokens a real user never touches; an attacker who does fires a tripwire.
+CREATE TABLE IF NOT EXISTS honeytokens (
+    id         bigserial PRIMARY KEY,
+    name       text NOT NULL UNIQUE,
+    kind       text NOT NULL,            -- credential | canary_file | decoy_service | decoy_host
+    location   text,
+    state      text DEFAULT 'armed',     -- armed | tripped
+    tripped_at timestamptz,
+    tripped_by text,
+    created_at timestamptz DEFAULT now()
+);
+INSERT INTO honeytokens (name, kind, location) VALUES
+  ('AWS_SECRET_KEY (decoy)', 'credential', 'web-prod-03:/home/deploy/.aws/credentials'),
+  ('domain-admin / B@ckup2024', 'credential', 'Active Directory'),
+  ('salaries_2026.xlsx', 'canary_file', 'mail-gw-01:/finance/'),
+  ('phantom Postgres :5433', 'decoy_service', 'db-core-01'),
+  ('jump-box-07 (decoy host)', 'decoy_host', '10.4.9.99')
+ON CONFLICT (name) DO NOTHING;
+
+-- Self-healing remediation log.
+CREATE TABLE IF NOT EXISTS remediations (
+    id         bigserial PRIMARY KEY,
+    target     text,
+    asset_id   text,
+    action     text,                     -- restore_baseline | kill_persistence | rollback_config
+    detail     text,
+    status     text DEFAULT 'completed',
+    created_at timestamptz DEFAULT now()
+);
+
+-- Breach-and-attack emulation runs.
+CREATE TABLE IF NOT EXISTS emulations (
+    id         bigserial PRIMARY KEY,
+    techniques jsonb,
+    blocked    int,
+    succeeded  int,
+    created_at timestamptz DEFAULT now()
+);
 """
 
 # Finding lifecycle / risk-acceptance (DefectDojo pattern). findings is owned by the
