@@ -180,17 +180,35 @@ function updateLive(mode) {
 }
 
 /* Cinematic vault-unlock loading screen — plays on explicit sign-in while the app boots
-   behind it. Pure CSS sequence; JS only shows it and removes it when the door has opened.
-   Honours prefers-reduced-motion (skips straight through). */
+   behind it. The vault HOLDS in a "securing" loop (doors shut, mechanism working) until the
+   API is connected and the core data is ready — then the doors open. It dwells for at least
+   MIN (so the unlock reads as deliberate, not a flicker) and never traps the user past MAX
+   even if the API never answers. boot() calls window._vaultReady() when data is ready.
+   Honours prefers-reduced-motion (skips the cover entirely). */
+const VAULT_MIN_MS = 10000, VAULT_MAX_MS = 20000;
 function runVault() {
   const v = document.getElementById('vault');
-  if (!v) return;
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;   // no cover for reduced-motion
-  v.hidden = false;
-  // force a reflow so the .run animations start from their initial state
-  void v.offsetWidth;
-  v.classList.add('run');
-  setTimeout(() => { v.classList.remove('run'); v.hidden = true; }, 3300);
+  if (!v) { window._vaultReady = () => {}; return; }
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { window._vaultReady = () => {}; return; }
+  v.hidden = false; v._opened = false;
+  void v.offsetWidth;                 // reflow so the hold animations start cleanly
+  v.classList.add('holding');         // locked + mechanism turning while we wait
+
+  const start = performance.now();
+  let dataReady = false;
+  const open = () => {
+    if (v._opened) return; v._opened = true;
+    clearTimeout(maxT);
+    v.classList.remove('holding');
+    void v.offsetWidth;
+    v.classList.add('run');           // play the definitive securing → granted → doors-open
+    setTimeout(() => { v.classList.remove('run'); v.hidden = true; }, 3300);
+  };
+  const tryOpen = () => { if (dataReady) setTimeout(open, Math.max(0, VAULT_MIN_MS - (performance.now() - start))); };
+  // boot() signals this once the API is connected and the landing data has loaded
+  window._vaultReady = () => { dataReady = true; tryOpen(); };
+  // failsafe: open anyway after MAX so a slow/unreachable API never strands the user
+  const maxT = setTimeout(open, VAULT_MAX_MS);
 }
 
 async function boot() {
@@ -232,6 +250,9 @@ async function boot() {
   $('#store-stat').textContent = ok ? 'stores healthy' : 'stores degraded';
   // model version (best-effort from a finding explanation)
   try { const rk = await API.ranking(); if (rk[0]) { const ex = await API.explain(rk[0].id); $('#model-ver').textContent = ((ex.ml_explanation || {}).model_version || '—').replace('xgb-', ''); } } catch {}
+
+  // API is connected and the ranking data is in — let the vault open (after its min dwell)
+  if (window._vaultReady) window._vaultReady();
 
   // signed-in user (local session) → topbar chip with sign-out
   const uc = $('#userchip');

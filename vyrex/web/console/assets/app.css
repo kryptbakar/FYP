@@ -572,6 +572,24 @@ input[type=range]::-moz-range-thumb { width: 15px; height: 15px; border: none; b
 .vault.run { animation: vFade 3.3s linear forwards; }
 @keyframes vFade { 0%, 84% { opacity: 1; } 100% { opacity: 0; } }
 
+/* HOLDING — while the API connects + core data loads: doors stay shut, the mechanism
+   turns and the checklist "scans" so the wait reads as active work, not a frozen screen. */
+.vault.holding .vm-spokes { animation: vWheelHold 7s linear infinite; }
+@keyframes vWheelHold { to { transform: rotate(360deg); } }
+.vault.holding .vault-mech { animation: vMechPulse 2.4s ease-in-out infinite; }
+@keyframes vMechPulse {
+  0%, 100% { filter: drop-shadow(0 0 38px rgba(168,42,71,0.32)); }
+  50%      { filter: drop-shadow(0 0 72px rgba(168,42,71,0.6)); } }
+.vault.holding .vs-step { animation: vStepScan 4.4s ease-in-out infinite; }
+.vault.holding .vs-step.s2 { animation-delay: .55s; }
+.vault.holding .vs-step.s3 { animation-delay: 1.1s; }
+.vault.holding .vs-step.s4 { animation-delay: 1.65s; }
+@keyframes vStepScan {
+  0%, 72%, 100% { opacity: .42; color: var(--muted); }
+  18%, 52%      { opacity: 1;   color: var(--text-2); } }
+.vault.holding .vs-title { animation: vTitlePulse 2.4s ease-in-out infinite; }
+@keyframes vTitlePulse { 0%, 100% { opacity: .7; } 50% { opacity: 1; } }
+
 /* two steel doors that slide apart */
 .vault-half { position: absolute; top: 0; bottom: 0; width: 50.5%;
   background: repeating-linear-gradient(90deg, transparent 0 46px, rgba(0,0,0,0.28) 46px 48px),
