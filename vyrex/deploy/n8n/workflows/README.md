@@ -3,6 +3,23 @@
 Turn VYREX into an **automated SOC analyst**. These call only the internal VYREX API via the
 `VYREX_API` env var (`http://api:8000`, set by the compose overlay) — nothing egresses.
 
+## The complete catalog (one workflow, 27 automations)
+
+**`vyrex-complete-automation.json`** is the **full SOC automation catalog** in a single workflow —
+**27 independent trigger→action flows** spanning every category: triage & enrichment, incident
+response & containment, alerting & escalation, reporting & compliance, threat-intel & feeds, ML/model
+ops, platform health, and analyst quality-of-life. Each flow is an isolated branch (its own
+schedule/webhook trigger), so importing and activating this one workflow lights up the whole
+automated SOC. Every node calls only the internal `VYREX_API` or the self-hosted `CHAT_WEBHOOK_URL`
+(set both env vars on the n8n service) — nothing egresses.
+
+Webhook entry points (POST `http://n8n:5678/webhook/<path>`): `vyrex-finding`, `vyrex-critical`,
+`vyrex-alert`, `vyrex-ioc`, `vyrex-egress`, `vyrex-onboard`. The rest fire on schedules
+(every 5/10/15/20/30/60 min, hourly, 6-hourly, daily, weekly, monthly).
+
+> Don't activate this **and** the modular files at once — they'd fight over the same webhook paths.
+> Pick the all-in-one catalog **or** the modular set below.
+
 ## Quick start: one combined workflow
 
 **`vyrex-all-in-one.json`** is everything below merged into a **single workflow named `vyrex`** —
