@@ -1228,6 +1228,46 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
 .hero-n, .dc-n, .kpi .vv, .tile.stat .s-vv, .scorebox .v, .orow .sc { font-family: var(--display); letter-spacing: -.01em; }
 .login-display { letter-spacing: .08em; }
 
+/* ---------------------------------------------------------------- Autonomous Defense (Sentinel · Decoy · Mend · Forge) */
+/* autonomy dial */
+.autlevel { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--r-md); overflow: hidden; }
+.al-opt { padding: 8px 14px; font-size: var(--t-xs); font-weight: 500; color: var(--muted); background: var(--bg); border: none; border-right: 1px solid var(--line); cursor: pointer; transition: background var(--dur-fast), color var(--dur-fast); }
+.al-opt:last-child { border-right: none; }
+.al-opt:hover { color: var(--text); }
+.al-opt.on { background: var(--accent-soft); color: var(--accent-text); }
+/* decision log */
+.dlog { display: flex; flex-direction: column; }
+.dlrow { display: flex; gap: 12px; align-items: center; padding: 12px 2px; border-bottom: 1px solid var(--line); }
+.dlrow:last-child { border-bottom: none; }
+.dlrow .dl-t { font-size: var(--t-sm); line-height: 1.4; }
+.dlrow.live { animation: dlflash 1s ease both; }
+.dlrow.done { animation: dldone 1.2s ease both; }
+@keyframes dlflash { from { background: var(--warning-soft); } to { background: transparent; } }
+@keyframes dldone { from { background: var(--success-soft); } to { background: transparent; } }
+/* honeytoken grid */
+.htgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; padding: 16px; }
+.htoken { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 13px; background: var(--bg); transition: border-color var(--dur-fast), background var(--dur-fast); }
+.htoken .ht-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 7px var(--success); flex: none; }
+.htoken .ht-k { font-size: var(--t-3xs); text-transform: uppercase; letter-spacing: .4px; }
+.htoken .ht-n { font-size: var(--t-xs); margin-top: 8px; font-weight: 500; word-break: break-word; }
+.htoken.tripped { border-color: var(--critical); background: var(--critical-soft); animation: htpulse 1.4s ease-in-out infinite; }
+.htoken.tripped .ht-dot { background: var(--critical); box-shadow: 0 0 9px var(--critical); }
+@keyframes htpulse { 0%, 100% { box-shadow: 0 0 0 0 var(--critical-soft); } 50% { box-shadow: 0 0 0 4px var(--critical-soft); } }
+/* mend rows */
+.mendrow { display: flex; gap: 11px; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+.mendrow:last-child { border-bottom: none; }
+.mendrow .mr-w { font-size: var(--t-sm); line-height: 1.4; }
+.mendrow.healed { opacity: .62; }
+.mendrow.healed .mr-w { text-decoration: line-through; text-decoration-color: var(--faint); }
+/* forge BAS grid */
+.basgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 10px; }
+.bascell { border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--r-sm); padding: 11px 12px; background: var(--elevated); transition: border-color var(--dur), background var(--dur); }
+.bascell .bc-tac { font-size: var(--t-3xs); text-transform: uppercase; letter-spacing: .4px; }
+.bascell .bc-tech { font-size: var(--t-2xs); margin: 5px 0 8px; line-height: 1.35; }
+.bascell .bc-r { font-size: var(--t-2xs); font-family: var(--mono); color: var(--faint); }
+.bascell.blocked { border-left-color: var(--success); } .bascell.blocked .bc-r { color: var(--success-text); }
+.bascell.open { border-left-color: var(--critical); background: var(--critical-soft); } .bascell.open .bc-r { color: var(--critical-text); }
+
 /* ---------------------------------------------------------------- print stylesheet (PDF export) */
 @media print {
   .rail, .top, .scrim, .drawer, .alerts-pop, .bulkbar, .filters, .noprint { display: none !important; }
