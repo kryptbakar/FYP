@@ -1,3 +1,8 @@
-{"template-id":"CVE-2021-44228","info":{"name":"Apache Log4j2 Remote Code Execution (Log4Shell)","severity":"critical","classification":{"cve-id":["CVE-2021-44228"]}},"host":"http://api:8000","matched-at":"http://api:8000/","type":"http"}
+{"template-id":"CVE-2021-44228","info":{"name":"Apache Log4j2 Remote Code Execution (Log4Shell)","severity":"critical","classification":{"cve-id":["CVE-2021-44228"]}},"host":"http://app-gw-02:8000","matched-at":"http://app-gw-02:8000/","type":"http"}
+{"template-id":"CVE-2022-22965","info":{"name":"Spring4Shell Remote Code Execution","severity":"critical","classification":{"cve-id":["CVE-2022-22965"]}},"host":"http://web-prod-03","matched-at":"http://web-prod-03/app","type":"http"}
+{"template-id":"CVE-2023-34362","info":{"name":"MOVEit Transfer SQL Injection","severity":"critical","classification":{"cve-id":["CVE-2023-34362"]}},"host":"http://mail-gw-01","matched-at":"http://mail-gw-01/moveit","type":"http"}
 {"template-id":"exposed-swagger-ui","info":{"name":"Exposed Swagger / OpenAPI UI","severity":"low"},"host":"http://api:8000","matched-at":"http://api:8000/docs","type":"http"}
-{"template-id":"git-config","info":{"name":"Exposed .git/config","severity":"medium"},"host":"http://api:8000","matched-at":"http://api:8000/.git/config","type":"http"}
+{"template-id":"git-config","info":{"name":"Exposed .git/config","severity":"medium"},"host":"http://web-prod-03","matched-at":"http://web-prod-03/.git/config","type":"http"}
+{"template-id":"phpinfo-files","info":{"name":"phpinfo() Information Disclosure","severity":"low"},"host":"http://app-gw-02","matched-at":"http://app-gw-02/phpinfo.php","type":"http"}
+{"template-id":"default-login","info":{"name":"Default Credentials — admin console","severity":"high"},"host":"http://vpn-edge-01","matched-at":"http://vpn-edge-01/admin","type":"http"}
+{"template-id":"cors-misconfig","info":{"name":"CORS Misconfiguration — wildcard origin","severity":"medium"},"host":"http://api:8000","matched-at":"http://api:8000/","type":"http"}
