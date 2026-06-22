@@ -412,22 +412,33 @@ textarea:focus, input.txt:focus { outline: none; border-color: var(--accent); }
 .rlegend b { color: var(--text-2); margin-left: 3px; }
 
 /* top-risk rows */
-.orow { display: flex; gap: 14px; align-items: center; padding: 13px 16px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background var(--dur-fast); }
-.orow:last-child { border-bottom: none; } .orow:hover, .orow.sel { background: var(--hover); }
-.orow .sc { font-family: var(--mono); font-size: 19px; font-weight: 500; min-width: 38px; text-align: center; }
-.orow .sc.critical { color: var(--critical-text); } .orow .sc.high { color: var(--warning); } .orow .sc.medium, .orow .sc.low, .orow .sc.info { color: var(--text-2); }
-.orow .tt { font-size: var(--t-body); line-height: 1.4; }
+.orow { display: flex; gap: 14px; align-items: center; padding: 12px 16px 12px 15px; border-bottom: 1px solid var(--line); cursor: pointer; position: relative; transition: background var(--dur-fast); }
+.orow:last-child { border-bottom: none; }
+.orow::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: transparent; transition: background var(--dur-fast); }
+.orow:hover, .orow.sel { background: linear-gradient(90deg, rgba(168,42,71,0.07), transparent 55%); }
+.orow:hover::before, .orow.sel::before { background: var(--accent); }
+/* rank score becomes a severity-tinted chip (premium, scannable) */
+.orow .sc { font-family: var(--display); font-size: 17px; font-weight: 700; letter-spacing: -.02em; min-width: 48px; height: 42px; flex: none;
+  display: grid; place-items: center; border-radius: var(--r-md); border: 1px solid var(--line-strong); background: var(--elevated); color: var(--text-2); }
+.orow .sc.critical { color: var(--critical-text); background: var(--critical-soft); border-color: rgba(239,83,80,0.42); box-shadow: inset 0 0 18px rgba(239,83,80,0.13); }
+.orow .sc.high { color: var(--warning); background: var(--warning-soft); border-color: rgba(224,169,60,0.36); box-shadow: inset 0 0 16px rgba(224,169,60,0.10); }
+.orow .sc.medium, .orow .sc.low, .orow .sc.info { color: var(--text-2); }
+.orow .tt { font-size: var(--t-body); line-height: 1.35; font-weight: 480; }
 
 /* live detections ticker */
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); animation: pulse 2.4s ease-in-out infinite; }
-.drow { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
-.drow:last-child { border-bottom: none; } .drow:hover { background: var(--hover); }
-.drow .tm { color: var(--faint); font-size: var(--t-2xs); min-width: 58px; }
-.drow .tl { color: var(--muted); font-size: var(--t-2xs); min-width: 64px; }
-.drow .tx { flex: 1; min-width: 0; font-size: var(--t-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.drow .sc { font-family: var(--mono); font-size: var(--t-sm); min-width: 30px; text-align: right; }
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); animation: pulse 2.4s ease-in-out infinite; }
+.drow { display: flex; align-items: center; gap: 11px; padding: 8px 12px 8px 13px; border-bottom: 1px solid var(--line); cursor: pointer; position: relative; transition: background var(--dur-fast); }
+.drow:last-child { border-bottom: none; }
+.drow::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 2px; border-radius: 2px; background: transparent; transition: background var(--dur-fast); }
+.drow:hover { background: var(--hover); } .drow:hover::before { background: var(--accent); }
+.drow .tm { color: var(--faint); font-family: var(--mono); font-size: var(--t-2xs); min-width: 52px; flex: none; }
+.drow .tl { color: var(--muted); font-family: var(--mono); font-size: var(--t-3xs); min-width: 0; flex: none; padding: 2px 8px; border: 1px solid var(--line); border-radius: var(--r-pill); text-transform: uppercase; letter-spacing: .05em; }
+.drow .tx { flex: 1; min-width: 0; font-size: var(--t-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+.drow .sc { font-family: var(--display); font-weight: 700; font-size: var(--t-sm); min-width: 28px; text-align: right; flex: none; }
 .drow .sc.critical { color: var(--critical-text); } .drow .sc.high { color: var(--warning); } .drow .sc.medium, .drow .sc.low, .drow .sc.info { color: var(--text-2); }
-.drow.new { animation: flashin .8s ease both; }
+.drow.new { animation: drowIn 1.2s ease both; }
+.drow.new::before { background: var(--accent); box-shadow: 0 0 7px var(--accent); }
+@keyframes drowIn { 0% { background: rgba(168,42,71,0.18); } 100% { background: transparent; } }
 @keyframes flashin { from { background: var(--success-soft); } to { background: transparent; } }
 
 /* Hunt */
@@ -1102,6 +1113,75 @@ body.theme-light .tbl tbody tr:nth-child(even) { background: rgba(40,16,28,0.025
 .tile-link { cursor: pointer; transition: border-color var(--dur-fast), transform var(--dur-fast); }
 .tile-link:hover { border-color: var(--accent); }
 .tile-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------------------------------------------------------------- cinematic command-center hero (Home landing) */
+/* Brings the sign-in screen's design language onto the Overview. Self-contained (overflow
+   clipped) so the radar/grid/scan never bleed into the data tables below. Reuses the login
+   keyframes (lbGrid · lbSpin · lbScan · lbFloat · lbRise · ltScroll). */
+.cmd-hero { position: relative; overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+  background: radial-gradient(120% 150% at 28% 0%, rgba(168,42,71,0.14), transparent 58%), var(--surface);
+  padding: 30px 28px 0; margin-bottom: var(--s-4); min-height: 308px; display: flex; flex-direction: column;
+  box-shadow: var(--shadow-soft, 0 16px 40px rgba(0,0,0,.28)); }
+.ch-bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.ch-grid { position: absolute; inset: -40px;
+  background: repeating-linear-gradient(0deg, transparent 0 37px, rgba(237,228,233,0.05) 37px 38px),
+              repeating-linear-gradient(90deg, transparent 0 37px, rgba(237,228,233,0.05) 37px 38px);
+  -webkit-mask-image: radial-gradient(120% 105% at 28% 0%, #000 32%, transparent 76%);
+  mask-image: radial-gradient(120% 105% at 28% 0%, #000 32%, transparent 76%);
+  animation: lbGrid 26s linear infinite; }
+.ch-radar { position: absolute; left: 80%; top: 6%; width: 720px; height: 720px; transform: translate(-50%,-50%);
+  border-radius: 50%; opacity: .4; pointer-events: none;
+  background: conic-gradient(from 0deg, rgba(196,41,63,0.30), rgba(196,41,63,0) 24%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle, #000 0 55%, transparent 60%);
+  mask-image: radial-gradient(circle, #000 0 55%, transparent 60%);
+  animation: lbSpin 9s linear infinite; }
+.ch-scan { position: absolute; inset: 0; opacity: .25;
+  background: linear-gradient(rgba(237,228,233,0.06) 1px, transparent 1px); background-size: 100% 4px;
+  animation: lbScan 7s linear infinite; }
+/* widgets sit BEHIND the foreground text (z-index) and stop above the ticker band; their
+   --x/--y are hero-relative and kept to the right zone (≥67%) by the data, clear of content. */
+.ch-widgets { position: absolute; top: 0; right: 0; bottom: 38px; left: 0; z-index: 1; pointer-events: none; }
+.ch-w { position: absolute; left: var(--x); top: var(--y); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono); font-size: 11px; color: var(--text-2); padding: 5px 11px; white-space: nowrap; opacity: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--r-pill); background: rgba(19,15,19,0.5);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  animation: lbFloat 10s ease-in-out infinite; animation-delay: var(--d); }
+.ch-w i { width: 6px; height: 6px; border-radius: 50%; background: var(--success); box-shadow: 0 0 9px var(--success); }
+.ch-main { position: relative; z-index: 3; flex: 1; display: flex; flex-direction: column; gap: 9px; max-width: min(680px, 56%); }
+.ch-kicker { font-family: var(--mono); font-size: 11.5px; letter-spacing: .4em; color: var(--accent-text);
+  text-transform: uppercase; animation: lbRise .6s var(--ease) both .04s; }
+.ch-title { display: flex; align-items: baseline; gap: 18px; flex-wrap: wrap; animation: lbRise .6s var(--ease) both .08s; }
+.ch-name { font-family: var(--display); font-size: clamp(34px, 5vw, 58px); font-weight: 800; letter-spacing: .1em;
+  line-height: 1; text-transform: uppercase;
+  background: linear-gradient(176deg, #ffffff 18%, #E47C90 82%); -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent; }
+.ch-peak { display: inline-flex; align-items: baseline; gap: 9px; }
+.ch-peak b { font-family: var(--display); font-size: clamp(28px, 4.5vw, 48px); font-weight: 800; line-height: 1; }
+.ch-peak span { font-size: 12px; color: var(--muted); }
+.ch-sub { font-size: 13px; color: var(--muted); animation: lbRise .6s var(--ease) both .12s; }
+.ch-stats { display: flex; flex-wrap: wrap; gap: 12px 30px; margin-top: 2px; animation: lbRise .6s var(--ease) both .16s; }
+.ch-stats > div { min-width: 58px; }
+.ch-stats b { display: block; font-family: var(--mono); font-size: 21px; font-weight: 600; color: #fff; line-height: 1.1; }
+.ch-stats .crit b { color: var(--critical-text); }
+.ch-stats .warn b { color: var(--warning); }
+.ch-stats .ok b { color: var(--success); }
+.ch-stats span { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+.ch-trust { margin-top: 4px; animation: lbRise .6s var(--ease) both .2s; }
+.ch-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: auto; padding: 16px 0 22px;
+  animation: lbRise .6s var(--ease) both .24s; }
+.ch-ticker { position: relative; z-index: 2; margin: 0 -28px; height: 38px; display: flex; align-items: center; overflow: hidden;
+  border-top: 1px solid var(--line); background: rgba(8,6,7,0.5); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+.cmd-hero .lt-track { display: flex; gap: 38px; white-space: nowrap; padding-left: 28px; will-change: transform; animation: ltScroll 40s linear infinite; }
+.cmd-hero .lt-track span { font-family: var(--mono); font-size: 12px; color: var(--text-2); }
+.cmd-hero .lt-track b { color: var(--accent-text); text-transform: lowercase; }
+@media (prefers-reduced-motion: reduce) {
+  .ch-grid, .ch-radar, .ch-scan, .ch-kicker, .ch-title, .ch-sub, .ch-stats, .ch-trust, .ch-actions { animation: none !important; }
+  .ch-w { animation: none !important; opacity: .8; }
+  .cmd-hero .lt-track { animation: none !important; }
+}
+/* widgets only on wide screens where the right radar zone is clearly empty of content */
+@media (max-width: 1100px) { .ch-widgets { display: none; } }
+@media (max-width: 720px) { .ch-radar { opacity: .22; } .cmd-hero { min-height: 0; padding: 24px 18px 0; } }
 
 /* ---------------------------------------------------------------- visual richness (depth + presence) */
 /* soft elevation — barely visible on the dark field, gives real separation on light */

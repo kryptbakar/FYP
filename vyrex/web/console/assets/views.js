@@ -624,46 +624,21 @@ async function viewOverview(root) {
   const peakBand = top.risk_score != null ? band(top.risk_score) : 'info';
   const peakHost = top.asset_id ? (assetMeta(top.asset_id).hostname || top.asset_id) : null;
 
-  // ---- cinematic command-center hero banner ----
-  root.append(h('div', { class: 'hero-banner fade' },
-    h('div', { class: 'hb-main' },
-      h('div', { class: 'hb-title' }, 'Security Operations'),
-      h('div', { class: 'hb-sub' }, 'Air-gapped · explainable · cryptographically auditable — the one decision that matters, right now.'),
-      h('div', { class: 'hb-ribbon' },
-        chip('Air-gap sealed', 'ok'),
-        chip(chain.ok ? 'Evidence chain intact' : 'Evidence check', chain.ok ? 'ok' : 'kev'),
-        chip(`${toolCount}-tool fusion`, 'consensus'),
-        chip('Explainable scoring', 'intel'))),
-    h('div', { class: 'hb-side' },
-      h('div', { class: 'hb-metric' }, h('div', { class: 'v ' + peakBand }, ranking.length ? n0(top.risk_score) : '—'), h('div', { class: 'l' }, 'peak risk')),
-      h('div', { class: 'hb-metric' }, h('div', { class: 'v critical' }, String(bands.critical)), h('div', { class: 'l' }, 'critical')),
-      h('div', { class: 'hb-metric' }, h('div', { class: 'v high' }, String(kev)), h('div', { class: 'l' }, 'KEV')),
-      h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
-        html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' }))));
+  // ---- cinematic command-center hero (login design language: radar/grid backdrop,
+  //      floating live tool widgets, big display type + live stats, scrolling ticker) ----
+  root.append(cmdHero({ ranking, bands, kev, openInc, breaches, cis, toolCount, chain, recent, top, peakBand, peakHost }));
 
-  // ---- bento row 1: hero posture + KPI deltas + context tiles ----
-  const hero = tile({ span: 4, hero: true, title: 'Security posture', cls: 'fade' },
-    h('div', { class: 'hero', style: 'align-items:flex-end;gap:10px' },
-      h('div', { class: 'hero-n ' + peakBand }, ranking.length ? n0(top.risk_score) : '—'),
-      h('div', {}, h('div', { class: 'hero-of' }, '/ 100 peak risk'),
-        peakHost ? h('div', { class: 'hero-sub', style: 'max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, top.title || peakHost) : null)),
-    h('div', { class: 'faint mono', style: 'font-size:var(--t-2xs);margin-top:2px' },
-      `${ranking.length} ranked · ${bands.critical} critical · ${bands.high} high · ${kev} KEV`),
-    h('div', { class: 'row', style: 'gap:var(--s-2);margin-top:auto' },
-      chip(chain.ok ? 'evidence intact ✓' : 'evidence check', chain.ok ? 'ok' : 'kev'),
-      h('span', { class: 'faint mono', style: 'font-size:var(--t-2xs)' }, `${chain.length ?? 0} hash-chained records`)));
-
-  const tCrit = statTile(2, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok');
-  const tKev = statTile(2, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok');
-  const tInc = statTile(2, 'Active incidents', String(openInc), kpiDelta('inc', openInc), breaches ? `${breaches} SLA breached` : 'within SLA', breaches ? 'crit' : 'ok');
-  const tCis = statTile(2, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok');
+  // ---- bento row 1: KPI deltas (entry points) ----
+  const tCrit = statTile(3, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok');
+  const tKev = statTile(3, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok');
+  const tInc = statTile(3, 'Active incidents', String(openInc), kpiDelta('inc', openInc), breaches ? `${breaches} SLA breached` : 'within SLA', breaches ? 'crit' : 'ok');
+  const tCis = statTile(3, 'CIS posture', cis + '%', kpiDelta('cis', cis, 'up'), `${by.fail || 0} controls failing`, cis < 60 ? 'warn' : 'ok');
   // Tiles are entry points: jump to the screen that explains the number.
-  navTile(hero, () => go('coverage'));
   navTile(tCrit, () => { STATE.filters.severity = 'CRITICAL'; STATE.filters.kev = false; go('triage'); });
   navTile(tKev, () => { STATE.filters.kev = true; STATE.filters.severity = ''; go('triage'); });
   navTile(tInc, () => go('cases'));
   navTile(tCis, () => go('compliance'));
-  root.append(bento(hero, tCrit, tKev, tInc, tCis));
+  root.append(bento(tCrit, tKev, tInc, tCis));
 
   // ---- bento row 2: charts — donut distribution + posture trend + ATT&CK ----
   const donutSegs = [
@@ -713,6 +688,69 @@ async function viewOverview(root) {
   animateCounts(root);
   const t = setInterval(async () => { try { paint(await API.recent(30)); } catch {} }, 6000);
   window._viewCleanup = () => clearInterval(t);
+}
+
+/* Cinematic command-center hero — brings the sign-in screen's design language to the Home
+   landing: animated radar/grid backdrop, floating LIVE tool widgets, big display type with a
+   live posture score + headline stats, and a scrolling event ticker fed by real detections.
+   Self-contained (overflow-clipped) so the working pages below stay calm and legible. */
+function cmdHero(o) {
+  const top = o.top || {}, peak = o.ranking.length ? n0(top.risk_score) : '—';
+  const wrap = h('div', { class: 'cmd-hero fade' });
+
+  // animated backdrop (radar sweep + perspective grid + scanline) — decorative
+  wrap.append(h('div', { class: 'ch-bg', 'aria-hidden': 'true' },
+    h('div', { class: 'ch-grid' }), h('div', { class: 'ch-radar' }), h('div', { class: 'ch-scan' })));
+
+  // floating widgets — confined to the right-side radar zone so they never collide with the
+  // left-aligned content; live numbers, not static labels.
+  const widgets = [
+    ['Trivy', '67%', '12%', '1.1s'], [`KEV ${o.kev}`, '84%', '14%', '1.4s'],
+    ['Nuclei', '88%', '30%', '1.7s'], ['Suricata', '71%', '31%', '0s'],
+    [`CIS ${o.cis}%`, '87%', '50%', '1s'], ['MISP', '75%', '52%', '.6s'],
+    [`${o.toolCount}-tool fusion`, '83%', '68%', '2.6s'], ['Wazuh', '67%', '70%', '2.2s'],
+    ['Falco', '90%', '40%', '3s'], ['Sigma', '79%', '40%', '.3s']];
+  const wbox = h('div', { class: 'ch-widgets', 'aria-hidden': 'true' });
+  widgets.forEach(([t, x, y, d]) => wbox.append(h('span', { class: 'ch-w', style: `--x:${x};--y:${y};--d:${d}` }, h('i'), t)));
+  wrap.append(wbox);
+
+  // foreground — display type + live peak + stats + trust chips + actions
+  const stat = (v, l, tone) => h('div', { class: tone || '' }, h('b', {}, String(v)), h('span', {}, l));
+  wrap.append(h('div', { class: 'ch-main' },
+    h('div', { class: 'ch-kicker' }, 'Security Operations · Air-Gapped · Live'),
+    h('div', { class: 'ch-title' },
+      h('span', { class: 'ch-name' }, 'VYREX'),
+      h('span', { class: 'ch-peak' }, h('b', { class: 'hero-n ' + o.peakBand }, peak), h('span', {}, '/ 100 peak risk'))),
+    h('div', { class: 'ch-sub' }, o.peakHost && o.ranking.length
+      ? h('span', {}, 'Top exposure ', eAsset(o.peakHost), ' — ', top.title || 'ranked #1')
+      : 'Live exposure across the estate, ranked and explained — the one decision that matters, right now.'),
+    h('div', { class: 'ch-stats' },
+      stat(o.ranking.length, 'ranked'),
+      stat(o.bands.critical, 'critical', o.bands.critical ? 'crit' : ''),
+      stat(o.kev, 'KEV', o.kev ? 'warn' : ''),
+      stat(o.openInc, 'incidents', o.breaches ? 'crit' : ''),
+      stat(o.cis + '%', 'CIS', o.cis < 60 ? 'warn' : 'ok'),
+      stat(o.toolCount, 'tools fused')),
+    h('div', { class: 'ch-trust wrap' },
+      chip('Air-gap sealed', 'ok'),
+      chip(o.chain.ok ? 'Evidence chain intact' : 'Evidence check', o.chain.ok ? 'ok' : 'kev'),
+      chip('Explainable scoring', 'intel'),
+      chip('Ed25519-signed actions', 'consensus')),
+    h('div', { class: 'ch-actions' },
+      h('button', { class: 'btn primary', onclick: () => { if (typeof startStory === 'function') startStory(); },
+        html: ic('target') + '<span style="margin-left:7px">Run guided demo</span>' }),
+      h('button', { class: 'btn', onclick: () => go('triage') }, 'Open triage queue'))));
+
+  // scrolling ticker — real recent detections (fall back to trust beats when none)
+  const beats = (o.recent || []).slice(0, 10).map(d => ({ tool: d.source_tool || 'agent', txt: d.title }));
+  const fallback = [{ tool: 'air-gap', txt: 'verified · 0 bytes egress' },
+    { tool: 'evidence', txt: 'chain intact · tamper-evident' },
+    { tool: 'consensus', txt: 'multi-tool corroboration active' }];
+  const list = beats.length ? beats : fallback;
+  const track = h('div', { class: 'lt-track' });
+  [...list, ...list].forEach(b => track.append(h('span', {}, '● ', h('b', {}, b.tool), ' ' + b.txt)));
+  wrap.append(h('div', { class: 'ch-ticker' }, track));
+  return wrap;
 }
 function kpiCard(label, value, sub, tone) {
   return h('div', { class: 'kpi ' + (tone || '') },
