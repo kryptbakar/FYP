@@ -22,6 +22,7 @@ from .routers import (
     automation,
     casework,
     compliance,
+    defense,
     detrules,
     findings,
     health,
@@ -95,6 +96,7 @@ app.include_router(auth.router)
 app.include_router(toolkit.router)
 app.include_router(automation.router)
 app.include_router(agent.router)
+app.include_router(defense.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")
