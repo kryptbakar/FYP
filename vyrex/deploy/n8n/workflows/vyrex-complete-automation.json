@@ -1,0 +1,2003 @@
+{
+  "id": "vyrexCompleteAutomation",
+  "name": "VYREX — Complete Automation Catalog",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0001",
+      "name": "01 · Every 15 min",
+      "position": [
+        -280,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=50",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0002",
+      "name": "01 · Pull ranked findings",
+      "position": [
+        -40,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"min_score\":70,\"window_hours\":24}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0003",
+      "name": "01 · Correlate into incidents",
+      "position": [
+        200,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0004",
+      "name": "01 · Route alerts to channels",
+      "position": [
+        440,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-finding",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "vyrex-finding",
+      "id": "vx-0005",
+      "name": "02 · Finding webhook",
+      "position": [
+        -280,
+        270
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/findings/{{ $json.body.id }}/explain",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0006",
+      "name": "02 · Enrich + explain (SHAP)",
+      "position": [
+        -40,
+        270
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0007",
+      "name": "03 · Every 30 min",
+      "position": [
+        -280,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/fusion/clusters",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0008",
+      "name": "03 · Multi-tool clusters",
+      "position": [
+        -40,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Consensus check — multi-tool corroborated clusters reviewed; ≥3-tool agreement escalated.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0009",
+      "name": "03 · Flag corroborated",
+      "position": [
+        200,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 60
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0010",
+      "name": "04 · Hourly",
+      "position": [
+        -280,
+        570
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/fusion/clusters",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0011",
+      "name": "04 · Cluster by dedup_key",
+      "position": [
+        -40,
+        570
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "id": "vx-0012",
+      "name": "04 · Collapse duplicates (dedup_key)",
+      "position": [
+        200,
+        570
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-critical",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "vyrex-critical",
+      "id": "vx-0013",
+      "name": "05 · Critical webhook",
+      "position": [
+        -280,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.severity }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "vx-0014",
+      "name": "05 · Critical + KEV?",
+      "position": [
+        -40,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"min_score\":80,\"window_hours\":24}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0015",
+      "name": "05 · Open incident (correlate)",
+      "position": [
+        200,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0016",
+      "name": "05 · Propose containment + notify",
+      "position": [
+        440,
+        720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 20
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0017",
+      "name": "06 · Every 20 min",
+      "position": [
+        -280,
+        870
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/intel/sightings",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0018",
+      "name": "06 · New IOC sightings",
+      "position": [
+        -40,
+        870
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"min_score\":60,\"window_hours\":24}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0019",
+      "name": "06 · Correlate to assets",
+      "position": [
+        200,
+        870
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0020",
+      "name": "06 · Propose block + notify",
+      "position": [
+        440,
+        870
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0021",
+      "name": "07 · Every 30 min",
+      "position": [
+        -280,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"min_score\":60,\"window_hours\":24}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0022",
+      "name": "07 · Group into incidents + kill-chain",
+      "position": [
+        -40,
+        1020
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 10
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0023",
+      "name": "08 · Every 10 min",
+      "position": [
+        -280,
+        1170
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/actions",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0024",
+      "name": "08 · Signed-action lifecycle",
+      "position": [
+        -40,
+        1170
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0025",
+      "name": "08 · Notify on contained",
+      "position": [
+        200,
+        1170
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-alert",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "vyrex-alert",
+      "id": "vx-0026",
+      "name": "09 · Alert webhook",
+      "position": [
+        -280,
+        1320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.severity }}",
+              "rightValue": "critical",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "vx-0027",
+      "name": "09 · Critical?",
+      "position": [
+        -40,
+        1320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"min_score\":60,\"window_hours\":24}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0028",
+      "name": "09 · Escalate (correlate)",
+      "position": [
+        200,
+        1320
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 * * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0029",
+      "name": "10 · Hourly",
+      "position": [
+        -280,
+        1470
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/incidents?limit=200",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0030",
+      "name": "10 · Open incidents",
+      "position": [
+        -40,
+        1470
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"SLA sweep — breached incidents escalated to on-call; re-notifying until acknowledged.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0031",
+      "name": "10 · Escalate to on-call",
+      "position": [
+        200,
+        1470
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0032",
+      "name": "11 · Daily 08:00",
+      "position": [
+        -280,
+        1620
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=50",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0033",
+      "name": "11 · Overnight low/med findings",
+      "position": [
+        -40,
+        1620
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Good morning — overnight low/medium alerts batched into one digest (no 3 AM pages).\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0034",
+      "name": "11 · Morning digest",
+      "position": [
+        200,
+        1620
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0035",
+      "name": "12 · Every 30 min",
+      "position": [
+        -280,
+        1770
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/notifications",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0036",
+      "name": "12 · Unacknowledged alerts",
+      "position": [
+        -40,
+        1770
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Ack tracker — alerts with no human acknowledgement in 30 min auto-escalated one tier.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0037",
+      "name": "12 · Auto-escalate one tier",
+      "position": [
+        200,
+        1770
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0038",
+      "name": "13 · Daily 08:00",
+      "position": [
+        -280,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"type\":\"posture\"}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0039",
+      "name": "13 · Generate posture PDF",
+      "position": [
+        -40,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/alerts/dispatch",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0040",
+      "name": "13 · Email leadership",
+      "position": [
+        200,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * 1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0041",
+      "name": "14 · Monday 07:00",
+      "position": [
+        -280,
+        2070
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/compliance/summary",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0042",
+      "name": "14 · CIS posture now",
+      "position": [
+        -40,
+        2070
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"type\":\"compliance\"}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0043",
+      "name": "14 · Compliance drift report",
+      "position": [
+        200,
+        2070
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0044",
+      "name": "15 · Daily 06:00",
+      "position": [
+        -280,
+        2220
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/response/audit/verify",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0045",
+      "name": "15 · Verify response chain",
+      "position": [
+        -40,
+        2220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "vx-0046",
+      "name": "15 · Chain broken?",
+      "position": [
+        200,
+        2220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"⚠ AUDIT CHAIN INTEGRITY FAILURE — tamper detected. Immediate investigation required.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0047",
+      "name": "15 · Alert on tamper",
+      "position": [
+        440,
+        2220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 1 * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0048",
+      "name": "16 · Monthly (1st 07:00)",
+      "position": [
+        -280,
+        2370
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/reports",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"type\":\"executive\"}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0049",
+      "name": "16 · Board-ready rollup",
+      "position": [
+        -40,
+        2370
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0050",
+      "name": "17 · Every 6 hours",
+      "position": [
+        -280,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=150",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0051",
+      "name": "17 · Scan estate for KEV",
+      "position": [
+        -40,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/incidents/correlate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"min_score\":70,\"window_hours\":168}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0052",
+      "name": "17 · Escalate KEV matches",
+      "position": [
+        200,
+        2520
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-ioc",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "vyrex-ioc",
+      "id": "vx-0053",
+      "name": "18 · New indicator webhook",
+      "position": [
+        -280,
+        2670
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/logs/search?q={{ $json.body.indicator }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0054",
+      "name": "18 · Search 90d telemetry",
+      "position": [
+        -40,
+        2670
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 1 * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0055",
+      "name": "19 · Monthly (1st 02:00)",
+      "position": [
+        -280,
+        2820
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/analysts/feedback-stats",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0056",
+      "name": "19 · Bundle analyst labels (5×)",
+      "position": [
+        -40,
+        2820
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Monthly retrain due — analyst labels bundled (weighted 5×). Run: dev.ps1 risk-train → publish model card.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0057",
+      "name": "19 · Trigger XGBoost retrain",
+      "position": [
+        200,
+        2820
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0058",
+      "name": "20 · Daily 05:00",
+      "position": [
+        -280,
+        2970
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/model/metadata",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0059",
+      "name": "20 · ML vs composite ranking",
+      "position": [
+        -40,
+        2970
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Drift watch — ML vs composite ranking divergence checked against threshold.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0060",
+      "name": "20 · Flag drift for review",
+      "position": [
+        200,
+        2970
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 60
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0061",
+      "name": "21 · Hourly",
+      "position": [
+        -280,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.VYREX_API }}/agent/triage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"limit\":8}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0062",
+      "name": "21 · LLM proposes (governed)",
+      "position": [
+        -40,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0063",
+      "name": "22 · Every 5 min",
+      "position": [
+        -280,
+        3270
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/health/ready",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0064",
+      "name": "22 · Probe stores",
+      "position": [
+        -40,
+        3270
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "version": 2
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "ready",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "id": "vx-0065",
+      "name": "22 · Degraded?",
+      "position": [
+        200,
+        3270
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"⚠ VYREX store health degraded (Postgres / OpenSearch / NATS). Check the stack.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0066",
+      "name": "22 · Alert degraded",
+      "position": [
+        440,
+        3270
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0067",
+      "name": "23 · Every 5 min",
+      "position": [
+        -280,
+        3420
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/stats/summary",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0068",
+      "name": "23 · Throughput + depth",
+      "position": [
+        -40,
+        3420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Back-pressure watch — ingestion depth sampled; scale workers if sustained.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0069",
+      "name": "23 · Notify / scale hint",
+      "position": [
+        200,
+        3420
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-egress",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "vyrex-egress",
+      "id": "vx-0070",
+      "name": "24 · Egress-attempt webhook",
+      "position": [
+        -280,
+        3570
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"🚨 EGRESS ATTEMPT DETECTED — a service tried to reach the internet. Air-gap policy alert.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0071",
+      "name": "24 · Instant air-gap alert",
+      "position": [
+        -40,
+        3570
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0072",
+      "name": "25 · Weekly (Mon 09:00)",
+      "position": [
+        -280,
+        3720
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Cert check — review mTLS / Vault certificate expiry; rotate any nearing end-of-life.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0073",
+      "name": "25 · Rotation reminder",
+      "position": [
+        -40,
+        3720
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6,14,22 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "id": "vx-0074",
+      "name": "26 · Shift change (3×/day)",
+      "position": [
+        -280,
+        3870
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.VYREX_API }}/risk/ranking?limit=20",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "id": "vx-0075",
+      "name": "26 · Open criticals + clocks",
+      "position": [
+        -40,
+        3870
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Shift handover — open criticals, pending two-person approvals and live SLA clocks summarised.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0076",
+      "name": "26 · Handover summary",
+      "position": [
+        200,
+        3870
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "vyrex-onboard",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "webhookId": "vyrex-onboard",
+      "id": "vx-0077",
+      "name": "27 · New analyst webhook",
+      "position": [
+        -280,
+        4020
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CHAT_WEBHOOK_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"username\": \"VYREX\", \"text\": \"Welcome to VYREX — guided demo assigned + a starter case queued. Press the “Run guided demo” button.\" }",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "onError": "continueRegularOutput",
+      "id": "vx-0078",
+      "name": "27 · Assign demo + starter case",
+      "position": [
+        -40,
+        4020
+      ]
+    }
+  ],
+  "connections": {
+    "01 · Every 15 min": {
+      "main": [
+        [
+          {
+            "node": "01 · Pull ranked findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 · Pull ranked findings": {
+      "main": [
+        [
+          {
+            "node": "01 · Correlate into incidents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "01 · Correlate into incidents": {
+      "main": [
+        [
+          {
+            "node": "01 · Route alerts to channels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02 · Finding webhook": {
+      "main": [
+        [
+          {
+            "node": "02 · Enrich + explain (SHAP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 · Every 30 min": {
+      "main": [
+        [
+          {
+            "node": "03 · Multi-tool clusters",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "03 · Multi-tool clusters": {
+      "main": [
+        [
+          {
+            "node": "03 · Flag corroborated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 · Hourly": {
+      "main": [
+        [
+          {
+            "node": "04 · Cluster by dedup_key",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "04 · Cluster by dedup_key": {
+      "main": [
+        [
+          {
+            "node": "04 · Collapse duplicates (dedup_key)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 · Critical webhook": {
+      "main": [
+        [
+          {
+            "node": "05 · Critical + KEV?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "05 · Critical + KEV?": {
+      "main": [
+        [
+          {
+            "node": "05 · Open incident (correlate)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "05 · Open incident (correlate)": {
+      "main": [
+        [
+          {
+            "node": "05 · Propose containment + notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 · Every 20 min": {
+      "main": [
+        [
+          {
+            "node": "06 · New IOC sightings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 · New IOC sightings": {
+      "main": [
+        [
+          {
+            "node": "06 · Correlate to assets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "06 · Correlate to assets": {
+      "main": [
+        [
+          {
+            "node": "06 · Propose block + notify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "07 · Every 30 min": {
+      "main": [
+        [
+          {
+            "node": "07 · Group into incidents + kill-chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 · Every 10 min": {
+      "main": [
+        [
+          {
+            "node": "08 · Signed-action lifecycle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "08 · Signed-action lifecycle": {
+      "main": [
+        [
+          {
+            "node": "08 · Notify on contained",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 · Alert webhook": {
+      "main": [
+        [
+          {
+            "node": "09 · Critical?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "09 · Critical?": {
+      "main": [
+        [
+          {
+            "node": "09 · Escalate (correlate)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "10 · Hourly": {
+      "main": [
+        [
+          {
+            "node": "10 · Open incidents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10 · Open incidents": {
+      "main": [
+        [
+          {
+            "node": "10 · Escalate to on-call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 · Daily 08:00": {
+      "main": [
+        [
+          {
+            "node": "11 · Overnight low/med findings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11 · Overnight low/med findings": {
+      "main": [
+        [
+          {
+            "node": "11 · Morning digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 · Every 30 min": {
+      "main": [
+        [
+          {
+            "node": "12 · Unacknowledged alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "12 · Unacknowledged alerts": {
+      "main": [
+        [
+          {
+            "node": "12 · Auto-escalate one tier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 · Daily 08:00": {
+      "main": [
+        [
+          {
+            "node": "13 · Generate posture PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "13 · Generate posture PDF": {
+      "main": [
+        [
+          {
+            "node": "13 · Email leadership",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 · Monday 07:00": {
+      "main": [
+        [
+          {
+            "node": "14 · CIS posture now",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "14 · CIS posture now": {
+      "main": [
+        [
+          {
+            "node": "14 · Compliance drift report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 · Daily 06:00": {
+      "main": [
+        [
+          {
+            "node": "15 · Verify response chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 · Verify response chain": {
+      "main": [
+        [
+          {
+            "node": "15 · Chain broken?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "15 · Chain broken?": {
+      "main": [
+        [
+          {
+            "node": "15 · Alert on tamper",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "16 · Monthly (1st 07:00)": {
+      "main": [
+        [
+          {
+            "node": "16 · Board-ready rollup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17 · Every 6 hours": {
+      "main": [
+        [
+          {
+            "node": "17 · Scan estate for KEV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "17 · Scan estate for KEV": {
+      "main": [
+        [
+          {
+            "node": "17 · Escalate KEV matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "18 · New indicator webhook": {
+      "main": [
+        [
+          {
+            "node": "18 · Search 90d telemetry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 · Monthly (1st 02:00)": {
+      "main": [
+        [
+          {
+            "node": "19 · Bundle analyst labels (5×)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "19 · Bundle analyst labels (5×)": {
+      "main": [
+        [
+          {
+            "node": "19 · Trigger XGBoost retrain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 · Daily 05:00": {
+      "main": [
+        [
+          {
+            "node": "20 · ML vs composite ranking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "20 · ML vs composite ranking": {
+      "main": [
+        [
+          {
+            "node": "20 · Flag drift for review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "21 · Hourly": {
+      "main": [
+        [
+          {
+            "node": "21 · LLM proposes (governed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 · Every 5 min": {
+      "main": [
+        [
+          {
+            "node": "22 · Probe stores",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 · Probe stores": {
+      "main": [
+        [
+          {
+            "node": "22 · Degraded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "22 · Degraded?": {
+      "main": [
+        [
+          {
+            "node": "22 · Alert degraded",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "23 · Every 5 min": {
+      "main": [
+        [
+          {
+            "node": "23 · Throughput + depth",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "23 · Throughput + depth": {
+      "main": [
+        [
+          {
+            "node": "23 · Notify / scale hint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "24 · Egress-attempt webhook": {
+      "main": [
+        [
+          {
+            "node": "24 · Instant air-gap alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "25 · Weekly (Mon 09:00)": {
+      "main": [
+        [
+          {
+            "node": "25 · Rotation reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26 · Shift change (3×/day)": {
+      "main": [
+        [
+          {
+            "node": "26 · Open criticals + clocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "26 · Open criticals + clocks": {
+      "main": [
+        [
+          {
+            "node": "26 · Handover summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "27 · New analyst webhook": {
+      "main": [
+        [
+          {
+            "node": "27 · Assign demo + starter case",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {
+    "description": "The full VYREX SOC automation catalog as one workflow: 27 independent trigger→action flows (triage, response, alerting, reporting, compliance, threat-intel, ML-ops, platform health, analyst QoL). Every node calls only the internal VYREX API ($env.VYREX_API) or the self-hosted chat webhook ($env.CHAT_WEBHOOK_URL) — air-gap-safe. Each flow is an isolated branch; enable the workflow and the triggers fire independently. Webhook flows POST to /webhook/<path> (vyrex-finding, vyrex-critical, vyrex-alert, vyrex-ioc, vyrex-egress, vyrex-onboard)."
+  }
+}
