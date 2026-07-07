@@ -53,7 +53,12 @@ jobs:
           go-version: "1.23"
       - name: ingest-edge
         working-directory: vyrex/services/ingest-edge
-        run: go vet ./... && go build ./...
+        run: |
+          mkdir -p schema
+          cp ../../schema/telemetry/v1/envelope.schema.json schema/envelope.schema.json
+          go mod tidy
+          go vet ./...
+          go build ./...
       - name: agent
         working-directory: vyrex/agent
         run: go vet ./... && go build ./...
@@ -67,7 +72,12 @@ jobs:
       - name: Build API image
         run: docker build -t vyrex/api:ci vyrex/services/api
       - name: Trivy vulnerability scan
-        uses: aquasecurity/trivy-action@v0.28.0
+        # Pinned to the 0.35.0 commit SHA (not a tag): trivy-action releases 0.0.1-0.34.2
+        # were compromised in the March 2026 supply-chain attack (malicious entrypoint.sh
+        # served via force-pushed tags). 0.35.0 is the first clean release, protected by
+        # GitHub's immutable-releases feature, and itself SHA-pins aquasecurity/setup-trivy
+        # rather than using a mutable tag. See GHSA-69fq-xp46-6x23.
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: vyrex/api:ci
           format: table
