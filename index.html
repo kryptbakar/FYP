@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VYREX — Air-Gapped SOC & Vulnerability-Intelligence Platform</title>
+<style>
+  :root {
+    --bg: #06090c;
+    --bg-panel: #0d1117;
+    --bg-panel-2: #10161d;
+    --border: #1c2733;
+    --text: #d7e2ea;
+    --text-dim: #8ea0ad;
+    --accent: #39ff9d;
+    --accent-dim: #1f8f5c;
+    --accent2: #4fd1ff;
+    --mono: "SF Mono", "Cascadia Code", "Consolas", "Courier New", monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f7f9;
+      --bg-panel: #ffffff;
+      --bg-panel-2: #eef2f5;
+      --border: #d7dee3;
+      --text: #16232c;
+      --text-dim: #4c5c68;
+      --accent: #0e8a4f;
+      --accent-dim: #0b6e40;
+      --accent2: #0b7dab;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    overflow-x: hidden;
+  }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .scanlines {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(57, 255, 157, 0.025) 0px,
+      rgba(57, 255, 157, 0.025) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    z-index: 1;
+  }
+  @media (prefers-color-scheme: light) { .scanlines { display: none; } }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  header.hero {
+    position: relative;
+    padding: 96px 0 64px;
+    border-bottom: 1px solid var(--border);
+    background:
+      radial-gradient(ellipse 900px 400px at 50% -10%, rgba(57,255,157,0.10), transparent 60%);
+    text-align: center;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+    border-radius: 999px;
+    padding: 5px 14px;
+    margin-bottom: 28px;
+  }
+  .badge::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  h1.logo {
+    font-family: var(--mono);
+    font-size: clamp(48px, 9vw, 92px);
+    letter-spacing: 0.06em;
+    margin: 0 0 14px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--text) 20%, var(--accent) 60%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .tagline {
+    font-size: clamp(16px, 2.4vw, 20px);
+    color: var(--text-dim);
+    max-width: 640px;
+    margin: 0 auto;
+  }
+  .tagline strong { color: var(--text); font-weight: 600; }
+
+  section {
+    padding: 56px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  section:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    margin: 0 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2::before { content: "//"; color: var(--accent-dim); }
+
+  .about p {
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 760px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 14px;
+  }
+  .card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .card:hover {
+    border-color: var(--accent-dim);
+    transform: translateY(-2px);
+  }
+  .card h3 {
+    margin: 0 0 6px;
+    font-size: 15px;
+    color: var(--text);
+    font-family: var(--mono);
+  }
+  .card p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    background: var(--bg-panel-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+  }
+
+  .notice {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent2);
+    border-radius: 8px;
+    padding: 18px 20px;
+    font-size: 14.5px;
+    color: var(--text-dim);
+  }
+  .notice .icon {
+    font-family: var(--mono);
+    color: var(--accent2);
+    font-size: 18px;
+    line-height: 1;
+  }
+  .notice strong { color: var(--text); }
+
+  footer {
+    padding: 40px 0 64px;
+    text-align: center;
+  }
+  footer .repo-link {
+    font-family: var(--mono);
+    font-size: 14px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 18px;
+    color: var(--text);
+  }
+  footer .repo-link:hover {
+    border-color: var(--accent-dim);
+    text-decoration: none;
+    color: var(--accent);
+  }
+  footer .fine-print {
+    margin-top: 18px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+<div class="scanlines"></div>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge">Final-Year Project · GIKI BS Cyber Security</span>
+    <h1 class="logo">VYREX</h1>
+    <p class="tagline">
+      An <strong>air-gapped Security Operations Center</strong> &amp; vulnerability-intelligence
+      platform — explainable risk scoring, multi-tool fusion, and a governed agentic AI analyst,
+      running fully on-premises.
+    </p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="about">
+    <h2>About</h2>
+    <p>
+      VYREX is a proof-of-concept SOC platform built for air-gapped, on-premises deployments
+      such as government infrastructure. It ingests findings from vulnerability scanners,
+      fuses them across tools into a single consensus view, and produces an explainable
+      composite <strong>risk score</strong> — enriched with exploit-availability context so
+      analysts can triage what actually matters instead of drowning in raw scanner output.
+    </p>
+    <p>
+      A governed, self-hosted agentic AI layer proposes triage and investigation steps, but
+      never executes containment on its own: every action requires two-person, cryptographically
+      signed approval and is recorded in a hash-chained audit trail. Nothing — no data, no model
+      calls — ever leaves the deployment boundary.
+    </p>
+  </section>
+
+  <section class="architecture">
+    <h2>Architecture &amp; Highlights</h2>
+    <div class="grid">
+      <div class="card">
+        <h3>Console</h3>
+        <p>Dependency-free vanilla-JS SPA served by nginx — the analyst-facing SOC dashboard.</p>
+      </div>
+      <div class="card">
+        <h3>Ingest pipeline</h3>
+        <p>Go agent → mTLS ingest → JetStream, feeding durable storage across Postgres, TimescaleDB, and OpenSearch.</p>
+      </div>
+      <div class="card">
+        <h3>scan-ingest</h3>
+        <p>Parses Trivy and Nuclei fixtures into normalized findings ready for scoring.</p>
+      </div>
+      <div class="card">
+        <h3>risk-engine</h3>
+        <p>Composite risk scoring with an XGBoost re-ranker and SHAP explanations, plus multi-tool consensus.</p>
+      </div>
+      <div class="card">
+        <h3>Enrichment</h3>
+        <p>Adds exploit-availability and compliance context to package-matched findings.</p>
+      </div>
+      <div class="card">
+        <h3>n8n automation</h3>
+        <p>Drives the unattended analyst loop, orchestrating the triage → scoring → enrichment cycle.</p>
+      </div>
+      <div class="card">
+        <h3>Governed agentic AI</h3>
+        <p>Self-hosted Ollama-backed triage &amp; investigation agents that propose — never execute — containment actions.</p>
+      </div>
+      <div class="card">
+        <h3>Audit &amp; approval</h3>
+        <p>Two-person, Ed25519-signed approval gates containment, backed by a hash-chained audit log.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack">
+    <h2>Tech Stack</h2>
+    <div class="tags">
+      <span class="tag">Docker Compose</span>
+      <span class="tag">nginx</span>
+      <span class="tag">Vanilla JS SPA</span>
+      <span class="tag">Go</span>
+      <span class="tag">FastAPI</span>
+      <span class="tag">mTLS</span>
+      <span class="tag">NATS JetStream</span>
+      <span class="tag">PostgreSQL</span>
+      <span class="tag">TimescaleDB</span>
+      <span class="tag">OpenSearch</span>
+      <span class="tag">XGBoost</span>
+      <span class="tag">SHAP</span>
+      <span class="tag">Grafana</span>
+      <span class="tag">n8n</span>
+      <span class="tag">Ollama (self-hosted LLM)</span>
+      <span class="tag">Trivy</span>
+      <span class="tag">Nuclei</span>
+      <span class="tag">Ed25519 signing</span>
+    </div>
+  </section>
+
+  <section class="showcase-note">
+    <div class="notice">
+      <span class="icon">i</span>
+      <div>
+        <strong>This is a static showcase page, not a live instance.</strong>
+        VYREX is a multi-service Docker/Kubernetes-style stack (console, risk-engine,
+        enrichment, message bus, databases, n8n, and a self-hosted LLM) designed to run
+        air-gapped on real infrastructure — it cannot run inside static GitHub Pages hosting.
+        This page exists purely to describe the final-year project for visitors to the repository.
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <a class="repo-link" href="https://github.com/kryptbakar/FYP">
+      <span>&#8599;</span> github.com/kryptbakar/FYP
+    </a>
+    <div class="fine-print">VYREX — GIKI BS Cyber Security Final-Year Project</div>
+  </div>
+</footer>
+
+</body>
+</html>
