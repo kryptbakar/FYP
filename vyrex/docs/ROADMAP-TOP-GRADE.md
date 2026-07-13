@@ -70,7 +70,10 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
   CI job): builds the stack → seeds the feed mirror → ingests scanner findings →
   pushes telemetry → assesses → trains + scores → **asserts findings exist and
   carry a risk_score**. This is the "demo or product?" gate.
-- ⬜ Broaden further: worker/enrichment/bridge unit tests.
+- ✅ Enrichment component tests: `services/enrichment/tests/` covers version→CVE
+  range matching (security-critical) and the compliance engine — 22 tests. Total
+  suite now **77 tests** across ml / api / enrichment.
+- ⬜ Broaden further: worker/bridge unit tests.
 - **Acceptance:** CI builds every image and runs an e2e smoke on each PR — met.
 
 ### B2 — Mandatory authentication (security-critical) ✅

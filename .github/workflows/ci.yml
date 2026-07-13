@@ -27,7 +27,7 @@ jobs:
       - name: Install deps
         run: pip install -r services/api/requirements.txt -r ml/requirements.txt pytest
       - name: Run tests
-        run: python -m pytest -q ml/tests services/api/tests
+        run: python -m pytest -q ml/tests services/api/tests services/enrichment/tests
 
   ml-evaluation:
     name: risk-engine evaluation (baselines + fusion)

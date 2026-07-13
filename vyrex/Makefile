@@ -117,7 +117,7 @@ seed: ## (Phase 1+) Seed databases / feed mirror — placeholder
 
 test: ## Run unit tests: Python (ml + api) and JS syntax check
 	docker run --rm -v "$(CURDIR):/src" -w /src python:3.12-slim \
-		sh -c "pip install -q -r services/api/requirements.txt -r ml/requirements.txt pytest && python -m pytest -q ml/tests services/api/tests"
+		sh -c "pip install -q -r services/api/requirements.txt -r ml/requirements.txt pytest && python -m pytest -q ml/tests services/api/tests services/enrichment/tests"
 	docker run --rm -v "$(CURDIR)/web/console/assets:/a" -w /a node:22-alpine \
 		sh -c 'for f in *.js; do node --check "$$f" || exit 1; done; echo "console JS OK"'
 
