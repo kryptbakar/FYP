@@ -1,8 +1,10 @@
-"""risk-engine CLI: train the model, or score findings (composite + ML + SHAP).
+"""risk-engine CLI: train the model, score findings, or run the evaluation studies.
 
-  python run.py train          # (re)train XGBoost on synthetic + analyst feedback
-  python run.py score          # score every finding once
-  python run.py score --loop   # keep scoring on an interval
+  python run.py train                  # (re)train XGBoost on synthetic + analyst feedback
+  python run.py score                  # score every finding once
+  python run.py score --loop          # keep scoring on an interval
+  python run.py evaluate              # ranking experiment: CVSS vs composite vs ML
+  python run.py evaluate-fusion       # dedup false/missed-merge rates on labeled sample
 """
 from __future__ import annotations
 
@@ -113,14 +115,40 @@ def do_score(loop: bool, interval: int) -> None:
     pg.close()
 
 
+def do_evaluate(out: Path) -> None:
+    import evaluate as eval_mod
+    report = eval_mod.evaluate()
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "evaluation.json").write_text(json.dumps(report, indent=2))
+    (out / "evaluation.md").write_text(eval_mod.to_markdown(report))
+    log.info("evaluation report -> %s", out / "evaluation.md")
+    print(eval_mod.to_markdown(report))
+
+
+def do_evaluate_fusion(out: Path) -> None:
+    import eval_fusion
+    findings = json.loads(eval_fusion.DEFAULT_FIXTURE.read_text())["findings"]
+    report = eval_fusion.score(findings)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "fusion_evaluation.json").write_text(json.dumps(report, indent=2))
+    (out / "fusion_evaluation.md").write_text(eval_fusion.to_markdown(report, findings))
+    log.info("fusion evaluation report -> %s", out / "fusion_evaluation.md")
+    print(eval_fusion.to_markdown(report, findings))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["train", "score"])
+    ap.add_argument("cmd", choices=["train", "score", "evaluate", "evaluate-fusion"])
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--interval", type=int, default=int(os.getenv("RISK_INTERVAL", "180")))
+    ap.add_argument("--out", type=Path, default=Path(os.getenv("MODEL_DIR", "/models")) / "reports")
     args = ap.parse_args()
     if args.cmd == "train":
         do_train()
+    elif args.cmd == "evaluate":
+        do_evaluate(args.out)
+    elif args.cmd == "evaluate-fusion":
+        do_evaluate_fusion(args.out)
     else:
         do_score(args.loop, args.interval)
 

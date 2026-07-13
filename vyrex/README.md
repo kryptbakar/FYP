@@ -93,6 +93,27 @@ make airgap-verify # prove the air gap: runtime sealed, only feed-sync egresses
 ```
 Tool profiles: `docker compose -f docker-compose.yml -f docker-compose.tools.yml --profile <sensors|scanners|hostmon|intel> up`.
 
+## Evidence it works (not just runs)
+
+The intelligence layer is *evaluated*, not asserted — this is what makes VYREX a
+research result rather than a demo:
+
+```bash
+make risk-eval     # ranking experiment: CVSS-only vs composite vs ML (Spearman/NDCG/precision@k/KEV-capture)
+make fusion-eval   # dedup false-merge / missed-merge rates on a labeled sample
+make bench-ingest  # sustained ingest throughput through the full pipeline
+make bench-e2e     # end-to-end ingest latency (p50/p95/p99)
+```
+
+| Doc | What it gives you |
+|---|---|
+| [docs/METHODOLOGY.md](docs/METHODOLOGY.md) | Design-science framing, FR/NFR requirements, Wazuh/Elastic/Splunk comparison |
+| [docs/VALIDATION-ATTACK-SIM.md](docs/VALIDATION-ATTACK-SIM.md) | Live Atomic Red Team runbook: detection latency + fusion lift + SHAP fidelity |
+| [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Throughput / latency / footprint protocol + result tables |
+| [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) | STRIDE on VYREX itself, controls mapped to decisions |
+| [docs/PRODUCTION-DEPLOYMENT.md](docs/PRODUCTION-DEPLOYMENT.md) | Real-org deployment: hardware/OS, network, air-gap transfer, agent rollout, day-2 ops |
+| [docs/ROADMAP-TOP-GRADE.md](docs/ROADMAP-TOP-GRADE.md) | Master checklist: from "built a lot" to top-graded FYP **and** a real product |
+
 ## Air-gap & security
 Every external feed is mirrored locally; only `feed-sync` egresses, enforced and **verified**
 (`make airgap-verify`; K3s NetworkPolicy in production). mTLS ingestion, Ed25519-signed

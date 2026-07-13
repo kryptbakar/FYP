@@ -1,0 +1,114 @@
+# Threat model — VYREX itself
+
+A security product is a high-value target: it holds the crown-jewel telemetry of
+everything it monitors and can issue response commands to endpoints. This
+document models threats **against the platform**, using STRIDE per trust
+boundary, and maps each to an existing or planned control. It doubles as an FYP
+appendix (evidence of security-by-design) and a buyer-facing assurance artifact.
+
+Scope: the VYREX deployment (agents, ingest, brokers, stores, API, console,
+risk-engine, response channel, feed-sync). Out of scope: the monitored assets'
+own vulnerabilities (that is VYREX's *job*, not its threat model).
+
+## 1. Assets to protect
+
+| Asset | Why it matters |
+|---|---|
+| Endpoint telemetry (Timescale/OpenSearch) | Reveals the entire estate's posture; a map for an attacker |
+| The response command channel | Can execute containment actions on endpoints — RCE-equivalent if hijacked |
+| Audit + compliance evidence log | Its integrity is the product's trust anchor |
+| CVE/EPSS/KEV mirror & enrichment | Poisoning it degrades every downstream score |
+| Analyst credentials / sessions | Grant access to all of the above |
+| The agent binary & its signing key | A trojaned agent is estate-wide compromise |
+| The ML model & training data | Poisoning mis-prioritises real threats |
+
+## 2. Trust boundaries
+
+```
+[Endpoints/agents] ──(TB1: mTLS)──▶ [ingest-edge] ──▶ [NATS] ──▶ [workers] ──▶ [stores]
+                                                                                  │
+[Analyst browser] ──(TB2: OIDC/TLS)──▶ [console/API] ──(TB3)──▶ [stores]         │
+[feed-sync] ──(TB4: the ONLY egress)──▶ internet mirror ──▶ [enrichment] ────────┘
+[API] ──(TB5: signed command)──▶ [agent responder] (active response)
+```
+
+- **TB1** agent ↔ ingest-edge: mutual TLS + bearer token.
+- **TB2** analyst ↔ console/API: OIDC (Keycloak, K3s) + TLS.
+- **TB3** API ↔ data stores: internal network, least-privilege DB roles.
+- **TB4** feed-sync ↔ internet: the sole egress point, NetworkPolicy-enforced.
+- **TB5** API ↔ agent responder: Ed25519-signed commands, two-person approval.
+
+## 3. STRIDE by component
+
+### TB1 — Agent → ingest-edge
+
+| Threat | Vector | Control | Status |
+|---|---|---|---|
+| **S**poofing | Rogue agent posts fake telemetry | mTLS client cert + bearer token; unknown cert rejected | In place |
+| **T**ampering | Envelope modified in transit | TLS integrity; ingest-edge schema-validates every envelope | In place |
+| **R**epudiation | Agent denies sending | `event_id` + `agent_id` recorded with ingest time | In place |
+| **I**nfo disclosure | Telemetry sniffed | TLS 1.2+ only | In place |
+| **D**oS | Flood of envelopes | JetStream back-pressure; per-agent rate limit | Partial — add per-agent quota (roadmap) |
+| **E**oP | Compromised agent gains server foothold | ingest-edge is stateless, no shell, minimal image | In place |
+
+### TB2 — Analyst → console/API
+
+| Threat | Vector | Control | Status |
+|---|---|---|---|
+| **S** | Session hijack / no auth | OIDC via Keycloak (K3s); make auth non-optional in Compose too | **Gap** — API auth is optional in dev; enforce everywhere (roadmap R2) |
+| **T** | Parameter tampering | Pydantic request models validate all input | In place |
+| **R** | Analyst denies an action | Every response/approval written to hash-chained audit | In place |
+| **I** | IDOR across tenants | Single-tenant today; add row-level tenant scoping | **Gap** — multi-tenancy (roadmap R4) |
+| **D** | API flooding | k6-gated perf; add rate-limit middleware | Partial |
+| **E** | Analyst → admin | RBAC roles (Keycloak); enforce on every route | Partial — audit route-level checks |
+
+### TB4 — feed-sync (the only egress)
+
+| Threat | Vector | Control | Status |
+|---|---|---|---|
+| **T** | Mirror poisoning (bad CVE/EPSS/KEV) | Verify upstream signatures/hashes where published; pin sources | Partial — add signature verify (roadmap) |
+| **I** | Egress used to exfiltrate | NetworkPolicy allows *only* feed-sync egress; `airgap-verify` proves it | In place (NFR1) |
+| **E** | feed-sync compromised → pivot | Runs isolated, write-only to the mirror volume | In place |
+
+### TB5 — Active response channel
+
+| Threat | Vector | Control | Status |
+|---|---|---|---|
+| **S** | Forged command to an endpoint | Ed25519 signature; agent verifies before executing (fail-closed) | In place (D-028) |
+| **T** | Replay of an old command | Nonce/expiry in signed command; agent rejects stale | Verify nonce present (roadmap check) |
+| **R** | Who approved this containment? | Two-person approval + hash-chained audit | In place |
+| **E** | Response used for arbitrary exec | Commands are a fixed containment allow-list, not shell | In place |
+
+### Supply chain (agent binary + images)
+
+| Threat | Vector | Control | Status |
+|---|---|---|---|
+| **T** | Trojaned agent binary | Reproducible build + cosign-signed SHA256 manifest; endpoint verifies fail-closed | In place (D-048) |
+| **T** | Malicious base image / dep | Trivy scan in CI; pinned digests | Partial — pin all image digests |
+
+### ML pipeline
+
+| Threat | Vector | Control | Status |
+|---|---|---|---|
+| **T** | Training-data poisoning via fake analyst feedback | Feedback is authenticated analyst action, audited; anomalous labels reviewable | Partial — add feedback sanity bounds |
+| **I** | Model inversion leaks estate detail | Model outputs a priority score only, no raw features exposed | In place |
+
+## 4. Residual risks & priorities
+
+Ranked, and mapped to the roadmap:
+
+1. **API auth optional in non-K3s deploys** → make OIDC/RBAC mandatory
+   everywhere (ROADMAP R2). Highest priority: it gates every other TB2 control.
+2. **Single-tenant IDOR surface** → row-level tenant scoping (ROADMAP R4).
+3. **Mirror-poisoning of the feed** → verify upstream signatures in feed-sync.
+4. **Per-agent ingest quota** absent → add rate limit to blunt a rogue-agent DoS.
+5. **Image digests not all pinned** → pin + Trivy-gate in CI.
+
+## 5. How this was derived
+
+STRIDE applied per trust boundary (Microsoft SDL method), assets and boundaries
+taken from docs/ARCHITECTURE.md, controls cross-referenced to the decision log
+(D-028 command signing, D-048 supply chain). Re-run this analysis whenever a new
+trust boundary is added (e.g. a new external connector), and validate the "in
+place" controls with the security-review skill and a lab pentest before any real
+deployment.

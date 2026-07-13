@@ -47,6 +47,9 @@ ml/artifacts/
 *.pkl
 *.model
 
+# Generated evaluation / benchmark reports (produced by `make risk-eval` etc.)
+reports/
+
 # Editor / OS
 .idea/
 .vscode/

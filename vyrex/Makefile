@@ -9,7 +9,7 @@ COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 COMPOSE_AIRGAP = $(COMPOSE) -f docker-compose.yml -f docker-compose.airgap.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
+.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score risk-eval fusion-eval bench-e2e bench-ingest clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -46,6 +46,12 @@ risk-train: ## Train the XGBoost risk model (synthetic + analyst feedback)
 
 risk-score: ## Score all findings: composite + ML risk + SHAP explanations
 	$(COMPOSE) --profile ml run --rm risk-engine score
+
+risk-eval: ## Ranking experiment: CVSS-only vs composite vs ML on held-out data → reports/
+	$(COMPOSE) --profile ml run --rm -v "$(CURDIR)/reports:/reports" risk-engine evaluate --out /reports
+
+fusion-eval: ## Dedup evaluation: false/missed-merge rates on the labeled sample → reports/
+	$(COMPOSE) --profile ml run --rm -v "$(CURDIR)/reports:/reports" risk-engine evaluate-fusion --out /reports
 
 clone-tools: ## Clone the tool-integration reference repos into reference/ (study only)
 	bash scripts/clone-references-tools.sh
@@ -122,6 +128,12 @@ lint: ## Vet/build the Go modules (no live cluster needed)
 observability-up: ## Start Prometheus + Loki + promtail alongside the core stack
 	$(COMPOSE) -f docker-compose.yml -f docker-compose.observability.yml up -d
 	@echo "Prometheus: http://localhost:$${PROMETHEUS_PORT:-9090}   Grafana 'API metrics' dashboard is provisioned"
+
+bench-e2e: ## Measure end-to-end ingest latency (edge→JetStream→worker→Timescale), P=100 probes
+	$(COMPOSE) run --rm --entrypoint python fake-producer e2e_latency.py --probes $${P:-100}
+
+bench-ingest: ## Sustained-throughput ramp through the full pipeline (N envelopes, default 50000)
+	$(COMPOSE) run --rm fake-producer --count $${N:-50000} --batch 200 --rate 0
 
 loadtest: ## Run the k6 API load test (stack must be up)
 	docker run --rm -i --network host -e BASE=http://localhost:$${API_PORT:-8000} \

@@ -1,0 +1,45 @@
+{
+  "_comment": [
+    "Labeled evaluation sample for the fusion dedup engine (ml/eval_fusion.py).",
+    "Each finding carries `truth_cluster`: the human-assigned ground-truth group —",
+    "findings that describe the SAME underlying issue on the SAME asset share a",
+    "truth_cluster regardless of what dedup_key their producer stamped.",
+    "The sample deliberately contains the three interesting regimes:",
+    "  - agreements: multi-tool findings whose dedup_keys correctly coincide",
+    "  - missed merges: same issue, but a producer failed to stamp / stamped a",
+    "    different key (e.g. legacy sensor without key rules)",
+    "  - false merges: distinct issues that collide on one key (over-coarse key)",
+    "Extend this file with rows labeled from your live pilot to re-score on real data."
+  ],
+  "findings": [
+    {"id": 1,  "source_tool": "trivy",    "dedup_key": "cve:CVE-2024-3094:host-web-01",  "severity": "critical", "truth_cluster": "A", "note": "xz backdoor via SBOM scan"},
+    {"id": 2,  "source_tool": "wazuh",    "dedup_key": "cve:CVE-2024-3094:host-web-01",  "severity": "critical", "truth_cluster": "A", "note": "same CVE via Wazuh SCA"},
+    {"id": 3,  "source_tool": "agent",    "dedup_key": "cve:CVE-2024-3094:host-web-01",  "severity": "high",     "truth_cluster": "A", "note": "same CVE via agent pkg match"},
+
+    {"id": 4,  "source_tool": "suricata", "dedup_key": "net:egress-c2:host-db-02",       "severity": "high",     "truth_cluster": "B", "note": "C2 beacon alert", "threat_intel": true, "attack": "T1071"},
+    {"id": 5,  "source_tool": "zeek",     "dedup_key": "net:egress-c2:host-db-02",       "severity": "medium",   "truth_cluster": "B", "note": "same beacon, Zeek notice"},
+
+    {"id": 6,  "source_tool": "nuclei",   "dedup_key": "cve:CVE-2023-46604:host-app-03", "severity": "critical", "truth_cluster": "C", "note": "ActiveMQ RCE probe"},
+    {"id": 7,  "source_tool": "trivy",    "dedup_key": "cve:CVE-2023-46604:host-app-03", "severity": "critical", "truth_cluster": "C"},
+
+    {"id": 8,  "source_tool": "falco",    "dedup_key": null,                              "severity": "high",     "truth_cluster": "B", "note": "MISSED MERGE: same C2 activity seen as anomalous exec, but Falco rule stamps no key"},
+
+    {"id": 9,  "source_tool": "wazuh",    "dedup_key": "fim:/etc/passwd:host-web-01",     "severity": "medium",   "truth_cluster": "D", "note": "FIM change /etc/passwd"},
+    {"id": 10, "source_tool": "agent",    "dedup_key": "fim:etc-passwd:host-web-01",      "severity": "medium",   "truth_cluster": "D", "note": "MISSED MERGE: same change, agent normalizes path differently"},
+
+    {"id": 11, "source_tool": "sigma",    "dedup_key": "rule:generic-persistence:host-app-03", "severity": "medium", "truth_cluster": "E", "note": "cron persistence"},
+    {"id": 12, "source_tool": "wazuh",    "dedup_key": "rule:generic-persistence:host-app-03", "severity": "low",    "truth_cluster": "F", "note": "FALSE MERGE: unrelated at-job alert collides on an over-coarse rule key"},
+
+    {"id": 13, "source_tool": "trivy",    "dedup_key": "cve:CVE-2021-44228:host-web-01",  "severity": "critical", "truth_cluster": "G", "note": "log4shell in app A"},
+    {"id": 14, "source_tool": "trivy",    "dedup_key": "cve:CVE-2021-44228:host-web-04",  "severity": "critical", "truth_cluster": "H", "note": "log4shell in app B — correctly separate (different asset)"},
+
+    {"id": 15, "source_tool": "misp",     "dedup_key": "ioc:198.51.100.7:host-db-02",     "severity": "high",     "truth_cluster": "B", "note": "MISSED MERGE: IOC hit is the same C2 campaign but keyed by IOC, not flow", "threat_intel": true},
+
+    {"id": 16, "source_tool": "nuclei",   "dedup_key": "cve:CVE-2017-0144:host-legacy-05","severity": "critical", "truth_cluster": "I", "note": "EternalBlue exposed SMB"},
+    {"id": 17, "source_tool": "suricata", "dedup_key": "cve:CVE-2017-0144:host-legacy-05","severity": "critical", "truth_cluster": "I", "note": "ET exploit rule fired"},
+    {"id": 18, "source_tool": "wazuh",    "dedup_key": "cve:CVE-2017-0144:host-legacy-05","severity": "high",     "truth_cluster": "I"},
+
+    {"id": 19, "source_tool": "zeek",     "dedup_key": null,                              "severity": "low",      "truth_cluster": "J", "note": "solo informational notice — correctly its own cluster"},
+    {"id": 20, "source_tool": "agent",    "dedup_key": "sys:weak-ssh-config:host-db-02",  "severity": "medium",   "truth_cluster": "K", "note": "solo hardening finding — correctly its own cluster"}
+  ]
+}
