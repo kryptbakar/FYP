@@ -55,12 +55,12 @@ own vulnerabilities (that is VYREX's *job*, not its threat model).
 
 | Threat | Vector | Control | Status |
 |---|---|---|---|
-| **S** | Session hijack / no auth | OIDC via Keycloak (K3s); make auth non-optional in Compose too | **Gap** — API auth is optional in dev; enforce everywhere (roadmap R2) |
+| **S** | Session hijack / no auth | OIDC via Keycloak (K3s) **or** local session tokens, enforced by `auth_guard` middleware; forced on in production | **Closed** — enforcement implemented (settings.auth_required); on by default when soc_env=production |
 | **T** | Parameter tampering | Pydantic request models validate all input | In place |
 | **R** | Analyst denies an action | Every response/approval written to hash-chained audit | In place |
-| **I** | IDOR across tenants | Single-tenant today; add row-level tenant scoping | **Gap** — multi-tenancy (roadmap R4) |
+| **I** | IDOR across tenants | Single-tenant today; add row-level tenant scoping | **Gap** — multi-tenancy (roadmap B5) |
 | **D** | API flooding | k6-gated perf; add rate-limit middleware | Partial |
-| **E** | Analyst → admin | RBAC roles (Keycloak); enforce on every route | Partial — audit route-level checks |
+| **E** | Analyst → admin | RBAC in `auth_guard.authorize`: viewer read-only, analyst read+write, admin for response/defense | In place (unit-tested) — extend per-route as needed |
 
 ### TB4 — feed-sync (the only egress)
 
@@ -97,9 +97,10 @@ own vulnerabilities (that is VYREX's *job*, not its threat model).
 
 Ranked, and mapped to the roadmap:
 
-1. **API auth optional in non-K3s deploys** → make OIDC/RBAC mandatory
-   everywhere (ROADMAP R2). Highest priority: it gates every other TB2 control.
-2. **Single-tenant IDOR surface** → row-level tenant scoping (ROADMAP R4).
+1. ~~API auth optional in non-K3s deploys~~ → **Closed**: `auth_guard` middleware
+   enforces authentication + RBAC on every non-public route, forced on in production
+   (ROADMAP B2). This was the highest priority — it gated every other TB2 control.
+2. **Single-tenant IDOR surface** → row-level tenant scoping (ROADMAP B5).
 3. **Mirror-poisoning of the feed** → verify upstream signatures in feed-sync.
 4. **Per-agent ingest quota** absent → add rate limit to blunt a rogue-agent DoS.
 5. **Image digests not all pinned** → pin + Trivy-gate in CI.

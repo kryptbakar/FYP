@@ -17,6 +17,11 @@ class Settings(BaseSettings):
 
     # API
     api_log_level: str = "info"
+    # Authentication enforcement. Off by default so the local demo/dev stack stays
+    # frictionless; ALWAYS on when soc_env=production (see `auth_required`). When on,
+    # every non-public route requires a principal (oauth2-proxy header OR a local
+    # session token) and RBAC gates writes/response. See THREAT-MODEL.md TB2.
+    api_auth_required: bool = False
     # Console origins allowed for direct (non-proxied) browser calls. Comma-separated,
     # or "*" for any. In the normal topology the console is same-origin via nginx /api.
     cors_allow_origins_raw: str = "*"
@@ -50,6 +55,12 @@ class Settings(BaseSettings):
     ingest_agent_token: str = ""
     command_signing_key: str = "/keys/command_signing.key"
     two_person_min: int = 2  # distinct approvers required for a destructive action
+
+    @property
+    def auth_required(self) -> bool:
+        """Enforced whenever explicitly enabled OR the deployment is production.
+        Production must never run unauthenticated, regardless of the flag."""
+        return self.api_auth_required or self.soc_env.lower() == "production"
 
     @property
     def cors_allow_origins(self) -> list[str]:

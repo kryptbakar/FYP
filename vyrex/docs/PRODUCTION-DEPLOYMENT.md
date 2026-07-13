@@ -97,7 +97,7 @@ You cannot `docker pull` inside the gap. The transfer workflow:
    delta in, `docker load`. This is your patch cadence for feeds and images.
 
 > Productising this into a **single signed offline installer bundle** is a roadmap
-> item (ROADMAP R5) — today it is the scripted steps above.
+> item (ROADMAP B6) — today it is the scripted steps above.
 
 ---
 
@@ -130,8 +130,10 @@ actually feed with data — an enabled sensor with no traffic is just overhead.
 ### Harden before go-live (do not skip)
 
 - [ ] Change every default password/secret in `.env`; move secrets to Vault (K3s).
-- [ ] **Enable API authentication** (OIDC via Keycloak) — mandatory, see
-      THREAT-MODEL R2. Do not expose an unauthenticated API.
+- [ ] **API authentication is enforced.** It is automatic when `SOC_ENV=production`
+      (or set `API_AUTH_REQUIRED=true`); the `auth_guard` middleware then requires a
+      principal (Keycloak/oauth2-proxy header or a local session token) + RBAC on every
+      non-public route. Verify: an unauthenticated `GET /findings` returns 401.
 - [ ] TLS on the console/API ingress (not plain :3001/:8000).
 - [ ] Set TimescaleDB/OpenSearch retention to fit disk (BENCHMARKS §3).
 - [ ] Configure Velero/`deploy/backup` for the stores; test a restore.

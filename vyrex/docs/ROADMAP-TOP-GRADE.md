@@ -70,11 +70,18 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
   smoke test in CI (build all images → ingest → assess → score → assert findings).
 - **Acceptance:** CI builds every image and runs an e2e smoke on each PR.
 
-### B2 — Mandatory authentication (security-critical) ⬜
-- API auth is optional in the Compose/dev path (THREAT-MODEL TB2 gap). Make
-  OIDC/RBAC (Keycloak) enforced on every route in **all** footprints, not just K3s.
-- **Acceptance:** unauthenticated request to any data route → 401; RBAC role
-  checks on write/response routes; a test proving it.
+### B2 — Mandatory authentication (security-critical) ✅
+- ✅ `services/api/app/auth_guard.py` — middleware enforcing authentication + RBAC on
+  every non-public route. Two identity sources (oauth2-proxy/Keycloak headers OR local
+  session token); roles: viewer read-only, analyst read+write, admin for
+  response/defense. Agent routes gated by the agent token.
+- ✅ Off by default in dev (`settings.auth_required`), **forced on when
+  soc_env=production** — production can never run unauthenticated.
+- ✅ Unit-tested (`services/api/tests/test_auth_guard.py`): 401 unauth, viewer→403 on
+  write, analyst→403 on response routes, admin allowed, production-forces-auth.
+- ✅ `.env.example` documents `API_AUTH_REQUIRED`; deployment checklist updated.
+- 🔨 **Optional next:** per-route dependency annotations for finer-grained scopes
+  beyond the middleware's method/prefix policy.
 
 ### B3 — The ML data problem (pilots → real labels) ⬜
 - The model trains on synthetic data (`ml/dataset.py`). Productise the
@@ -134,7 +141,7 @@ The defensible wedge — say it plainly in both the viva and any pitch:
 1. **A1 write-up** (harness already runs — just generate + discuss the report). ½ day.
 2. **A2 execute** the attack simulation — the single highest-value viva artifact. 1–2 days.
 3. **A3 run** the benchmarks on your hardware, fill the tables. ½ day.
-4. **B2 mandatory auth** — the top security gap, quick and high-impact. 1 day.
+4. ~~B2 mandatory auth~~ — ✅ done (enforcement middleware + RBAC + tests).
 5. **B1 broaden** e2e smoke test in CI. 1 day.
 6. Everything else (B3–B7) as time allows before/after the defense; each is a
    standalone increment.

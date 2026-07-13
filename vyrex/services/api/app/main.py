@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import access_audit, metrics, schema
+from . import access_audit, auth_guard, metrics, schema
 from .config import settings
 from .routers import (
     agent,
@@ -69,9 +69,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Observability + governance middlewares (outermost runs first).
-app.middleware("http")(metrics.metrics_middleware)
+# Observability + governance middlewares. Starlette runs the LAST-added first, so the
+# order below makes metrics outermost (counts everything, incl. 401/403), then access
+# audit (records who was denied), then the auth guard (rejects before routing). See
+# THREAT-MODEL.md TB2; enforcement is controlled by settings.auth_required.
+app.middleware("http")(auth_guard.auth_guard_middleware)
 app.middleware("http")(access_audit.access_audit_middleware)
+app.middleware("http")(metrics.metrics_middleware)
 
 app.include_router(health.router)
 app.include_router(findings.router)
