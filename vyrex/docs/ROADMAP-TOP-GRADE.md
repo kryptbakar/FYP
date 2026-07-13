@@ -97,13 +97,16 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
 - **Acceptance:** `evaluation.md` regenerated with ≥1 real-label fold; the "trained
   only on synthetic" threat-to-validity retired.
 
-### B4 — Sell the intelligence layer, not the glue ⬜
-- Reframe the 10 tool bridges as **pluggable connectors** so VYREX drops on top of
-  whatever a customer already runs, rather than requiring all ten. Document a
-  connector interface; make each bridge independently enable/disable-able (profiles
-  already do half of this).
-- **Acceptance:** a "connectors" doc + a customer can run VYREX consuming only
-  their existing Wazuh/Splunk feed and still get fusion + scoring + explanation.
+### B4 — Sell the intelligence layer, not the glue ✅ (spec) 🔨 (SDK)
+- ✅ `docs/CONNECTORS.md` — formalises the contract the bridges already implement:
+  two connector shapes (telemetry / finding), the Envelope v1 + `findings`/`dedup_key`
+  requirements, and the opt-in enable/disable model. A new connector for an unseen
+  tool is one file, no core changes.
+- ✅ Documented that a customer can run VYREX over **only** their existing tool (e.g.
+  `--profile hostmon` for Wazuh alone) and still get fusion + scoring + SHAP.
+- 🔨 **Next (product):** a thin `connector-sdk` base class, a connector health surface
+  in the console, and a bring-your-own-SIEM (Splunk/Elastic) finding connector.
+- **Acceptance:** connectors doc ✅; single-tool operation ✅; SDK is the follow-on.
 
 ### B5 — Multi-tenancy & upgrade path ⬜
 - Row-level tenant scoping (THREAT-MODEL TB2 IDOR) for MSSP use; a versioned

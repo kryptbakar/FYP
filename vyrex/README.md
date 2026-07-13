@@ -113,6 +113,7 @@ make compose-smoke  # full-stack e2e: ingest → assess → score → assert fin
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Throughput / latency / footprint protocol + result tables |
 | [docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) | STRIDE on VYREX itself, controls mapped to decisions |
 | [docs/PRODUCTION-DEPLOYMENT.md](docs/PRODUCTION-DEPLOYMENT.md) | Real-org deployment: hardware/OS, network, air-gap transfer, agent rollout, day-2 ops |
+| [docs/CONNECTORS.md](docs/CONNECTORS.md) | The pluggable connector contract — run VYREX over the tools you already have |
 | [docs/ROADMAP-TOP-GRADE.md](docs/ROADMAP-TOP-GRADE.md) | Master checklist: from "built a lot" to top-graded FYP **and** a real product |
 
 ## Air-gap & security
