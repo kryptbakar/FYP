@@ -9,7 +9,7 @@ COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 COMPOSE_AIRGAP = $(COMPOSE) -f docker-compose.yml -f docker-compose.airgap.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score risk-eval fusion-eval bench-e2e bench-ingest clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
+.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke compose-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score risk-eval fusion-eval bench-e2e bench-ingest clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -117,7 +117,7 @@ seed: ## (Phase 1+) Seed databases / feed mirror — placeholder
 
 test: ## Run unit tests: Python (ml + api) and JS syntax check
 	docker run --rm -v "$(CURDIR):/src" -w /src python:3.12-slim \
-		sh -c "pip install -q -r services/api/requirements.txt pytest && python -m pytest -q ml/tests services/api/tests"
+		sh -c "pip install -q -r services/api/requirements.txt -r ml/requirements.txt pytest && python -m pytest -q ml/tests services/api/tests"
 	docker run --rm -v "$(CURDIR)/web/console/assets:/a" -w /a node:22-alpine \
 		sh -c 'for f in *.js; do node --check "$$f" || exit 1; done; echo "console JS OK"'
 
@@ -141,3 +141,6 @@ loadtest: ## Run the k6 API load test (stack must be up)
 
 k3d-smoke: ## Stand up a throwaway k3d cluster and validate the Helm chart end-to-end
 	bash deploy/smoke/k3d-smoke.sh
+
+compose-smoke: ## End-to-end smoke on Compose: ingest → assess → score → assert findings
+	bash deploy/smoke/compose-smoke.sh

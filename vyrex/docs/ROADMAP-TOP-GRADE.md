@@ -63,12 +63,15 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
 > Due-diligence's first question: *"Is this a demo or a product?"* These harden it.
 
 ### B1 — Tests & CI ✅ (expanded) 🔨 (broaden)
-- ✅ ML test suite expanded 1 → 5 files (fusion, features, dataset, evaluate) —
-  37 tests green.
+- ✅ ML test suite expanded 1 → 5 files (fusion, features, dataset, evaluate);
+  API suite gained `test_auth_guard.py` — 55 tests green.
 - ✅ CI runs the evaluation harnesses as a gate (`.github/workflows/ci.yml`).
-- ⬜ Broaden: worker/enrichment/bridge unit tests; a compose-based end-to-end
-  smoke test in CI (build all images → ingest → assess → score → assert findings).
-- **Acceptance:** CI builds every image and runs an e2e smoke on each PR.
+- ✅ **Compose end-to-end smoke** (`deploy/smoke/compose-smoke.sh` + `compose-smoke`
+  CI job): builds the stack → seeds the feed mirror → ingests scanner findings →
+  pushes telemetry → assesses → trains + scores → **asserts findings exist and
+  carry a risk_score**. This is the "demo or product?" gate.
+- ⬜ Broaden further: worker/enrichment/bridge unit tests.
+- **Acceptance:** CI builds every image and runs an e2e smoke on each PR — met.
 
 ### B2 — Mandatory authentication (security-critical) ✅
 - ✅ `services/api/app/auth_guard.py` — middleware enforcing authentication + RBAC on
@@ -142,7 +145,8 @@ The defensible wedge — say it plainly in both the viva and any pitch:
 2. **A2 execute** the attack simulation — the single highest-value viva artifact. 1–2 days.
 3. **A3 run** the benchmarks on your hardware, fill the tables. ½ day.
 4. ~~B2 mandatory auth~~ — ✅ done (enforcement middleware + RBAC + tests).
-5. **B1 broaden** e2e smoke test in CI. 1 day.
+5. ~~B1 e2e smoke in CI~~ — ✅ done (`compose-smoke` builds the stack and asserts
+   findings are produced + scored). Remaining: more component unit tests.
 6. Everything else (B3–B7) as time allows before/after the defense; each is a
    standalone increment.
 

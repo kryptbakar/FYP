@@ -99,10 +99,11 @@ The intelligence layer is *evaluated*, not asserted — this is what makes VYREX
 research result rather than a demo:
 
 ```bash
-make risk-eval     # ranking experiment: CVSS-only vs composite vs ML (Spearman/NDCG/precision@k/KEV-capture)
-make fusion-eval   # dedup false-merge / missed-merge rates on a labeled sample
-make bench-ingest  # sustained ingest throughput through the full pipeline
-make bench-e2e     # end-to-end ingest latency (p50/p95/p99)
+make risk-eval      # ranking experiment: CVSS-only vs composite vs ML (Spearman/NDCG/precision@k/KEV-capture)
+make fusion-eval    # dedup false-merge / missed-merge rates on a labeled sample
+make bench-ingest   # sustained ingest throughput through the full pipeline
+make bench-e2e      # end-to-end ingest latency (p50/p95/p99)
+make compose-smoke  # full-stack e2e: ingest → assess → score → assert findings (the "demo or product?" gate)
 ```
 
 | Doc | What it gives you |

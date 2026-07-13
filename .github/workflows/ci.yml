@@ -122,3 +122,23 @@ jobs:
       - name: Helm chart smoke test on a live K3s cluster
         working-directory: vyrex
         run: bash deploy/smoke/k3d-smoke.sh
+
+  compose-smoke:
+    name: compose end-to-end smoke (ingest → assess → score → assert)
+    runs-on: ubuntu-latest
+    # Heavier: stands up the whole stack. Independent of the unit jobs so a fast
+    # unit failure still surfaces first.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free disk + raise vm.max_map_count (OpenSearch needs it)
+        run: |
+          sudo sysctl -w vm.max_map_count=262144
+          docker image prune -af >/dev/null 2>&1 || true
+      - name: End-to-end pipeline smoke
+        working-directory: vyrex
+        run: bash deploy/smoke/compose-smoke.sh
+      - name: Dump container logs on failure
+        if: failure()
+        working-directory: vyrex
+        run: docker compose logs --tail=120 || true
