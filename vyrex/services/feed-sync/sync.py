@@ -25,6 +25,7 @@ import httpx
 
 import db
 import fetchers
+import integrity
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("feed-sync")
@@ -82,10 +83,17 @@ def load_aliases() -> dict[str, str]:
 def cache_write(name: str, rows: list[dict]) -> None:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     (CACHE_DIR / f"{name}.json").write_text(json.dumps(rows, default=str))
+    # Stamp an integrity manifest so the cache can be verified after crossing the gap.
+    integrity.write_manifest(CACHE_DIR, name, rows)
 
 
 def cache_read(name: str) -> list[dict]:
-    return json.loads((CACHE_DIR / f"{name}.json").read_text())
+    rows = json.loads((CACHE_DIR / f"{name}.json").read_text())
+    # Fail closed on a tampered / unstamped cache (mirror-poisoning, THREAT-MODEL TB4).
+    # Set FEED_VERIFY_CACHE=0 only to migrate a legacy cache built before manifests.
+    if os.getenv("FEED_VERIFY_CACHE", "1") != "0":
+        integrity.verify(CACHE_DIR, name, rows)
+    return rows
 
 
 # ----------------------------------------------------------------- main ------

@@ -132,15 +132,21 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
 - **Acceptance:** one bundle dir + `bash install.sh` stands up a site — met (signing
   is the hardening follow-on).
 
-### B7 — Platform security sign-off 🔨 (in progress)
-- ✅ (1) mandatory auth [B2] — done.
-- ✅ ML training-data poisoning — `ml/feedback.py` bounds + influence cap [B7 this pass].
-- ⬜ (2) tenant scoping [B5]; (3) feed-signature verification (touches feed-sync);
-  (4) per-agent ingest quota (touches ingest-edge, Go); (5) pin all image digests +
-  Trivy-gate (flip the existing Trivy job `exit-code` to 1).
+### B7 — Platform security sign-off ✅ (4 of 6 residual risks closed) 🔨 (2 scoped)
+- ✅ (1) mandatory auth [B2].
+- ✅ ML training-data poisoning — `ml/feedback.py` bounds + influence cap.
+- ✅ (3) feed mirror-poisoning — `services/feed-sync/integrity.py`: SHA-256 stamp on
+  cache build + fail-closed verify on import (the cache carried across the gap).
+  5 unit tests.
+- ✅ (4) per-agent ingest quota — token-bucket rate limiter in `ingest-edge`
+  (`ratelimit.go`), 429 over quota, per mTLS-CN. 4 Go tests.
+- ✅ (5a) Trivy CI gate flipped: **fails the build on a fixable CRITICAL** (HIGH
+  reported non-blocking). Go + feed-sync tests wired into CI.
+- ⬜ (2) tenant scoping [B5] — needs a schema change (multi-tenancy).
+- ⬜ (5b) pin base-image digests — needs a connected build to capture the digests.
 - ⬜ Short pentest write-up (run the security-review skill + a lab pass).
-- **Acceptance:** each residual risk closed or explicitly accepted; two of the six are
-  now closed, the rest are scoped in THREAT-MODEL §4.
+- **Acceptance:** four of six residual risks closed and unit-tested; the two open
+  items each require a schema change or a connected build, scoped in THREAT-MODEL §4.
 
 ---
 

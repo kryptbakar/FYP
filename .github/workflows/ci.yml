@@ -27,7 +27,7 @@ jobs:
       - name: Install deps
         run: pip install -r services/api/requirements.txt -r ml/requirements.txt pytest
       - name: Run tests
-        run: python -m pytest -q ml/tests services/api/tests services/enrichment/tests
+        run: python -m pytest -q ml/tests services/api/tests services/enrichment/tests services/feed-sync/tests
 
   ml-evaluation:
     name: risk-engine evaluation (baselines + fusion)
@@ -88,6 +88,7 @@ jobs:
           go mod tidy
           go vet ./...
           go build ./...
+          go test ./...
       - name: agent
         working-directory: vyrex/agent
         run: go vet ./... && go build ./...
@@ -100,18 +101,29 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build API image
         run: docker build -t vyrex/api:ci vyrex/services/api
-      - name: Trivy vulnerability scan
-        # Pinned to the 0.35.0 commit SHA (not a tag): trivy-action releases 0.0.1-0.34.2
-        # were compromised in the March 2026 supply-chain attack (malicious entrypoint.sh
-        # served via force-pushed tags). 0.35.0 is the first clean release, protected by
-        # GitHub's immutable-releases feature, and itself SHA-pins aquasecurity/setup-trivy
-        # rather than using a mutable tag. See GHSA-69fq-xp46-6x23.
+      # GATE: fail the build on a fixable CRITICAL vulnerability in the API image.
+      # (Pinned to the 0.35.0 commit SHA — not a tag: trivy-action releases 0.0.1-0.34.2
+      # were compromised in the March 2026 supply-chain attack, malicious entrypoint.sh
+      # served via force-pushed tags. 0.35.0 is the first clean release, protected by
+      # GitHub's immutable-releases feature, and SHA-pins aquasecurity/setup-trivy. See
+      # GHSA-69fq-xp46-6x23.)
+      - name: Trivy scan — gate on fixable CRITICAL
         uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           image-ref: vyrex/api:ci
           format: table
-          exit-code: "0" # report-only for now; flip to "1" to gate on findings
-          severity: CRITICAL,HIGH
+          exit-code: "1" # hardened: block the build on a fixable CRITICAL
+          severity: CRITICAL
+          ignore-unfixed: true
+      # REPORT: surface HIGH findings without failing (informational).
+      - name: Trivy scan — report HIGH (non-blocking)
+        if: always()
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: vyrex/api:ci
+          format: table
+          exit-code: "0"
+          severity: HIGH
           ignore-unfixed: true
 
   k3s-smoke:

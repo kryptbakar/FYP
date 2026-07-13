@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -52,6 +53,8 @@ type config struct {
 	natsURL       string
 	stream        string
 	subjectPrefix string // e.g. "telemetry.v1"
+	ratePerSec    float64 // per-agent sustained request/sec (0 disables)
+	rateBurst     float64 // per-agent burst allowance
 }
 
 func loadConfig() config {
@@ -66,7 +69,18 @@ func loadConfig() config {
 		natsURL:       env("NATS_URL", "nats://nats:4222"),
 		stream:        env("INGEST_STREAM", "TELEMETRY"),
 		subjectPrefix: env("INGEST_SUBJECT_PREFIX", "telemetry.v1"),
+		ratePerSec:    envFloat("INGEST_RATE_PER_SEC", 200), // per-agent; 0 disables
+		rateBurst:     envFloat("INGEST_RATE_BURST", 400),
 	}
+}
+
+func envFloat(k string, def float64) float64 {
+	if v := os.Getenv(k); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+	}
+	return def
 }
 
 func env(k, def string) string {
@@ -82,6 +96,7 @@ type server struct {
 	nc     *nats.Conn
 	schema *jsonschema.Schema
 	log    *slog.Logger
+	limek  *rateLimiter
 }
 
 func main() {
@@ -101,7 +116,8 @@ func main() {
 	}
 	defer nc.Drain()
 
-	srv := &server{cfg: cfg, js: js, nc: nc, schema: schema, log: log}
+	srv := &server{cfg: cfg, js: js, nc: nc, schema: schema, log: log,
+		limek: newRateLimiter(cfg.ratePerSec, cfg.rateBurst)}
 
 	// Health/ready live on a separate plain-HTTP port so probes don't need a
 	// client certificate (the mTLS listener would otherwise reject them).
@@ -241,6 +257,13 @@ func (s *server) handleTelemetry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// --- Per-agent rate limit (post-auth so the key is the authenticated identity) ---
+	if !s.limek.allow(rateKey(cn, r)) {
+		w.Header().Set("Retry-After", "1")
+		writeJSON(w, http.StatusTooManyRequests, map[string]string{"error": "per-agent rate limit exceeded"})
+		return
+	}
+
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBodyBytes))
 	if err != nil {
 		writeJSON(w, http.StatusRequestEntityTooLarge, map[string]string{"error": "body too large"})
@@ -290,6 +313,19 @@ func (s *server) authenticate(r *http.Request) (string, error) {
 		return "", errors.New("client certificate required")
 	}
 	return "", nil
+}
+
+// rateKey identifies the caller for rate limiting: prefer the authenticated mTLS
+// CN; fall back to the peer address (host part) when TLS/mTLS is off (lab mode).
+func rateKey(cn string, r *http.Request) string {
+	if cn != "" {
+		return "cn:" + cn
+	}
+	addr := r.RemoteAddr
+	if i := strings.LastIndex(addr, ":"); i > 0 {
+		addr = addr[:i]
+	}
+	return "addr:" + addr
 }
 
 // processOne validates a single envelope and publishes it to JetStream.

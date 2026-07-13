@@ -48,7 +48,7 @@ own vulnerabilities (that is VYREX's *job*, not its threat model).
 | **T**ampering | Envelope modified in transit | TLS integrity; ingest-edge schema-validates every envelope | In place |
 | **R**epudiation | Agent denies sending | `event_id` + `agent_id` recorded with ingest time | In place |
 | **I**nfo disclosure | Telemetry sniffed | TLS 1.2+ only | In place |
-| **D**oS | Flood of envelopes | JetStream back-pressure; per-agent rate limit | Partial — add per-agent quota (roadmap) |
+| **D**oS | Flood of envelopes | JetStream back-pressure; per-agent token-bucket rate limit in ingest-edge (429 over quota) | In place (unit-tested) |
 | **E**oP | Compromised agent gains server foothold | ingest-edge is stateless, no shell, minimal image | In place |
 
 ### TB2 — Analyst → console/API
@@ -66,7 +66,7 @@ own vulnerabilities (that is VYREX's *job*, not its threat model).
 
 | Threat | Vector | Control | Status |
 |---|---|---|---|
-| **T** | Mirror poisoning (bad CVE/EPSS/KEV) | Verify upstream signatures/hashes where published; pin sources | Partial — add signature verify (roadmap) |
+| **T** | Mirror poisoning (bad CVE/EPSS/KEV) | Feed cache is SHA-256-stamped on build and verified fail-closed on import (`integrity.py`); upstream signature-pinning is the further step | In place for the carried cache (unit-tested) |
 | **I** | Egress used to exfiltrate | NetworkPolicy allows *only* feed-sync egress; `airgap-verify` proves it | In place (NFR1) |
 | **E** | feed-sync compromised → pivot | Runs isolated, write-only to the mirror volume | In place |
 
@@ -84,7 +84,7 @@ own vulnerabilities (that is VYREX's *job*, not its threat model).
 | Threat | Vector | Control | Status |
 |---|---|---|---|
 | **T** | Trojaned agent binary | Reproducible build + cosign-signed SHA256 manifest; endpoint verifies fail-closed | In place (D-048) |
-| **T** | Malicious base image / dep | Trivy scan in CI; pinned digests | Partial — pin all image digests |
+| **T** | Malicious base image / dep | Trivy scan in CI now **gates** on a fixable CRITICAL (HIGH reported); trivy-action SHA-pinned | In place — gating on; digest-pinning of base images is the remaining step |
 
 ### ML pipeline
 
@@ -100,13 +100,17 @@ Ranked, and mapped to the roadmap:
 1. ~~API auth optional in non-K3s deploys~~ → **Closed**: `auth_guard` middleware
    enforces authentication + RBAC on every non-public route, forced on in production
    (ROADMAP B2). This was the highest priority — it gated every other TB2 control.
-2. **Single-tenant IDOR surface** → row-level tenant scoping (ROADMAP B5).
-3. **Mirror-poisoning of the feed** → verify upstream signatures in feed-sync.
-4. **Per-agent ingest quota** absent → add rate limit to blunt a rogue-agent DoS.
-5. **Image digests not all pinned** → pin + Trivy-gate in CI.
+2. **Single-tenant IDOR surface** → row-level tenant scoping (ROADMAP B5). *(Open — needs a schema change.)*
+3. ~~Mirror-poisoning of the feed~~ → **Closed** for the carried cache: `integrity.py`
+   SHA-256 stamp + fail-closed verify. Upstream signature-pinning is a further step.
+4. ~~Per-agent ingest quota~~ → **Closed**: token-bucket rate limit in ingest-edge.
+5. **Image base-digests not all pinned** → Trivy now gates on fixable CRITICAL;
+   pinning base-image digests still requires a connected build to capture them.
 
-(ML training-data poisoning, previously listed here, is now closed — see the ML
-pipeline row above: `ml/feedback.py` bounds + influence cap.)
+(ML training-data poisoning is closed — see the ML pipeline row: `ml/feedback.py`
+bounds + influence cap. Of the original six residual risks, four are now closed;
+the two open items — multi-tenancy and base-digest pinning — each need a schema
+change or a connected build and are scoped above.)
 
 ## 5. How this was derived
 
