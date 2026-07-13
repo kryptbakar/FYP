@@ -5,6 +5,7 @@
   python run.py score --loop          # keep scoring on an interval
   python run.py evaluate              # ranking experiment: CVSS vs composite vs ML
   python run.py evaluate-fusion       # dedup false/missed-merge rates on labeled sample
+  python run.py evaluate-scenario     # fusion + ranking on a scripted intrusion
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ import numpy as np
 
 import db
 import features
+import feedback
 import fusion
 import scoring
 import train as trainer
@@ -51,7 +53,9 @@ def do_train() -> None:
     # Consensus weight is a training feature too: recompute clusters over all findings
     # so each labelled feedback row gets the same _consensus its scoring run saw.
     clusters = fusion.build_clusters(db.load_findings(pg))
-    fb = db.load_feedback(pg)
+    # Sanitise analyst feedback BEFORE it can influence the model: drop NaN/inf/
+    # out-of-range labels (anti-poisoning, THREAT-MODEL ML pipeline).
+    fb = feedback.clean(db.load_feedback(pg))
     extra_X, extra_y = [], []
     for row in fb:
         row["_consensus"] = clusters.get(row["id"], {}).get("weight", 0.0)
@@ -59,9 +63,16 @@ def do_train() -> None:
         extra_X.append(features.to_vector(fd))
         extra_y.append(float(row["label_priority"]))
     pg.close()
+    # Cap feedback influence so even a large hostile batch can only nudge the prior.
+    n_syn = trainer.DEFAULT_SYNTHETIC_N
+    per_row_w = feedback.cap_feedback(len(extra_y), n_syn)
+    extra_w = np.full(len(extra_y), per_row_w) if extra_y else None
+    if extra_y:
+        log.info("folding %d feedback rows at per-row weight %.3f (capped)", len(extra_y), per_row_w)
     res = trainer.train(
         extra_X=np.array(extra_X) if extra_X else None,
         extra_y=np.array(extra_y) if extra_y else None,
+        extra_w=extra_w,
     )
     log.info("training done: %s", res)
 
@@ -136,9 +147,21 @@ def do_evaluate_fusion(out: Path) -> None:
     print(eval_fusion.to_markdown(report, findings))
 
 
+def do_evaluate_scenario(out: Path) -> None:
+    import attack_scenario
+    report = attack_scenario.run()
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "attack_scenario.json").write_text(json.dumps(report, indent=2))
+    (out / "attack_scenario.md").write_text(attack_scenario.to_markdown(report))
+    log.info("attack-scenario report -> %s", out / "attack_scenario.md")
+    print(attack_scenario.to_markdown(report))
+    if not report["passed"]:
+        raise SystemExit("attack-scenario checks FAILED")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["train", "score", "evaluate", "evaluate-fusion"])
+    ap.add_argument("cmd", choices=["train", "score", "evaluate", "evaluate-fusion", "evaluate-scenario"])
     ap.add_argument("--loop", action="store_true")
     ap.add_argument("--interval", type=int, default=int(os.getenv("RISK_INTERVAL", "180")))
     ap.add_argument("--out", type=Path, default=Path(os.getenv("MODEL_DIR", "/models")) / "reports")
@@ -149,6 +172,8 @@ def main() -> None:
         do_evaluate(args.out)
     elif args.cmd == "evaluate-fusion":
         do_evaluate_fusion(args.out)
+    elif args.cmd == "evaluate-scenario":
+        do_evaluate_scenario(args.out)
     else:
         do_score(args.loop, args.interval)
 

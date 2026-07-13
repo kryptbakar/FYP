@@ -9,7 +9,7 @@ COMPOSE_TOOLS = $(COMPOSE) -f docker-compose.yml -f docker-compose.tools.yml
 COMPOSE_AIRGAP = $(COMPOSE) -f docker-compose.yml -f docker-compose.airgap.yml
 
 .DEFAULT_GOAL := help
-.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke compose-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score risk-eval fusion-eval bench-e2e bench-ingest clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify
+.PHONY: help up down restart logs ps health seed test lint observability-up loadtest k3d-smoke compose-smoke agent-run clone-refs env certs produce feeds-seed feeds-sync assess risk-train risk-score risk-eval fusion-eval attack-scenario bench-e2e bench-ingest clone-tools sensors-test wazuh-pull scan-ingest intel-enrich console mirror-sync airgap-up airgap-verify bundle install-offline
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -53,6 +53,9 @@ risk-eval: ## Ranking experiment: CVSS-only vs composite vs ML on held-out data 
 fusion-eval: ## Dedup evaluation: false/missed-merge rates on the labeled sample → reports/
 	$(COMPOSE) --profile ml run --rm -v "$(CURDIR)/reports:/reports" risk-engine evaluate-fusion --out /reports
 
+attack-scenario: ## Validate fusion + ranking on a scripted intrusion (offline, deterministic) → reports/
+	$(COMPOSE) --profile ml run --rm -v "$(CURDIR)/reports:/reports" risk-engine evaluate-scenario --out /reports
+
 clone-tools: ## Clone the tool-integration reference repos into reference/ (study only)
 	bash scripts/clone-references-tools.sh
 
@@ -88,6 +91,12 @@ airgap-up: ## (Phase H) start the stack with egress SEALED (only feed-sync may r
 
 airgap-verify: ## (Phase H) prove the air gap holds: runtime network sealed, sync path egresses
 	bash tools/airgap/verify-egress.sh
+
+bundle: ## Build the offline installer bundle (run on a CONNECTED staging host) → dist/vyrex-bundle
+	bash tools/airgap/bundle.sh $(OUT)
+
+install-offline: ## Install VYREX from a bundle INSIDE the air-gap (run from the bundle dir)
+	bash install.sh $(TARGET)
 
 down: ## Stop the stack (keep data volumes)
 	$(COMPOSE) down

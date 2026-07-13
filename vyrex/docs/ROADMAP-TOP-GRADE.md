@@ -29,12 +29,17 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
 - **Acceptance:** report shows composite ≫ CVSS-only on Spearman and ML ≥ composite;
   false-merge < missed-merge (precision-first). Both already hold on synthetic data.
 
-### A2 — Live attack-simulation validation 🔨
+### A2 — Live attack-simulation validation 🔨 (live) ✅ (offline half)
 - ✅ `docs/VALIDATION-ATTACK-SIM.md` — full Atomic Red Team runbook + results tables.
-- ⬜ **Execute it**: one victim VM + the stack, run the 7-technique kill-chain,
-  fill the §5 table (latency, tools fired, fusion lift, SHAP fidelity, coverage).
-- **Acceptance:** a completed results table + narrative; honest coverage number;
-  ≥1 technique shown corroborated by multiple tools and ranked at the top.
+- ✅ **Automated offline half:** `ml/attack_scenario.py` (+ `make attack-scenario`, CI
+  gate, `ml/tests/test_attack_scenario.py`) runs the fusion + ranking logic over a
+  scripted multi-tool intrusion and asserts consensus, fusion lift, and exploit-aware
+  ordering — no VM needed. This validates the *intelligence layer* on an attack
+  narrative; it does not replace sensor-based detection.
+- ⬜ **Live half (needs a lab):** one victim VM + the stack, run the 7-technique
+  kill-chain, fill the §5 table (latency, tools fired, SHAP fidelity, coverage).
+- **Acceptance:** offline property checks green (met); live results table is the
+  lab-dependent remainder.
 
 ### A3 — Performance benchmarks 🔨
 - ✅ `docs/BENCHMARKS.md` protocol + `tools/fake-producer/e2e_latency.py` probe +
@@ -89,13 +94,16 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
 - 🔨 **Optional next:** per-route dependency annotations for finer-grained scopes
   beyond the middleware's method/prefix policy.
 
-### B3 — The ML data problem (pilots → real labels) ⬜
-- The model trains on synthetic data (`ml/dataset.py`). Productise the
-  analyst-feedback loop: capture triage decisions → `analyst_feedback` → retrain
-  at 5× weight (already wired in `run.py do_train`) → re-run `risk-eval` on **real**
-  labels. Seed it from the attack-sim (VALIDATION §6).
+### B3 — The ML data problem (pilots → real labels) 🔨 (loop hardened, needs pilot data)
+- ✅ The analyst-feedback loop is wired AND hardened: `run.py do_train` folds
+  `analyst_feedback` in, now via `ml/feedback.py` sanity bounds (drop NaN/inf/
+  out-of-range) with a 25%-of-training-mass influence cap so a hostile batch can't
+  swamp the prior. Unit-tested.
+- ⬜ **Needs real data (pilot):** capture triage decisions in a deployment →
+  re-run `risk-eval` on **real** labels. Seed it from the attack-sim (VALIDATION §6).
 - **Acceptance:** `evaluation.md` regenerated with ≥1 real-label fold; the "trained
-  only on synthetic" threat-to-validity retired.
+  only on synthetic" threat-to-validity retired. (Loop is ready; only real telemetry
+  is outstanding — inherently pilot-dependent.)
 
 ### B4 — Sell the intelligence layer, not the glue ✅ (spec) 🔨 (SDK)
 - ✅ `docs/CONNECTORS.md` — formalises the contract the bridges already implement:
@@ -113,17 +121,26 @@ Legend: ✅ done in this repo · 🔨 harness/skeleton in place, needs a real ru
   schema-migration + rolling-upgrade story.
 - **Acceptance:** two tenants' data provably isolated; a documented N→N+1 upgrade.
 
-### B6 — Offline installer bundle ⬜
-- Productise the air-gap transfer (PRODUCTION-DEPLOYMENT §3) into **one signed
-  bundle** (images + feed mirror + chart + checksums), verified on load.
-- **Acceptance:** `install.sh bundle.tar.sig` stands up a site with no other steps.
+### B6 — Offline installer bundle ✅
+- ✅ `tools/airgap/bundle.sh` (build side) packages every image (`docker save`), the
+  feed/tool mirror volumes, the compose/Make config, and a `SHA256SUMS` manifest into
+  one directory. `tools/airgap/install.sh` (air-gap side) **verifies the checksums
+  fail-closed**, loads images, restores volumes, and brings the stack up — no internet.
+- ✅ `make bundle` / `make install-offline`; PRODUCTION-DEPLOYMENT §3 references them.
+- 🔨 **Next:** cosign-sign the manifest (reuse the D-048 agent-signing key) so the
+  bundle is not just checksummed but signed.
+- **Acceptance:** one bundle dir + `bash install.sh` stands up a site — met (signing
+  is the hardening follow-on).
 
-### B7 — Platform security sign-off ⬜
-- Address THREAT-MODEL residual risks in priority order: (1) mandatory auth [B2],
-  (2) tenant scoping [B5], (3) feed-signature verification, (4) per-agent ingest
-  quota, (5) pin all image digests + Trivy-gate.
-- **Acceptance:** each residual risk closed or explicitly accepted with rationale;
-  a short pentest write-up (doubles as FYP appendix + sales asset).
+### B7 — Platform security sign-off 🔨 (in progress)
+- ✅ (1) mandatory auth [B2] — done.
+- ✅ ML training-data poisoning — `ml/feedback.py` bounds + influence cap [B7 this pass].
+- ⬜ (2) tenant scoping [B5]; (3) feed-signature verification (touches feed-sync);
+  (4) per-agent ingest quota (touches ingest-edge, Go); (5) pin all image digests +
+  Trivy-gate (flip the existing Trivy job `exit-code` to 1).
+- ⬜ Short pentest write-up (run the security-review skill + a lab pass).
+- **Acceptance:** each residual risk closed or explicitly accepted; two of the six are
+  now closed, the rest are scoped in THREAT-MODEL §4.
 
 ---
 

@@ -103,8 +103,13 @@ make risk-eval      # ranking experiment: CVSS-only vs composite vs ML (Spearman
 make fusion-eval    # dedup false-merge / missed-merge rates on a labeled sample
 make bench-ingest   # sustained ingest throughput through the full pipeline
 make bench-e2e      # end-to-end ingest latency (p50/p95/p99)
+make attack-scenario # fusion + ranking on a scripted multi-tool intrusion (offline, deterministic)
 make compose-smoke  # full-stack e2e: ingest → assess → score → assert findings (the "demo or product?" gate)
 ```
+
+Air-gapped install: `make bundle` on a connected staging host produces a checksummed
+offline bundle; carry it inside and `make install-offline` verifies and stands up the
+stack with no internet. See [docs/PRODUCTION-DEPLOYMENT.md](docs/PRODUCTION-DEPLOYMENT.md).
 
 | Doc | What it gives you |
 |---|---|

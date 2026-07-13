@@ -23,6 +23,10 @@ MODEL_DIR = Path(os.getenv("MODEL_DIR", "/models"))
 MODEL_PATH = MODEL_DIR / "risk_model.json"
 META_PATH = MODEL_DIR / "meta.json"
 
+# Size of the synthetic training population (the prior). Feedback influence is capped
+# relative to this (see ml/feedback.cap_feedback).
+DEFAULT_SYNTHETIC_N = 6000
+
 
 def _metrics(y, p) -> dict:
     err = p - y
@@ -34,7 +38,7 @@ def _metrics(y, p) -> dict:
 
 
 def train(extra_X: np.ndarray | None = None, extra_y: np.ndarray | None = None,
-          extra_w: np.ndarray | None = None, n: int = 6000) -> dict:
+          extra_w: np.ndarray | None = None, n: int = DEFAULT_SYNTHETIC_N) -> dict:
     X, y = dataset.generate_synthetic(n)
     w = np.ones(len(y))
     if extra_X is not None and len(extra_X):

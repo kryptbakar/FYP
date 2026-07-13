@@ -49,6 +49,9 @@ jobs:
       - name: Fusion dedup evaluation
         working-directory: vyrex/ml
         run: python eval_fusion.py --out ../reports
+      - name: Attack-scenario validation (fusion + ranking on a scripted intrusion)
+        working-directory: vyrex/ml
+        run: python attack_scenario.py --out ../reports
       - name: Upload evaluation reports
         uses: actions/upload-artifact@v4
         with:

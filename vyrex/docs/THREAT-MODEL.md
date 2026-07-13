@@ -90,7 +90,7 @@ own vulnerabilities (that is VYREX's *job*, not its threat model).
 
 | Threat | Vector | Control | Status |
 |---|---|---|---|
-| **T** | Training-data poisoning via fake analyst feedback | Feedback is authenticated analyst action, audited; anomalous labels reviewable | Partial — add feedback sanity bounds |
+| **T** | Training-data poisoning via fake analyst feedback | Authenticated + audited; `ml/feedback.py` sanity bounds drop NaN/inf/out-of-range labels and cap feedback to ≤25% of training mass | In place (unit-tested) |
 | **I** | Model inversion leaks estate detail | Model outputs a priority score only, no raw features exposed | In place |
 
 ## 4. Residual risks & priorities
@@ -104,6 +104,9 @@ Ranked, and mapped to the roadmap:
 3. **Mirror-poisoning of the feed** → verify upstream signatures in feed-sync.
 4. **Per-agent ingest quota** absent → add rate limit to blunt a rogue-agent DoS.
 5. **Image digests not all pinned** → pin + Trivy-gate in CI.
+
+(ML training-data poisoning, previously listed here, is now closed — see the ML
+pipeline row above: `ml/feedback.py` bounds + influence cap.)
 
 ## 5. How this was derived
 

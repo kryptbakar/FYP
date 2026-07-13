@@ -96,8 +96,14 @@ You cannot `docker pull` inside the gap. The transfer workflow:
 4. **Updates** repeat the loop: re-run `mirror-sync` on the staging host, carry the
    delta in, `docker load`. This is your patch cadence for feeds and images.
 
-> Productising this into a **single signed offline installer bundle** is a roadmap
-> item (ROADMAP B6) — today it is the scripted steps above.
+> **Shortcut — the bundler does all of the above.** On the staging host run
+> `make bundle` (`tools/airgap/bundle.sh`): it saves every image, exports the feed/
+> tool mirror volumes, copies the run config, and writes a `SHA256SUMS` manifest into
+> one directory. Carry that inside and run `make install-offline` (`install.sh`): it
+> **verifies the checksums fail-closed**, `docker load`s the images, restores the
+> volumes, and brings the stack up — no internet. The manual steps above are what the
+> bundler automates, kept here for transparency. (Cosign-**signing** the manifest is
+> the remaining hardening step — ROADMAP B6.)
 
 ---
 
