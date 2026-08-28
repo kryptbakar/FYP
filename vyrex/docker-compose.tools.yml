@@ -32,7 +32,7 @@ services:
     command: ["-i", "eth0"]       # real capture needs host networking + a live iface (Phase B)
     volumes:
       - suricata_logs:/var/log/suricata          # eve.json -> sensor-bridge tail
-      - ./tools/suricata/rules:/var/lib/suricata/rules:ro   # local + mirrored ET Open rules
+      - ./tools/suricata/rules:/var/lib/suricata/rules   # local + mirrored ET Open rules (rw: entrypoint chowns this)
       - ./tools/sensors/data:/pcaps:ro           # offline test pcaps (deterministic demo)
 
   zeek:                           # Traffic analysis — JSON protocol metadata logs
@@ -162,13 +162,13 @@ services:
     profiles: ["intel", "tools"]
     restart: unless-stopped
     environment:
-      BASE_URL: ${MISP_BASE_URL:-https://localhost:8443}
+      BASE_URL: ${MISP_BASE_URL:-https://localhost:8444}
       MYSQL_HOST: misp-db
       MYSQL_USER: misp
       MYSQL_PASSWORD: ${MISP_DB_PASSWORD:-change_me_misp}
       REDIS_FQDN: misp-redis
     ports:
-      - "8443:443"
+      - "8444:443"          # 8443 is already owned by ingest-edge's mTLS endpoint
     depends_on: ["misp-db", "misp-redis"]
 
   # OpenCTI — ATT&CK mapping. Heavy: platform + worker + Elastic + Redis + RabbitMQ + MinIO.

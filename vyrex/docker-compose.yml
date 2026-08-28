@@ -19,7 +19,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-soc}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Loopback-only: reachable from this host (local dev/psql) but NOT the LAN.
+      # In-cluster services connect over the internal network as `postgres:5432`.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -37,7 +39,8 @@ services:
       POSTGRES_USER: ${TIMESCALE_USER:-soc}
       POSTGRES_PASSWORD: ${TIMESCALE_PASSWORD:-soc}
     ports:
-      - "${TIMESCALE_PORT:-5433}:5432"
+      # Loopback-only (see postgres). In-cluster: `timescaledb:5432`.
+      - "127.0.0.1:${TIMESCALE_PORT:-5433}:5432"
     volumes:
       - tsdata:/var/lib/postgresql/data
     healthcheck:
@@ -54,7 +57,11 @@ services:
       - discovery.type=single-node
       - bootstrap.memory_lock=true
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
-      # MVP lab: disable the security plugin (no TLS/auth). Re-enabled in Phase 7.
+      # Dev/demo only: the security plugin (TLS + auth) is OFF here for a frictionless
+      # local stack. Production runs TLS + Vault-issued admin creds via the OpenSearch
+      # operator (deploy/databases/opensearch-cluster.yaml); the air-gap overlay also
+      # seals it onto an internal-only network. The host port below is loopback-bound
+      # so this no-auth endpoint is never exposed to the LAN.
       - DISABLE_SECURITY_PLUGIN=true
       - DISABLE_INSTALL_DEMO_CONFIG=true
     ulimits:
@@ -65,7 +72,9 @@ services:
         soft: 65536
         hard: 65536
     ports:
-      - "${OPENSEARCH_PORT:-9200}:9200"
+      # Loopback-only: no-auth search endpoint must not reach the LAN.
+      # In-cluster services use `opensearch:9200` on the internal network.
+      - "127.0.0.1:${OPENSEARCH_PORT:-9200}:9200"
     volumes:
       - osdata:/usr/share/opensearch/data
     healthcheck:
