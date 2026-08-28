@@ -68,6 +68,16 @@ services:
     restart: unless-stopped
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
+    # Explicit resolvers, DEV ONLY, and only so `ollama pull` works on this host.
+    # Docker's embedded resolver (127.0.0.11) repeatedly failed mid-download with
+    #   dial tcp: lookup <hash>.r2.cloudflarestorage.com: no such host
+    # on a host with dnsTunneling=false in ~/.wslconfig.
+    # An air-gapped deployment should point these at an internal resolver, or delete the
+    # block entirely: a sealed install never pulls a model at runtime, because the weights
+    # arrive in the offline bundle as the vyrex_ollamadata volume.
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
       - ollamadata:/root/.ollama
     networks:
