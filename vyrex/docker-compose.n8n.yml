@@ -42,8 +42,11 @@ services:
       - n8ndata:/home/node/.n8n
       # importable workflow library is mounted read-only for convenience
       - ./deploy/n8n/workflows:/workflows:ro
-    networks:
-      - default
+    # No explicit `networks:` here on purpose. Naming `default` does not merely restate
+    # the default - it makes the membership explicit, and compose then UNIONS it with an
+    # override's `[socnet]` instead of replacing it. The service would end up on both,
+    # sealed and egress-capable at once, which is the same as not sealed. Verified
+    # 2026-08-28; see docker-compose.airgap.n8n.yml.
 
   # Self-hosted email sink (air-gap-safe) so n8n alert fan-out has somewhere to land. Mailpit
   # catches SMTP on :1025 (internal) and shows every message in a web UI on :8025.
@@ -56,8 +59,7 @@ services:
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"
-    networks:
-      - default
+    # see the note on n8n above: no explicit `networks:`, so socnet can replace it
 
   # Self-hosted LLM (air-gapped) — the reasoning engine for the agentic SOC. Runs entirely on-prem;
   # n8n's AI Agent node and VYREX's /agent/* loop both talk to it at http://ollama:11434. Pull a
@@ -68,20 +70,15 @@ services:
     restart: unless-stopped
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
-    # Explicit resolvers, DEV ONLY, and only so `ollama pull` works on this host.
-    # Docker's embedded resolver (127.0.0.11) repeatedly failed mid-download with
-    #   dial tcp: lookup <hash>.r2.cloudflarestorage.com: no such host
-    # on a host with dnsTunneling=false in ~/.wslconfig.
-    # An air-gapped deployment should point these at an internal resolver, or delete the
-    # block entirely: a sealed install never pulls a model at runtime, because the weights
-    # arrive in the offline bundle as the vyrex_ollamadata volume.
-    dns:
-      - 8.8.8.8
-      - 1.1.1.1
+    # NOTE: pulling a model on a connected host may need explicit resolvers on some
+    # Docker/WSL2 setups — that override lives in docker-compose.pull.yml and is opt-in
+    # on purpose. It must NOT be here: `dns:` cannot be cleared by a later override file
+    # (an override of `dns: []` is ignored and the entries survive), so a resolver set in
+    # this file would follow the service into an air-gapped deployment with no way to
+    # remove it, pointing a sealed container at 8.8.8.8. Verified 2026-08-28.
     volumes:
       - ollamadata:/root/.ollama
-    networks:
-      - default
+    # see the note on n8n above: no explicit `networks:`, so socnet can replace it
 
 volumes:
   n8ndata:

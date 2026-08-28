@@ -1,0 +1,34 @@
+# =====================================================================
+# VYREX — model-pull overlay. CONNECTED HOSTS ONLY. Never use in a deployment.
+#
+# Docker's embedded DNS resolver (127.0.0.11) cannot reliably sustain a multi-GB
+# `ollama pull` on some Docker Desktop / WSL2 hosts. Observed 2026-08-28: three
+# consecutive pulls died at different offsets with
+#   dial tcp: lookup <hash>.r2.cloudflarestorage.com on 127.0.0.11:53: no such host
+# on a host with dnsTunneling=false in ~/.wslconfig. Explicit resolvers fix it.
+#
+# This is a SEPARATE FILE rather than a commented-out block in docker-compose.n8n.yml
+# because `dns:` cannot be undone by a later override — compose ignores `dns: []` and
+# the entries survive into the merged config. A resolver written into the base file
+# would therefore travel into an air-gapped install and point a sealed container at a
+# public resolver it must never contact, with no supported way to remove it.
+# Opt-in beats opt-out when the default is the one that breaks the air-gap claim.
+#
+# Usage — only on a staging host with internet, before building the offline bundle:
+#   docker compose -f docker-compose.yml -f docker-compose.n8n.yml -f docker-compose.pull.yml up -d ollama
+#   docker exec vyrex-ollama ollama pull ${OLLAMA_MODEL:-llama3.2:3b}
+#   docker compose -f docker-compose.yml -f docker-compose.n8n.yml up -d ollama   # drop the overlay
+#
+# The weights persist in the vyrex_ollamadata volume and travel in the offline bundle
+# (tools/airgap/bundle.sh), so the sealed side never pulls anything.
+#
+# Gotcha worth knowing: run ONE pull at a time. Two concurrent `ollama pull` calls for
+# the same model contend over the same *-partial blob and wedge at a fixed byte offset
+# that looks exactly like a network stall. Check with:
+#   docker exec vyrex-ollama sh -c "ps -o pid,args | grep '[o]llama pull'"
+# =====================================================================
+services:
+  ollama:
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1

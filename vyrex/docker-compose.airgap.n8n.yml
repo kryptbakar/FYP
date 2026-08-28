@@ -1,0 +1,30 @@
+# =====================================================================
+# VYREX — air-gap sealing for the LLM/automation overlay.
+#
+# Pairs with docker-compose.n8n.yml. Include BOTH, always together with the core
+# docker-compose.airgap.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.n8n.yml \
+#                  -f docker-compose.airgap.yml -f docker-compose.airgap.n8n.yml up -d
+#
+# Kept separate from docker-compose.airgap.yml because a compose overlay cannot name a
+# service that no included file defines — the whole project fails to load. So the core
+# sealing file stays usable on its own, and this one travels with n8n.yml.
+#
+# Until 2026-08-28 none of these were sealed anywhere: `ollama` in particular held the
+# model that reads untrusted finding text, on a bridge with full internet, in the
+# configuration the project calls air-gapped. tools/airgap/verify-egress.sh now audits
+# per-service network membership so this cannot silently regress.
+# =====================================================================
+services:
+  # Weights arrive in the offline bundle as the vyrex_ollamadata volume. A sealed
+  # install never pulls, so losing egress costs this service nothing.
+  # NOTE: if a pull is needed on a connected staging host, use docker-compose.pull.yml
+  # instead — never add `dns:` to n8n.yml, because compose cannot undo it here.
+  ollama:  { networks: [socnet] }
+  # n8n calls the API over the internal network; docker-compose.n8n.yml's own header
+  # has always said a true air-gapped deploy must move it onto socnet.
+  n8n:     { networks: [socnet] }
+  # Alert fan-out sink. Sealing it is the point: notification content is exactly what
+  # must not leave the building.
+  mailpit: { networks: [socnet] }

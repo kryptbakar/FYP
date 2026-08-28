@@ -13,9 +13,24 @@
 # it loses all outbound routing — a sealed runtime. feed-sync gets [socnet, egress] so
 # it can reach Postgres AND the internet; nothing else can.
 #
-# Run the stack air-gapped:
+# This file seals the services defined in docker-compose.yml ONLY. A compose overlay
+# may not name a service that no included file defines - the project fails to load with
+# "has neither an image nor a build context" - so the other stacks get their own sealing
+# overlays, each paired with the file that defines those services:
+#
+#   docker-compose.n8n.yml   -> docker-compose.airgap.n8n.yml    (ollama, n8n, mailpit)
+#   docker-compose.tools.yml -> docker-compose.airgap.tools.yml  (sensors/scanners/intel)
+#
+# Include the pair whenever you include the stack, or those services stay on the default
+# bridge with full egress while the stack still calls itself air-gapped.
+#
+# Run the stack air-gapped (core only):
 #   docker compose -f docker-compose.yml -f docker-compose.airgap.yml up -d
-# Prove it (probe expects: socnet=BLOCKED, egress=OK):
+# Core + LLM/automation:
+#   docker compose -f docker-compose.yml -f docker-compose.n8n.yml \
+#                  -f docker-compose.airgap.yml -f docker-compose.airgap.n8n.yml up -d
+#
+# Prove it (probe expects socnet=BLOCKED, egress=OK, and every running service sealed):
 #   make airgap-verify     (or: pwsh scripts/dev.ps1 airgap-verify)
 # =====================================================================
 
@@ -39,6 +54,12 @@ services:
   risk-engine:  { networks: [socnet] }
   agent:        { networks: [socnet] }
   fake-producer: { networks: [socnet] }
+
+  # The investigation orchestrator was missing here until 2026-08-28, which meant the
+  # one component that feeds untrusted finding text to a language model kept its default
+  # bridge membership - full egress - in the configuration that calls itself air-gapped.
+  # That is precisely the path a prompt-injection payload would exfiltrate through.
+  investigation-orchestrator: { networks: [socnet] }
 
   # ---- the ONE exception: the internet-facing sync job ---------------------
   feed-sync:

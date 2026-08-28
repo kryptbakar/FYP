@@ -1,0 +1,44 @@
+# =====================================================================
+# VYREX — air-gap sealing for the tool stack.
+#
+# Pairs with docker-compose.tools.yml. Include BOTH, with the core sealing file:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tools.yml \
+#                  -f docker-compose.airgap.yml -f docker-compose.airgap.tools.yml \
+#                  --profile tools up -d
+#
+# Separate from docker-compose.airgap.yml for the same reason as the n8n overlay: an
+# overlay may not name services no included file defines, or the project fails to load.
+#
+# None of these use host networking, so all of them can be sealed. The scanners still
+# work sealed because their data is mirrored rather than fetched:
+#   trivy  <- vyrex_trivy_cache        nuclei <- vyrex_nuclei_templates
+#   sigma  <- vyrex_sigma_rules        suricata <- vyrex_suricata_rules
+# A scanner that needed live egress to function would be an air-gap violation by
+# design, not a configuration detail — which is the reason `make mirror-sync` exists.
+# =====================================================================
+services:
+  # ---- sensors: sniff the sealed network, ship to JetStream ----------------
+  suricata:       { networks: [socnet] }
+  zeek:           { networks: [socnet] }
+  falco:          { networks: [socnet] }
+  sensor-bridge:  { networks: [socnet] }
+
+  # ---- scanners: run against internal targets from mirrored content --------
+  trivy:          { networks: [socnet] }
+  nuclei:         { networks: [socnet] }
+
+  # ---- host monitoring -----------------------------------------------------
+  wazuh-manager:  { networks: [socnet] }
+  wazuh-bridge:   { networks: [socnet] }
+
+  # ---- threat intel: local stores, matched offline -------------------------
+  intel-enricher:   { networks: [socnet] }
+  misp:             { networks: [socnet] }
+  misp-db:          { networks: [socnet] }
+  misp-redis:       { networks: [socnet] }
+  opencti:          { networks: [socnet] }
+  opencti-redis:    { networks: [socnet] }
+  opencti-elastic:  { networks: [socnet] }
+  opencti-minio:    { networks: [socnet] }
+  opencti-rabbitmq: { networks: [socnet] }
