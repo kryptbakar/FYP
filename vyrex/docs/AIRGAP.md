@@ -77,8 +77,19 @@ Docker networks:
 - **`egress`** — an ordinary bridge with NAT. Attached **only** to `feed-sync`
   (and `mirror-sync`), which are dual-homed so they can reach both Postgres and the net.
 
-```
+Sealing is split across three paired overlays, because a compose overlay cannot name a
+service that no included file defines (see §4.1):
+
+```bash
+# core only
 docker compose -f docker-compose.yml -f docker-compose.airgap.yml up -d
+
+# core + LLM/automation (this is the one to demo)
+docker compose -f docker-compose.yml -f docker-compose.n8n.yml \
+               -f docker-compose.airgap.yml -f docker-compose.airgap.n8n.yml \
+               --profile agentic up -d
+
+# ...and add -f docker-compose.tools.yml -f docker-compose.airgap.tools.yml for the tools
 make airgap-verify
 ```
 
@@ -92,7 +103,75 @@ control bridge  (egress-capable)        -> REACHED       PASS: probe works
 ```
 
 The control proves the block is real (the probe *can* egress on a normal bridge), not a
-broken test or an offline host. **Verified 2026-06-02: verdict AIR-GAP ENFORCED.**
+broken test or an offline host.
+
+### 4.1 The check used to pass while the stack leaked (fixed 2026-08-28)
+
+The probe above answers *"does socnet have a route?"* It never answered *"is anything
+actually on socnet?"* — and those are different questions. A service missing from the
+overlay keeps its default bridge, has full internet, and the probe still prints
+**AIR-GAP ENFORCED**.
+
+That was not hypothetical. On 2026-08-28 an audit found **21 of 35 services unsealed**,
+including the investigation orchestrator, `ollama`, `n8n`, `mailpit` and the entire tool
+stack. The orchestrator is the worst of them: it is the one component that feeds untrusted
+finding text to a language model, so it is exactly the path a prompt-injection payload
+would exfiltrate through — and it had unrestricted egress in the configuration this
+document calls air-gapped. **This check passed the whole time.**
+
+The lesson is worth stating plainly because it generalises beyond this project: *a
+verification that cannot fail when the property is violated is not a verification.* The
+script now audits **membership** as well as reachability — it enumerates running
+containers, resolves each one's actual network attachments, and fails if any non-exempt
+service is on a network that is not `internal: true`.
+
+Two compose behaviours defeat sealing silently, and neither is guessable:
+
+- **An overlay may not name a service that no included file defines** — the project fails
+  to load entirely. Hence three paired files: `docker-compose.airgap.yml` (core),
+  `docker-compose.airgap.n8n.yml`, `docker-compose.airgap.tools.yml`. Include the pair
+  whenever you include the stack.
+- **Declaring `networks: [default]` explicitly does not restate the default.** Compose
+  *unions* it with an override's `[socnet]` instead of replacing it, so the service lands
+  on both — sealed and egress-capable at once, which is the same as unsealed. `ollama`,
+  `n8n` and `mailpit` were doing exactly this.
+
+Relatedly, `dns:` **cannot be undone by a later override** (`dns: []` is ignored and the
+entries survive), so a resolver committed to a base file follows the service into a sealed
+deployment. The model-pull workaround therefore lives in an opt-in
+`docker-compose.pull.yml`, never in `docker-compose.n8n.yml`.
+
+### 4.2 Verified end-to-end, including the negative control
+
+**2026-08-28, core + LLM/automation stack, 14 running services:**
+
+```
+  service membership audit (project: vyrex)
+    ok    api            ok    investigation-orchestrator
+    ok    console        ok    mailpit
+    ok    enrichment     ok    n8n
+    ok    grafana        ok    nats
+    ok    ingest-edge    ok    ollama          (+ opensearch, postgres, timescaledb, workers)
+  PASS: all 14 running services are sealed.
+== verdict: AIR-GAP ENFORCED ==
+```
+
+Then the part that makes the PASS mean something — `ollama` was deliberately attached to an
+ordinary bridge and the check re-run:
+
+```
+    LEAK  ollama — attached to egress-capable network(s): airgap-leak-test
+  FAIL: 1 of 14 running services can reach off-host networks.
+== verdict: LEAK DETECTED ==            (exit 1)
+```
+
+It names the service, names the network, and exits non-zero. A passing check is only
+evidence if you have shown it can fail; this is that demonstration, and it is worth
+re-running before the viva so the claim is same-day.
+
+**Known limit, stated rather than papered over:** the audit can only inspect containers
+that are **running**. A stopped service is not evidence of anything, so a partially-started
+stack must not be read as a clean bill of health — the script prints this caveat itself.
 
 > **Lab limitation (honest note).** `internal: true` blocks traffic in *both*
 > directions, so a service attached only to `socnet` also loses host **port
