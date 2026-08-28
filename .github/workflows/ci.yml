@@ -24,10 +24,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # The orchestrator requirements are NOT optional here: the test run below includes
+      # services/investigation-orchestrator/tests, and without langgraph those files fail
+      # at COLLECTION. pytest reports that as an error, not a failure, and it is easy to
+      # scroll past - so the graph tests were never actually running in CI.
       - name: Install deps
-        run: pip install -r services/api/requirements.txt -r ml/requirements.txt pytest
+        run: >
+          pip install
+          -r services/api/requirements.txt
+          -r ml/requirements.txt
+          -r services/investigation-orchestrator/requirements.txt
+          pytest pytest-asyncio
+      # -p no:cacheprovider: the runner's checkout is not always writable by the test
+      # user, and a cache-write warning in a security project's CI is noise nobody reads.
       - name: Run tests
-        run: python -m pytest -q ml/tests services/api/tests services/enrichment/tests services/feed-sync/tests services/investigation-orchestrator/tests
+        run: >
+          python -m pytest -q -p no:cacheprovider
+          ml/tests
+          services/api/tests
+          services/enrichment/tests
+          services/feed-sync/tests
+          services/investigation-orchestrator/tests
 
   ml-evaluation:
     name: risk-engine evaluation (baselines + fusion)

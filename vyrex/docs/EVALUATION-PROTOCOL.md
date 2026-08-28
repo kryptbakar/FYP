@@ -134,8 +134,35 @@ That last row is the one an examiner will ask about. Answer it with data.
 | Small corpus (~60) | Stratification; report confidence intervals | Wide intervals; no fine-grained claims |
 | Lab data, not production | Atomic Red Team for out-of-distribution behaviour | Generalisation unproven |
 | Hardware ceiling | 5.8 GiB for Docker, CPU-only; 3–4B models only | Results may not hold for larger models — say so |
-| Fixture-backed intel | MISP is 3 IOCs; OpenCTI is 7 SQL predicates | Do not claim live intel integration |
+| Fixture-backed intel | MISP is 6 IOCs; OpenCTI is 7 SQL predicates | Do not claim live intel integration |
 | Labeller built the system | Unavoidable solo | The strongest reason the rubric must be frozen first |
+| **Corroboration cases are engineered** | Marked `lab:synthetic`; see below | **Do not present `n_tools` as independent agreement** |
+
+### The corroboration caveat — read this before quoting any fusion number
+
+On 2026-08-29 the corpus was expanded to meet §10's stratification targets. Reaching the
+"≥6 corroborated" target was done by **adding MISP IOCs for IP addresses the Sigma rule had
+already flagged**. That is engineering the overlap: the tools agree because the fixtures
+were chosen to make them agree.
+
+This is legitimate as *evaluation input* — the labeller and the agent see the same evidence,
+so the comparison between them stays fair, and the fusion mechanism genuinely needs cases to
+exercise. It is **not** evidence that independent tools converge in the wild.
+
+Concretely, this is what may and may not be said:
+
+- ✅ "Fusion clusters findings from three tools on a shared observable, and here is a case."
+- ✅ "The clustering key was wrong until 2026-08-28; here is the regression test."
+- ❌ "Three tools independently agreed, therefore the finding is more likely true."
+- ❌ Any base rate — *"X% of findings are corroborated"* — computed on this corpus.
+
+The new IOCs are tagged `lab:synthetic` in `services/intel-enricher/fixtures/ioc.json` so
+they can be excluded from any analysis where their provenance matters.
+
+The original `185.220.101.45:4444` cluster is the one exception worth naming: it was
+corroborated **before** the corpus was expanded, and its three-tool agreement emerged from
+fixing the clustering key rather than from adding matching intel. It is the honest example
+to demo.
 
 ---
 

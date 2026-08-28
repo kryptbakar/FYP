@@ -41,6 +41,67 @@
       "dueDate": "2024-01-22",
       "knownRansomwareCampaignUse": "Unknown",
       "notes": "LAB DEMO ENTRY — NOT in the official CISA KEV. Included so a matching package finding exercises the KEV-enrichment join end-to-end."
+    },
+
+    {
+      "cveID": "CVE-2021-4034",
+      "vendorProject": "Red Hat",
+      "product": "polkit",
+      "vulnerabilityName": "polkit pkexec Local Privilege Escalation (PwnKit)",
+      "dateAdded": "2022-06-27",
+      "dueDate": "2022-07-18",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "Real CISA KEV entry. Matches policykit-1 in the trivy fixture."
+    },
+    {
+      "cveID": "CVE-2022-0847",
+      "vendorProject": "Linux",
+      "product": "Kernel",
+      "vulnerabilityName": "Linux Kernel Improper Privilege Management (Dirty Pipe)",
+      "dateAdded": "2022-04-25",
+      "dueDate": "2022-05-16",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "Real CISA KEV entry. Matches linux-image-amd64 in the trivy fixture."
+    },
+    {
+      "cveID": "CVE-2023-44487",
+      "vendorProject": "IETF",
+      "product": "HTTP/2",
+      "vulnerabilityName": "HTTP/2 Rapid Reset Denial of Service",
+      "dateAdded": "2023-10-10",
+      "dueDate": "2023-10-31",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "Real CISA KEV entry. Matches nghttp2 in the trivy fixture."
+    },
+    {
+      "cveID": "CVE-2024-1086",
+      "vendorProject": "Linux",
+      "product": "Kernel",
+      "vulnerabilityName": "Linux Kernel netfilter nf_tables Use-After-Free",
+      "dateAdded": "2024-05-30",
+      "dueDate": "2024-06-20",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "Real CISA KEV entry. Matches linux-image-amd64 in the trivy fixture."
+    },
+    {
+      "cveID": "CVE-2024-21626",
+      "vendorProject": "Open Container Initiative",
+      "product": "runc",
+      "vulnerabilityName": "runc Container Escape via Leaked File Descriptor (Leaky Vessels)",
+      "dateAdded": "2024-02-01",
+      "dueDate": "2024-02-22",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "LAB DEMO ENTRY — exploited in the wild, but this project has NOT verified an official CISA KEV listing. Included so the corpus has enough KEV cases to stratify on (docs/LABELLING-RUBRIC.md §10). Flagged rather than quietly asserted."
+    },
+    {
+      "cveID": "CVE-2024-3094",
+      "vendorProject": "Tukaani",
+      "product": "xz/liblzma",
+      "vulnerabilityName": "xz Utils Embedded Malicious Code (sshd backdoor)",
+      "dateAdded": "2024-04-02",
+      "dueDate": "2024-04-23",
+      "knownRansomwareCampaignUse": "Unknown",
+      "notes": "LAB DEMO ENTRY — the supply-chain backdoor was real and severe, but this project has NOT verified an official CISA KEV listing. Included as a CRITICAL+KEV case for stratification; flagged rather than quietly asserted."
     }
   ]
 }
