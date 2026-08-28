@@ -76,6 +76,26 @@ jobs:
         working-directory: vyrex
         run: for t in web/console/tests/*.test.js; do node "$t"; done
 
+  airgap-coverage:
+    name: air-gap sealing covers every service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Static check, no Docker daemon needed. Catches the quiet failure this repo
+      # actually shipped: a service added to a compose file but forgotten in the sealing
+      # overlay keeps full egress, nothing warns, the stack works, and the air-gap claim
+      # silently stops being true. 21 of 35 services were unsealed on 2026-08-28 while
+      # the runtime egress check still reported AIR-GAP ENFORCED.
+      - name: every compose service is sealed or explicitly exempt
+        working-directory: vyrex
+        run: python tools/airgap/check-coverage.py
+      - name: shell syntax of the air-gap scripts
+        working-directory: vyrex
+        run: bash -n tools/airgap/bundle.sh tools/airgap/install.sh tools/airgap/verify-egress.sh
+
   go-build:
     name: go vet + build
     runs-on: ubuntu-latest
