@@ -155,12 +155,18 @@ The evaluation is complete when:
 
 | Item | State |
 |---|---|
-| Rubric | **Not written** — blocks all labelling |
-| Advisor adjudication | **Not secured** — blocks the κ statistic |
-| Corpus | ~54 findings; needs 60–80 stratified |
-| Labels collected | 0 |
+| Rubric | ✅ **Frozen `rubric-v1`** — [LABELLING-RUBRIC.md](LABELLING-RUBRIC.md), committed before any case was labelled |
+| Advisor adjudication | **Not secured** — blocks the κ statistic. Ask now; it cannot be retrofitted |
+| Corpus | 54 findings (29 HIGH, 13 MEDIUM, 6 CRITICAL, 6 LOW); needs 60–80 stratified |
+| Labels collected | 0 — `eval/labels/` is empty and its schema is fixed |
 | Grounding metrics | **Measurable now** — `make model-benchmark` |
-| Model choice | Benchmark in progress |
+| Model choice | llama3.2:3b abstains 12/12; qwen3:4b unusable at 3.2 tok/s; qwen2.5:3b under test |
+
+The freeze is only meaningful if it is checkable, so it is: the rubric was committed with an
+empty `eval/labels/`, and every label carries `rubric_version` plus a timestamp. Anyone can
+verify from git history that the rubric predates the labels, and that the labels predate the
+investigation runs. That audit trail is the entire substitute for a second blind reviewer —
+which is why §12 of the rubric makes labels append-only.
 
 **Nothing here licenses an accuracy claim yet.** What *can* be reported today is grounding
 and operational behaviour — and the current finding there is stark: llama3.2:3b produces
