@@ -50,7 +50,13 @@ echo "==> 5. bring up the core stack + automation/LLM overlay (no internet neede
 # is only half the job — without this overlay the weights sit in a volume nothing mounts.
 COMPOSE_ARGS=(-f docker-compose.yml)
 [ -f docker-compose.n8n.yml ] && COMPOSE_ARGS+=(-f docker-compose.n8n.yml)
-docker compose "${COMPOSE_ARGS[@]}" up -d
+# `agentic` must be named explicitly or the investigation orchestrator never starts: a
+# profile keeps a service out of a bare `up -d`, so the LLM would be running with nothing
+# driving it. Deliberately NOT starting the rest:
+#   tools/sensors/scanners/intel  heavy, and they compete with the LLM for RAM
+#   feeds/ml/agent                one-shots (restart: "no"), run on a schedule instead
+# Their images are still in the bundle, so the commands printed in step 8 work offline.
+docker compose "${COMPOSE_ARGS[@]}" --profile agentic up -d
 
 echo "==> 6. wait for readiness"
 API="http://localhost:${API_PORT:-8000}"
@@ -73,6 +79,21 @@ else
   echo "    (ollama not running — AI analyst unavailable in this install)"
 fi
 
+echo "==> 8. verify the investigation orchestrator is running"
+# The LLM and the orchestrator fail independently: ollama can be up with nothing driving
+# it (step 7 would still pass), so check the consumer too.
+if docker compose "${COMPOSE_ARGS[@]}" --profile agentic ps --status running \
+     --format '{{.Service}}' 2>/dev/null | grep -q 'investigation-orchestrator'; then
+  echo "    orchestrator running — investigations will be picked up from the outbox"
+else
+  echo "    WARNING: investigation-orchestrator is not running. Investigations will queue" >&2
+  echo "    forever with no consumer. Check: docker compose --profile agentic logs" >&2
+fi
+
 echo "==> DONE. VYREX is up. Load the offline feed mirror if not already: make feeds-seed"
 echo "    Console: http://localhost:${CONSOLE_PORT:-3001}   API docs: $API/docs"
+echo "    On-demand profiles (images are in this bundle, no network needed):"
+echo "      docker compose --profile ml    run --rm risk-engine score   # composite + ML scoring"
+echo "      docker compose --profile intel run --rm intel-enricher      # ATT&CK / IOC / Sigma"
+echo "      docker compose --profile tools up -d                        # heavy sensor stack"
 echo "    REMINDER: set SOC_ENV=production (or API_AUTH_REQUIRED=true) + strong secrets before go-live."
