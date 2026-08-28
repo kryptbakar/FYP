@@ -94,7 +94,7 @@ def resume_orphans(pg, graph) -> int:
     return done
 
 
-def process_one(pg, graph, job: dict) -> bool:
+def process_one(pg, graph, job: dict, model_name: str | None = None) -> bool:
     """Run one claimed job. Returns True if an investigation actually ran."""
     payload = job["payload"] or {}
     inv_id = repo.ensure_investigation(pg, payload, job["event_key"])
@@ -105,9 +105,12 @@ def process_one(pg, graph, job: dict) -> bool:
     subject_id = int(payload.get("subject_id", job["subject_id"]))
     log.info("investigating %s %s (investigation %s)", subject_type, subject_id, inv_id)
 
+    # Stamp the model on the investigation, not just the report: a verdict has to be
+    # attributable to the model that produced it, and the console lists runs before any
+    # report exists.
     repo.start(pg, inv_id, graph_version=settings.graph_version,
                prompt_version=settings.prompt_version,
-               model_name=None, contract_version=CONTRACT_VERSION)
+               model_name=model_name, contract_version=CONTRACT_VERSION)
     t0 = time.time()
     try:
         state = {"investigation_id": inv_id, "subject_type": subject_type,
@@ -154,7 +157,7 @@ def run(once: bool = False) -> int:
                 time.sleep(settings.poll_interval_s)
                 continue
             try:
-                if process_one(pg, graph, job):
+                if process_one(pg, graph, job, model_name=llm.name):
                     processed += 1
             except Exception as e:  # noqa: BLE001
                 # Hand the job back so a transient fault retries; attempts is already

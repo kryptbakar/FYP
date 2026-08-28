@@ -188,6 +188,24 @@ const API = {
   agentTriage: (limit) => API._post('/agent/triage', { limit: limit || 8 }, FIX.agentTriage),
   agentInvestigate: (incidentId) => API._post('/agent/investigate', { incident_id: incidentId }, FIX.agentInvestigate),
 
+  // investigation orchestrator — the async job API that supersedes /agent/*.
+  // Creation returns 202 immediately and the graph runs out of band, so the console
+  // polls rather than holding a request open past nginx's 30s proxy ceiling.
+  investigations: (n = 30) => API._get(`/investigations?limit=${n}`, () => FIX.investigations),
+  investigation: (id) => API._get(`/investigations/${id}`, () => FIX.investigation),
+  investigationSteps: (id) => API._get(`/investigations/${id}/steps`, () => FIX.investigationSteps),
+  investigationEvidence: (id) => API._get(`/investigations/${id}/evidence`, () => FIX.investigationEvidence),
+  // 409 while the graph is still running is EXPECTED, not an error — _get's fallback
+  // returns null so the poller can distinguish "not ready" from "no such investigation".
+  investigationReport: (id) => API._get(`/investigations/${id}/report`, () => null),
+  investigationsFor: (findingId) => API._get(`/findings/${findingId}/investigations`, () => []),
+  orchestratorStatus: () => API._get('/orchestrator/status', () => FIX.orchestratorStatus),
+  startInvestigation: (subjectId, subjectType = 'finding') =>
+    API._post('/investigations', { subject_type: subjectType, subject_id: subjectId },
+              { investigation_id: 'demo-investigation', status: 'queued', simulated: true }),
+  cancelInvestigation: (id) => API._post(`/investigations/${id}/cancel`, {}, { status: 'cancelled', simulated: true }),
+  reviewInvestigation: (id, body) => API._post(`/investigations/${id}/review`, body, { ok: true, simulated: true }),
+
   // writes
   feedback: (id, body) => API._post(`/findings/${id}/feedback`, body, { ok: true, simulated: true }),
   requestAction: (incidentId, body) => API._post(`/incidents/${incidentId}/actions`, body, { id: Date.now(), status: 'proposed', simulated: true }),

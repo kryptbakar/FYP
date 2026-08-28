@@ -242,7 +242,25 @@ function lifecyclePanel(f) {
   const raRow = h('div', { class: 'row', style: 'gap:var(--s-2)' },
     h('span', { class: 'faint', style: 'font-size:var(--t-xs);flex:1' }, 'Accept risk until'),
     until, h('button', { class: 'btn sm', onclick: () => { if (!until.value) { toast('Pick an expiry date', false); return; } setStatus('risk_accepted', until.value); } }, 'Accept risk'));
+  // Hand the finding to the investigation orchestrator. Returns 202 immediately - the
+  // graph runs out of band, so this button must never wait on the LLM.
+  const investigate = h('button', { class: 'btn sm primary', onclick: async () => {
+    if (typeof requireAct === 'function' && !requireAct()) return;
+    investigate.disabled = true; investigate.textContent = 'Queueing...';
+    try {
+      const r = await API.startInvestigation(f.id);
+      toast(r.existing
+        ? 'An investigation for this finding is already running'
+        : 'Investigation queued - evidence collection starts immediately', true);
+      go('investigations');
+    } catch (e) {
+      investigate.disabled = false; investigate.textContent = 'Investigate';
+    }
+  } }, 'Investigate');
   wrap.append(state, seg, raRow,
+    h('div', { class: 'row', style: 'gap:var(--s-2);align-items:center' }, investigate,
+      h('span', { class: 'faint', style: 'font-size:var(--t-2xs);flex:1' },
+        'Runs the evidence graph and produces a cited verdict. Proposal only.')),
     h('div', { class: 'faint', style: 'font-size:var(--t-2xs)' }, 'Triaged-away findings (false positive / risk accepted / mitigated / resolved) leave the active queue.'));
   async function setStatus(status, rau) {
     await API.triage(f.id, { status, risk_accepted_until: rau || null, note: null });
@@ -2088,4 +2106,270 @@ async function viewAssistant(root) {
   root.append(h('div', { class: 'wrap fade', style: 'margin-top:10px' },
     ['What is CVSS?', 'KEV vs EPSS?', 'How do I handle ransomware?', 'Explain MITRE ATT&CK'].map(s =>
       h('button', { class: 'chip tool', onclick: () => send(s) }, s))));
+}
+
+
+/* ==== Investigation workspace (orchestrator) =========================
+   Shows what the LangGraph investigation actually DID: which nodes ran,
+   what evidence each one froze, and whether every claim in the verdict
+   resolves to that evidence. Citations are clickable - that is the whole
+   point, since "grounded" is a claim the analyst must be able to check
+   rather than take on trust.
+   ==================================================================== */
+const INV_NODES = ['load_subject', 'route', 'asset_context', 'attack_context',
+                   'intel_context', 'fusion_context', 'historical_context',
+                   'synthesize', 'validate'];
+const INV_SPECIALISTS = ['asset_context', 'attack_context', 'intel_context',
+                         'fusion_context', 'historical_context'];
+const INV_STATUS_CLS = { succeeded: 'ok', running: 'warn', queued: 'mono',
+                         skipped: 'mono', failed: 'kev', cancelled: 'mono',
+                         completed: 'ok', partial: 'warn' };
+
+function invChip(s) { return chip(s || '-', INV_STATUS_CLS[s] || 'mono'); }
+
+async function viewInvestigations(root) {
+  root.append(skPanel(['60%', '40%']));
+  const [list, status] = await Promise.all([
+    API.investigations(30).catch(() => []),
+    API.orchestratorStatus().catch(() => ({})),
+  ]);
+  root.innerHTML = '';
+
+  const pending = (status && status.pending_outbox) || 0;
+  root.append(h('div', { class: 'panel pad fade' },
+    h('div', { class: 'row', style: 'gap:var(--s-3);align-items:flex-start' },
+      h('span', { html: ic('model'), style: 'width:24px;height:24px;color:var(--accent);flex:none' }),
+      h('div', { style: 'flex:1;min-width:0' },
+        h('div', { style: 'font-weight:560;font-size:var(--t-md)' }, 'Investigations'),
+        h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:2px;line-height:var(--lh-base)' },
+          'Five deterministic evidence specialists run in parallel, then one LLM synthesis step. '
+          + 'Every claim must cite evidence the graph actually collected; claims citing anything else '
+          + 'are dropped and the report is marked partial.')),
+      h('div', { class: 'row', style: 'gap:var(--s-2);flex:none' },
+        chip(pending + ' queued', pending ? 'warn' : 'mono'),
+        h('button', { class: 'btn', onclick: () => go('investigations') },
+          h('span', {}, 'Refresh')))),
+    !(list || []).length
+      ? h('div', { class: 'callout', style: 'margin-top:var(--s-3)' },
+          'No investigations yet. Open a finding in Triage and choose "Investigate", '
+          + 'or POST /investigations with a finding id.')
+      : null));
+
+  if (!(list || []).length) return;
+
+  const detail = h('div', { id: 'inv-detail' });
+  root.append(h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Recent investigations'),
+      h('span', { class: 'sub' }, '- click one to inspect its execution')),
+    h('div', { style: 'overflow-x:auto' }, h('table', { class: 'tbl' },
+      h('thead', {}, h('tr', {}, ['Status', 'Subject', 'Trigger', 'Model', 'Took', 'When'].map(t => h('th', {}, t)))),
+      h('tbody', {}, list.map(iv => h('tr', {
+        style: 'cursor:pointer',
+        onclick: () => openInvestigation(iv.investigation_id, detail),
+      },
+        h('td', {}, invChip(iv.status)),
+        h('td', {}, (iv.subject_type || 'finding') + ' #' + iv.subject_id),
+        h('td', {}, chip(iv.trigger_type || 'manual', 'mono')),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, iv.model_name || '-'),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' },
+          iv.duration_ms ? Math.round(iv.duration_ms / 1000) + 's' : '-'),
+        h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(iv.created_at)))))))));
+  root.append(detail);
+  openInvestigation(list[0].investigation_id, detail);
+}
+
+async function openInvestigation(id, host) {
+  host.innerHTML = '';
+  host.append(loading('Loading investigation ' + id.slice(0, 8) + '...'));
+  const [iv, steps, evidence, report] = await Promise.all([
+    API.investigation(id).catch(() => null),
+    API.investigationSteps(id).catch(() => []),
+    API.investigationEvidence(id).catch(() => []),
+    API.investigationReport(id).catch(() => null),
+  ]);
+  host.innerHTML = '';
+  if (!iv) { host.append(h('div', { class: 'callout' }, 'Investigation not found.')); return; }
+
+  host.append(invGraphPanel(iv, steps || []));
+  host.append(invReportPanel(iv, report, evidence || []));
+  host.append(invEvidencePanel(evidence || []));
+}
+
+/* ---- execution graph: what actually ran, in the shape it ran ---- */
+function invGraphPanel(iv, steps) {
+  const by = {}; steps.forEach(s => { by[s.node] = s; });
+  const cell = (node) => {
+    const s = by[node] || {};
+    const st = s.status || 'queued';
+    return h('div', {
+      class: 'panel pad',
+      style: 'padding:var(--s-2) var(--s-3);min-width:150px;'
+        + 'border-left:3px solid var(--' + (st === 'failed' ? 'critical' : st === 'succeeded' ? 'ok' : 'line') + ');',
+      title: s.reason || '',
+    },
+      h('div', { class: 'row', style: 'gap:6px' },
+        h('span', { class: 'mono', style: 'font-size:var(--t-2xs)' }, node),
+        invChip(st)),
+      s.duration_ms != null
+        ? h('div', { class: 'faint', style: 'font-size:var(--t-3xs);margin-top:2px' }, s.duration_ms + ' ms')
+        : null,
+      s.reason
+        ? h('div', { class: 'faint', style: 'font-size:var(--t-3xs);margin-top:3px;line-height:1.35' },
+            String(s.reason).slice(0, 90))
+        : null);
+  };
+  const arrow = () => h('div', { class: 'faint', style: 'align-self:center;font-size:var(--t-md)' }, '>');
+
+  return h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap;margin-bottom:var(--s-3)' },
+      h('div', { style: 'font-weight:560' }, 'Execution graph'),
+      invChip(iv.status),
+      iv.graph_version ? chip('graph ' + iv.graph_version, 'mono') : null,
+      iv.model_name ? chip(iv.model_name, 'mono') : null,
+      h('span', { class: 'spring', style: 'flex:1' }),
+      ['queued', 'running'].includes(iv.status)
+        ? h('button', { class: 'btn sm', onclick: async () => {
+            await API.cancelInvestigation(iv.investigation_id);
+            toast('Investigation cancelled', true); go('investigations');
+          } }, 'Cancel')
+        : null),
+    h('div', { class: 'row', style: 'gap:var(--s-2);align-items:stretch;flex-wrap:wrap' },
+      cell('load_subject'), arrow(), cell('route'), arrow(),
+      h('div', { class: 'stack', style: 'gap:5px' }, INV_SPECIALISTS.map(cell)),
+      arrow(), cell('synthesize'), arrow(), cell('validate')),
+    h('div', { class: 'faint', style: 'font-size:var(--t-3xs);margin-top:var(--s-3);line-height:1.5' },
+      'The five middle nodes are deterministic SQL and run in parallel; only "synthesize" '
+      + 'consults the model. A branch that finds nothing is "skipped" with a reason - which is '
+      + 'a different thing from "failed", and both are recorded.'));
+}
+
+/* ---- the verdict, with citations you can actually check ---- */
+function invReportPanel(iv, report, evidence) {
+  if (!report) {
+    return h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+      h('div', { style: 'font-weight:560;margin-bottom:var(--s-2)' }, 'Verdict'),
+      h('div', { class: 'callout' },
+        ['queued', 'running'].includes(iv.status)
+          ? 'No verdict yet - the investigation is ' + iv.status + '. CPU-only inference takes 1-2 minutes.'
+          : 'This investigation produced no report (' + iv.status + ').'));
+  }
+  const known = new Set((evidence || []).map(e => e.citation_id));
+  const claims = report.rationale_claims || [];
+  const unresolved = report.unresolved_citations || [];
+  const conf = report.confidence != null ? Number(report.confidence) : null;
+
+  const citeLink = (cid) => h('span', {
+    class: 'ent mono',
+    style: 'cursor:pointer;font-size:var(--t-2xs);margin-right:4px'
+      + (known.has(cid) ? '' : ';color:var(--critical-text)'),
+    title: known.has(cid) ? 'Show this evidence' : 'This citation does not resolve to any evidence',
+    onclick: () => highlightEvidence(cid),
+  }, cid);
+
+  return h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap;margin-bottom:var(--s-2)' },
+      h('div', { style: 'font-weight:560' }, 'Verdict'),
+      chip(report.recommended_disposition || '-',
+           report.recommended_disposition === 'ESCALATE' ? 'exploit'
+           : report.recommended_disposition === 'DISMISS' ? 'mono' : 'warn'),
+      chip(report.recommended_severity || '-', 'mono'),
+      conf != null ? chip('confidence ' + conf.toFixed(2), conf >= 0.7 ? 'ok' : 'warn') : null,
+      chip(report.completeness || 'complete', report.completeness === 'partial' ? 'warn' : 'ok')),
+    report.summary ? h('div', { class: 'prose', style: 'font-size:var(--t-sm);line-height:var(--lh-base)' }, report.summary) : null,
+
+    claims.length
+      ? h('div', { style: 'margin-top:var(--s-3)' },
+          h('div', { class: 'sec-label' }, 'Reasoning - every claim cites its evidence'),
+          h('div', { class: 'stack', style: 'gap:var(--s-2);margin-top:var(--s-2)' },
+            claims.map(c => h('div', { class: 'row', style: 'gap:var(--s-2);align-items:flex-start' },
+              h('div', { style: 'flex:none;padding-top:1px' }, (c.citation_ids || []).map(citeLink)),
+              h('div', { class: 'prose', style: 'font-size:var(--t-xs);flex:1' }, c.text)))))
+      : h('div', { class: 'callout', style: 'margin-top:var(--s-3)' },
+          'The model returned a verdict without citing any evidence. Nothing here is '
+          + 'attributable, so treat it as unsupported.'),
+
+    unresolved.length
+      ? h('div', { class: 'callout', style: 'margin-top:var(--s-2);border-color:var(--critical)' },
+          'Dropped ' + unresolved.length + ' claim citation(s) that resolve to no evidence: '
+          + unresolved.join(', ') + '. A fabricated citation looks more rigorous than a missing '
+          + 'one, so these are removed rather than shown.')
+      : null,
+
+    (report.missing_evidence || []).length
+      ? h('div', { style: 'margin-top:var(--s-3)' },
+          h('div', { class: 'sec-label' }, 'What the model said was missing'),
+          h('ul', { class: 'prose', style: 'font-size:var(--t-xs);margin:var(--s-2) 0 0 18px' },
+            report.missing_evidence.map(m => h('li', {}, m))))
+      : null,
+
+    (report.recommended_next_steps || []).length
+      ? h('div', { style: 'margin-top:var(--s-3)' },
+          h('div', { class: 'sec-label' }, 'Proposed next steps (proposal only - containment needs two-person approval)'),
+          h('ul', { class: 'prose', style: 'font-size:var(--t-xs);margin:var(--s-2) 0 0 18px' },
+            report.recommended_next_steps.map(s => h('li', {}, s))))
+      : null,
+
+    invReviewRow(iv, report));
+}
+
+function invReviewRow(iv, report) {
+  if (report.analyst_action) {
+    return h('div', { class: 'row', style: 'gap:var(--s-2);margin-top:var(--s-3)' },
+      chip('reviewed: ' + report.analyst_action, 'ok'),
+      h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' },
+        (report.reviewed_by || 'analyst') + ' - ' + ago(report.reviewed_at)));
+  }
+  const send = async (action) => {
+    if (typeof requireAct === 'function' && !requireAct()) return;
+    await API.reviewInvestigation(iv.investigation_id, { action });
+    toast('Recorded: ' + action + ' - this becomes a training label', true);
+    go('investigations');
+  };
+  return h('div', { style: 'margin-top:var(--s-3)' },
+    h('div', { class: 'sec-label' }, 'Analyst review'),
+    h('div', { class: 'faint', style: 'font-size:var(--t-3xs);margin:3px 0 var(--s-2)' },
+      'Recorded even when you agree: an accepted verdict is as much a label as a corrected one, '
+      + 'and the evaluation needs both.'),
+    h('div', { class: 'row', style: 'gap:var(--s-2)' },
+      h('button', { class: 'btn primary sm', onclick: () => send('accept') }, 'Accept'),
+      h('button', { class: 'btn sm', onclick: () => send('reject') }, 'Reject'),
+      h('button', { class: 'btn sm', onclick: () => send('override') }, 'Override')));
+}
+
+/* ---- the frozen evidence the verdict is allowed to cite ---- */
+function invEvidencePanel(evidence) {
+  if (!evidence.length) {
+    return h('div', { class: 'panel pad fade', style: 'margin-top:14px' },
+      h('div', { class: 'callout' }, 'No evidence was collected for this investigation.'));
+  }
+  return h('div', { class: 'panel fade', style: 'margin-top:14px;overflow:hidden' },
+    h('div', { class: 'panel-h' }, h('h2', {}, 'Evidence'),
+      h('span', { class: 'sub' }, '- frozen snapshots, content-hashed; the verdict may cite nothing else')),
+    h('div', { class: 'stack', style: 'gap:var(--s-2);padding:var(--s-3)' },
+      evidence.map(e => h('div', {
+        class: 'panel pad', id: 'ev-' + e.citation_id,
+        style: 'padding:var(--s-2) var(--s-3)',
+      },
+        h('div', { class: 'row', style: 'gap:var(--s-2);flex-wrap:wrap' },
+          chip(e.citation_id, 'mono'), chip(e.source_type, 'tool'),
+          e.source_tool ? chip(e.source_tool, 'mono') : null,
+          h('span', { class: 'spring', style: 'flex:1' }),
+          h('span', { class: 'faint mono', style: 'font-size:var(--t-3xs)' },
+            (e.content_hash || '').slice(0, 12))),
+        h('div', { class: 'faint mono', style: 'font-size:var(--t-3xs);margin-top:2px' },
+          e.source_reference || ''),
+        h('pre', {
+          class: 'mono',
+          style: 'font-size:var(--t-3xs);margin-top:var(--s-2);white-space:pre-wrap;'
+            + 'word-break:break-word;max-height:190px;overflow:auto;line-height:1.45',
+        }, JSON.stringify(e.structured_payload, null, 1))))));
+}
+
+function highlightEvidence(cid) {
+  const el = document.getElementById('ev-' + cid);
+  if (!el) { toast('Citation ' + cid + ' does not resolve to any evidence', false); return; }
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.style.transition = 'outline-color .25s';
+  el.style.outline = '2px solid var(--accent)';
+  setTimeout(() => { el.style.outline = '2px solid transparent'; }, 1600);
 }
