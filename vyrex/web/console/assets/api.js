@@ -28,30 +28,27 @@ const API = {
       return typeof fallback === 'function' ? fallback() : fallback;
     }
   },
-  async _post(path, body, simulated) {
-    if (this._story || this.mode === 'demo') return simulated;
+  // Mutations must NEVER fake success. A read falling back to a fixture is harmless
+  // (the console still renders offline); a write that reports "done" while nothing
+  // happened is not — an analyst would believe a finding was escalated when it wasn't.
+  // So writes always hit the network and THROW on failure: the throw short-circuits the
+  // caller's optimistic toast, and app.js turns the rejection into a visible error.
+  // Storyline Mode stays deterministic-by-design and keeps its fixtures.
+  async _write(method, path, body, simulated) {
+    if (this._story) return simulated;
+    let r;
     try {
-      const r = await fetch('/api' + path, { method: 'POST', headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
-      if (!r.ok) throw new Error(r.status);
-      this._set('live');
-      return r.status === 204 ? simulated : await r.json();
+      r = await fetch('/api' + path, { method, headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
     } catch {
-      this._set('demo');
-      return simulated;
+      this._set('demo');                    // genuinely unreachable
+      throw new Error(`${method} ${path} — server unreachable`);
     }
+    this._set('live');                      // the server answered, even if it refused us
+    if (!r.ok) throw new Error(`${method} ${path} — HTTP ${r.status}`);
+    return r.status === 204 ? simulated : await r.json();
   },
-  async _send(method, path, body, simulated) {
-    if (this._story || this.mode === 'demo') return simulated;
-    try {
-      const r = await fetch('/api' + path, { method, headers: this._h({ 'Content-Type': 'application/json' }), body: JSON.stringify(body) });
-      if (!r.ok) throw new Error(r.status);
-      this._set('live');
-      return r.status === 204 ? simulated : await r.json();
-    } catch {
-      this._set('demo');
-      return simulated;
-    }
-  },
+  _post(path, body, simulated) { return this._write('POST', path, body, simulated); },
+  _send(method, path, body, simulated) { return this._write(method, path, body, simulated); },
   _set(m) { if (this.mode !== m) { this.mode = m; this._onmode && this._onmode(m); } },
 
   // --- auth (console login gate) ---

@@ -304,6 +304,19 @@ function showNotFound(hash) {
 }
 window.addEventListener('hashchange', () => routeFromHash(false));
 
+/* ---- failed writes must be visible -----------------------------------.
+   API._write throws when a mutation doesn't reach the server or is refused.
+   Handlers are inline async onclick arrows, so that rejection is unhandled by
+   design — the throw's job is to stop the caller's optimistic "done!" toast
+   from running. We catch it here and tell the analyst what actually happened,
+   instead of the old behaviour where a failed write returned a fixture and the
+   UI cheerfully reported success. */
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = (e.reason && e.reason.message) || String(e.reason || 'request failed');
+  if (typeof toast === 'function') toast(msg, false);
+  e.preventDefault();                    // already surfaced; keep the console clean
+});
+
 /* ---- keyboard shortcuts cheat-sheet (press ?) ------------------------ */
 function toggleShortcuts() {
   const existing = $('#shortcuts');
