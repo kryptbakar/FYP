@@ -228,6 +228,47 @@ Everything it does measure is objective and label-free — which is why it is en
 > **RAM.** A 4B model needs ~2.5 GB and Docker has 5.8 GB total on the dev host. With the
 > full stack up there was 973 MB free. Stop the heavy tools profile first.
 
+### Results — 2026-08-28, CPU-only, temperature 0
+
+3 corroborated findings × 2 repeats per model, on the real prompt and real evidence.
+
+| model | schema valid | cited anything | abstained | p50 | deterministic |
+|---|---|---|---|---|---|
+| `llama3.2:3b` | **6/6** | **0/6** | 6/6 | 29.1 s | yes |
+| `qwen3:4b` | **0/6** | — | — | 240.1 s (timeout) | yes |
+
+**`qwen3:4b` is unusable on this hardware — not slow, unusable.** Every run hit the timeout
+exactly. Given a 900 s ceiling it *still* timed out (`ReadTimeout`, no output). Diagnosis:
+
+- generation measured at **3.2 tokens/sec** on CPU;
+- it is a *thinking* model and emits a long `<think>` block before answering — **225 tokens
+  to return `{"ok": true}`**, taking 54 s;
+- `think: false` was **ignored** by this Ollama/model combination.
+
+**`llama3.2:3b` runs comfortably but does not satisfy the design.** Schema-valid every time,
+deterministic, fast enough — yet it abstains on every corroborated case and returns **zero
+cited claims**, despite a system prompt requiring a citation per claim. On a finding with
+three-tool corroboration and a Cobalt Strike C2 indicator, an analyst escalates; it declines,
+and cites nothing while doing so.
+
+### What this means
+
+The pipeline is demonstrably correct — schema-constrained output, zero unresolved citations,
+complete evidence sets, deterministic replay. **The constraint is the model.** On CPU-only
+hardware with 5.8 GiB, no locally-runnable model tested so far satisfies the
+citation-grounded contract.
+
+That is a legitimate systems result rather than a failure, and should be reported as one:
+the design's viability is bounded by inference hardware. Honest options are (a) larger
+models on better hardware, (b) a non-thinking 3–4B model that follows instructions more
+closely, or (c) accepting abstention as the operating point and evaluating the *grounding*
+rather than the verdict.
+
+It also means one Phase 2 exit-gate item **cannot yet be signed off**: "every factual claim
+carries ≥1 resolvable citation" is enforced and unit-tested, but has never been exercised on
+a real verdict, because no model has produced a cited claim. The mechanism is proven; the
+end-to-end property is not.
+
 ---
 
 ## 8. Compatibility
