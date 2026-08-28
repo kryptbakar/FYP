@@ -88,12 +88,13 @@ class FakeLLM:
         if self.force_invalid:
             return "I think this looks quite bad, honestly."   # not JSON at all
         hot = ("KEV" in user) or ("CRITICAL" in user.upper())
-        # Match an actual citation id (E1, E2, ...), not merely a line starting with 'E'.
-        # The loose version matched the prompt's own "EVIDENCE:" header and cited
-        # "EVIDENCE", which the validator then correctly rejected as unresolvable -
-        # a real bug in the double, not in the graph.
-        cites = re.findall(r"^(E\d+):", user, flags=re.MULTILINE)
-        cid = cites[0] if cites else "E1"
+        # Match a real citation id at the start of an evidence line. Each branch owns a
+        # prefix (F/X/A/T/I/C/H), so this must accept any letter — an earlier version
+        # hard-coded `E` and cited an id that did not exist, which the validator correctly
+        # rejected. Anchored and colon-terminated so it cannot match the "EVIDENCE:"
+        # header, which is the other way this has already gone wrong.
+        cites = re.findall(r"^([A-Z]\d+):", user, flags=re.MULTILINE)
+        cid = cites[0] if cites else "F1"
         return json.dumps({
             "recommended_severity": (Severity.HIGH if hot else Severity.LOW).value,
             "recommended_disposition": (Disposition.ESCALATE if hot else Disposition.MONITOR).value,

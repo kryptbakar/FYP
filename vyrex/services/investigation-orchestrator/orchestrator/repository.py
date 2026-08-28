@@ -194,6 +194,115 @@ def load_explanation(pg: psycopg.Connection, finding_id: int) -> dict | None:
         return cur.fetchone()
 
 
+# -------------------------------------------------------------- specialist node queries
+#
+# All deterministic SQL. The LLM is consulted once, at synthesis; everything that feeds it
+# is retrieved by code that can be read, tested and explained in a viva. That split is the
+# point of the design — "the model decided" is not an answer an examiner should accept.
+
+def load_fusion_cluster(pg: psycopg.Connection, finding_id: int) -> list[dict]:
+    """Sibling findings that corroborate this one — the multi-tool consensus view.
+
+    Uses `observable_key` first (the thing observed) and falls back to `dedup_key` (the
+    rule that fired), mirroring ml.fusion.cluster_key. Keep the two in step: if fusion's
+    priority changes and this does not, the evidence shown to the analyst stops matching
+    the consensus weight that drove the score.
+    """
+    with pg.cursor() as cur:
+        cur.execute(
+            """WITH me AS (SELECT observable_key, dedup_key FROM findings WHERE id = %s)
+               SELECT f.id, f.source_tool, f.severity, f.title, f.rule_id, f.attack,
+                      f.risk_score, f.threat_intel IS NOT NULL AS has_intel
+                 FROM findings f, me
+                WHERE f.id <> %s
+                  AND ( (me.observable_key IS NOT NULL AND f.observable_key = me.observable_key)
+                     OR (me.observable_key IS NULL AND me.dedup_key IS NOT NULL
+                         AND f.dedup_key = me.dedup_key) )
+                ORDER BY f.risk_score DESC NULLS LAST
+                LIMIT 20""",
+            (finding_id, finding_id),
+        )
+        return cur.fetchall()
+
+
+def load_attack_context(pg: psycopg.Connection, technique: str) -> dict:
+    """How often this ATT&CK technique appears in the estate, and on how many assets.
+
+    Prevalence is the useful signal: a technique seen on one host reads very differently
+    from the same technique across twenty.
+    """
+    with pg.cursor() as cur:
+        cur.execute(
+            """SELECT count(*) AS findings, count(DISTINCT asset_id) AS assets,
+                      count(*) FILTER (WHERE severity IN ('CRITICAL','HIGH')) AS high_sev
+                 FROM findings WHERE attack = %s""",
+            (technique,),
+        )
+        return cur.fetchone() or {}
+
+
+def load_intel_sightings(pg: psycopg.Connection, asset_id: str, limit: int = 10) -> list[dict]:
+    """Other threat-intel hits on the same asset — is this an isolated match or a pattern?"""
+    with pg.cursor() as cur:
+        cur.execute(
+            """SELECT id, title, severity, threat_intel->>'indicator' AS indicator,
+                      threat_intel->>'misp_event' AS misp_event, first_seen
+                 FROM findings
+                WHERE asset_id = %s AND threat_intel IS NOT NULL
+                ORDER BY first_seen DESC NULLS LAST LIMIT %s""",
+            (asset_id, limit),
+        )
+        return cur.fetchall()
+
+
+def load_historical(pg: psycopg.Connection, finding: dict, limit: int = 10) -> list[dict]:
+    """Prior findings that resemble this one, with how they were triaged.
+
+    Deliberately structured retrieval, not embeddings: same CVE, same asset, or same
+    ATT&CK technique. On a corpus this size a vector index would be slower, unexplainable
+    and no more accurate — and the plan makes embeddings a measured stretch goal that has
+    to BEAT this, not replace it on principle.
+
+    `triage_status` is the payload that matters: "this exact CVE was risk-accepted on
+    three other hosts last month" is the single most useful thing to tell an analyst, and
+    nothing else in VYREX surfaces it.
+    """
+    with pg.cursor() as cur:
+        cur.execute(
+            """SELECT id, asset_id, title, severity, cve_id, attack, triage_status,
+                      risk_score, first_seen,
+                      CASE WHEN cve_id IS NOT NULL AND cve_id = %(cve)s::text THEN 'same_cve'
+                           WHEN asset_id = %(asset)s::text THEN 'same_asset'
+                           ELSE 'same_technique' END AS relation
+                 FROM findings
+                WHERE id <> %(id)s
+                  -- Casts are required: Postgres cannot infer a bare parameter's type in
+                  -- `$n IS NOT NULL`, and errors with AmbiguousParameter.
+                  AND ( (%(cve)s::text    IS NOT NULL AND cve_id   = %(cve)s::text)
+                     OR (%(asset)s::text  IS NOT NULL AND asset_id = %(asset)s::text)
+                     OR (%(attack)s::text IS NOT NULL AND attack   = %(attack)s::text) )
+                ORDER BY (triage_status IS NOT NULL) DESC, first_seen DESC NULLS LAST
+                LIMIT %(lim)s""",
+            {"id": finding["id"], "cve": finding.get("cve_id"),
+             "asset": finding.get("asset_id"), "attack": finding.get("attack"),
+             "lim": limit},
+        )
+        return cur.fetchall()
+
+
+def load_compliance(pg: psycopg.Connection, asset_id: str) -> dict:
+    """Control posture for the asset — a weak host amplifies any finding on it."""
+    with pg.cursor() as cur:
+        cur.execute(
+            """SELECT count(*) FILTER (WHERE status='fail') AS failed,
+                      count(*) FILTER (WHERE status='pass') AS passed,
+                      count(*) AS total
+                 FROM compliance_results WHERE asset_id = %s""",
+            (asset_id,),
+        )
+        return cur.fetchone() or {}
+
+
 # ------------------------------------------------------------------------------- writes
 
 def upsert_step(pg: psycopg.Connection, inv_id: str, node: str, status: str, *,
