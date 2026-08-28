@@ -27,7 +27,7 @@ jobs:
       - name: Install deps
         run: pip install -r services/api/requirements.txt -r ml/requirements.txt pytest
       - name: Run tests
-        run: python -m pytest -q ml/tests services/api/tests services/enrichment/tests services/feed-sync/tests
+        run: python -m pytest -q ml/tests services/api/tests services/enrichment/tests services/feed-sync/tests services/investigation-orchestrator/tests
 
   ml-evaluation:
     name: risk-engine evaluation (baselines + fusion)
@@ -59,7 +59,7 @@ jobs:
           path: vyrex/reports/*.md
 
   js-check:
-    name: console JS syntax check
+    name: console JS syntax + contract tests
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -71,6 +71,10 @@ jobs:
           node-version: "22"
       - name: node --check all console scripts
         run: for f in *.js; do node --check "$f"; done
+      # Syntax alone would not have caught the "failed write reports success" bug.
+      - name: console contract tests
+        working-directory: vyrex
+        run: for t in web/console/tests/*.test.js; do node "$t"; done
 
   go-build:
     name: go vet + build
