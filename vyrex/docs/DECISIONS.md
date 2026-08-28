@@ -6,6 +6,108 @@ alternatives considered**.
 
 ---
 
+## D-056 — Two independent 3B models abstain identically; the ceiling is capacity, not the prompt
+**Context:** `llama3.2:3b` abstained on 12/12 findings and cited nothing on 12/12. That is
+consistent with two very different explanations — a model quirk, or a prompt the author
+failed to tune — and the second would undermine every conclusion built on it.
+**Decision:** run `qwen2.5:3b` on the **identical 12 findings**: different vendor, different
+training corpus, non-thinking architecture, same size class, chosen precisely because it
+should fail *differently* if the cause is model-specific. Result: 12/12 schema valid, 12/12
+abstained, 0/12 cited — identical, to the case. **Why it matters:** two unrelated families
+behaving identically, both with perfect schema discipline, is evidence for a **capacity
+ceiling at 3B**, and it closes the cheapest remaining option ("try a non-thinking 3–4B model
+that follows instructions better") because qwen2.5:3b *is* that model. **Consequence:** the
+informative next experiment is a size ablation (7B+ on borrowed hardware), not another model
+at the same size — and that is the one experiment this laptop cannot run, which is itself
+the finding. **Rejected:** prompt inflation, declined four times, because tuning against the
+symptom the benchmark exists to measure produces something that demos well and generalises
+to nothing.
+
+## D-055 — Air-gap verification must audit service *membership*, not just the network
+**Context:** `verify-egress.sh` probed whether `socnet` had a route off-host and printed
+**AIR-GAP ENFORCED**. It never asked which services were *on* socnet. On 2026-08-28 an
+audit found **21 of 35 services unsealed** — including the investigation orchestrator,
+`ollama`, `n8n`, `mailpit` and the whole tool stack — and the check had passed throughout.
+**Decision:** the script now enumerates running containers, resolves each one's actual
+network attachments, and fails (exit 1) if any non-exempt service sits on a network that is
+not `internal: true`. Proven with a negative control: `ollama` was deliberately attached to
+a bridge, and the check named it and failed. **Why:** a verification that cannot fail when
+the property is violated is not a verification — it is a comment that runs. **Limit stated
+in the output:** only running containers can be audited, so a partly-started stack is not a
+clean bill of health. **Alternative rejected:** per-service egress probes, which need a
+shell and a network tool inside every image; Docker's network metadata is authoritative and
+needs neither.
+
+## D-054 — Air-gap sealing split into overlays paired with the stack they seal
+**Context:** putting every service into `docker-compose.airgap.yml` broke the documented
+`-f docker-compose.yml -f docker-compose.airgap.yml` command: a compose overlay may not
+name a service that no included file defines, and the project then fails to load entirely
+with *"has neither an image nor a build context"*. **Decision:** three paired files —
+`airgap.yml` (core), `airgap.n8n.yml`, `airgap.tools.yml` — each included alongside the
+stack it seals. **Why:** keeps the core command working while making the LLM and tool
+stacks sealable. **Trap recorded:** declaring `networks: [default]` explicitly does *not*
+merely restate the default — compose **unions** it with an override's `[socnet]` rather than
+replacing it, so `ollama`, `n8n` and `mailpit` were landing on both networks at once,
+sealed and egress-capable simultaneously. The redundant declarations were removed.
+
+## D-053 — The model-pull DNS workaround is opt-in, never in the base compose file
+**Context:** Docker's embedded resolver could not sustain a multi-GB `ollama pull` on the
+dev host; explicit `dns:` entries fixed it. **Decision:** they live in
+`docker-compose.pull.yml`, used only on a connected staging host. **Why:** `dns:` **cannot
+be undone by a later override** — compose ignores `dns: []` and the entries survive into the
+merged config — so a resolver committed to the base file would follow the service into an
+air-gapped deployment and point a sealed container at 8.8.8.8, with no supported way to
+remove it. Opt-in beats opt-out when the default is the one that breaks the central claim.
+
+## D-052 — Prompt-injection defence is structural, not semantic; the residual risk is stated
+**Context:** the synthesis step reads evidence an attacker can influence. A controlled
+experiment (poisoned finding vs. identical clean twin, same model, temperature 0) showed the
+injection **flipping the verdict** from `INSUFFICIENT_EVIDENCE`/`HIGH` to `DISMISS`/`LOW`.
+**Decision:** contain *structure* only — fenced untrusted-evidence block, stripped control
+characters, defanged delimiter runs, bracketed role turns, visibly truncated oversized
+fields — and rely on schema constraints, the citation allow-list and the absence of any
+execution grant for everything else. **Why:** the injection asked for four things and got
+one. The empty-claims request was refused by the validator, the fabricated citation `Z9`
+never resolved, the instruction stayed visible in stored evidence, and no action was
+possible. The attack's best case is a recommendation a human can overturn — and the *forced
+citation* is what exposes it, since the model dismissed a HIGH finding on "no exploit
+available" while its own summary said "insufficient evidence". **Alternatives rejected:** a
+keyword filter ("execute", "shell", "ignore" are ordinary SOC vocabulary, and it is
+trivially bypassed); a second model as adjudicator (reads the same poisoned text, doubles
+inference cost on hardware that cannot afford one model). **Mitigation that actually
+matters:** never build auto-dismiss.
+
+## D-051 — The orchestrator gets its own least-privilege DB role, granted not revoked
+**Context:** the claim *"the orchestrator cannot execute containment"* was checked against
+the database and found false — it connected as `soc`, a superuser with `INSERT` on
+`response_actions` and `SELECT` on `users`. The property described code paths, not anything
+enforced. **Decision:** a dedicated `vyrex_orchestrator` role, created idempotently at API
+startup, with DML on its own orchestration and checkpoint tables, `SELECT` on the evidence
+sources, and **no grant at all** on `response_actions`, `users`, `sessions`, audit or
+defense tables. **Why granted, not revoked:** a new PostgreSQL role holds no privileges on
+existing tables and `PUBLIC` holds none by default, so grant-only is *provably* minimal;
+grant-then-revoke makes the property depend on a revoke list keeping pace with the schema,
+and one new sensitive table would silently lapse it. `findings` is `SELECT`-only so the
+service cannot edit a finding it is reasoning about. **Cost accepted:** LangGraph's
+`setup()` needs `CREATE ON SCHEMA` even when its tables already exist; rather than grant a
+standing privilege for one idempotent DDL call, the orchestrator distinguishes *cannot
+create* from *cannot use* and keeps the checkpointer when the tables are present and
+writable — so resume-after-crash survives.
+
+## D-050 — Evaluation labels are pre-registered and temporally blinded; abstention is a real label
+**Context:** solo project, no second reviewer, and an ML layer whose existing metrics are
+already circular (labels generated by the formula under test). **Decision:** freeze
+`docs/LABELLING-RUBRIC.md` (`rubric-v1`) and commit it with `eval/labels/` **empty**, label
+every case from a frozen CSV export *before* the system runs on it, and treat
+`INSUFFICIENT_EVIDENCE` as a correct answer with an explicit abuse test. **Why:** git
+history is then the proof that the rubric predates the labels and the labels predate the
+verdicts — the only substitute available for a second blind rater. The rubric's signal
+precedence is deliberately *different* from the composite score's weights, so labels do not
+inherit the circularity. Severity is exported as `tool_severity` to avoid anchoring the
+labeller with the answer. **Why abstention matters here specifically:** the models abstain
+on 12/12 cases, so without a principled definition of when abstention is *right*, the
+evaluation cannot distinguish calibrated caution from a model that never commits.
+
 ## D-049 — Console design language: charcoal + teal "intelligence workspace" (locked)
 **Context:** the console's look went through navy/blue → CrowdStrike graphite+crimson → and
 was then **locked by a detailed brief** to **charcoal + teal**: an instrument-grade,
