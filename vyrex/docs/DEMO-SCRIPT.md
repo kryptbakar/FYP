@@ -75,14 +75,24 @@ Walk it in this order:
 **Then show the honest part, deliberately.** Do not hide it — lead with it:
 
 > "And here is what it currently says: *insufficient evidence*, with no citations. That is
-> real. I benchmarked it — across twelve findings, llama3.2:3b abstained on twelve out of
-> twelve and cited nothing on twelve out of twelve. Qwen3-4B could not finish a single
+> real. I benchmarked it — across twelve findings, llama3.2:3b abstained twelve out of
+> twelve and cited nothing twelve out of twelve. Qwen3-4B could not finish a single
 > response in fifteen minutes on this hardware, at 3.2 tokens a second.
+>
+> The obvious objection is that I'd tuned my prompt badly, or picked a bad model. So I
+> ran a **second, unrelated 3B model** — Qwen2.5, different vendor, different training
+> data, non-thinking architecture — on **the identical twelve findings**. Same result, to
+> the case: twelve out of twelve schema-valid, twelve out of twelve abstained, zero
+> citations. Two independent model families failing identically is not a prompt bug.
 >
 > So the honest result is this: the pipeline is provably correct — schema-constrained
 > output, zero unresolved citations, deterministic replay, unit-tested — and the binding
-> constraint is inference hardware, not the design. That is a measured finding with a
-> benchmark behind it, not an excuse."
+> constraint is model capacity, not the design. That is a measured finding with a
+> benchmark and a replication behind it, not an excuse."
+
+The replication is the part that wins this exchange. Anyone can claim their model
+underperformed; running the control that could have falsified your own conclusion, and
+reporting that it didn't, is what separates a measurement from an excuse.
 
 Examiners reward this. A student who measured the limit of their own system and can state
 it precisely is in a stronger position than one whose demo happened to work.
@@ -175,12 +185,20 @@ it precisely is in a stronger position than one whose demo happened to work.
    narrate the execution graph while it runs.
 6. **Know these four numbers cold** — they are the ones that make you sound like an engineer
    rather than an integrator:
-   - `12/12` — findings on which llama3.2:3b abstained and cited nothing
+   - `12/12` — findings on which **both** llama3.2:3b and qwen2.5:3b abstained and cited
+     nothing. Two vendors, identical result, same twelve cases
    - `3.2 tok/s` — Qwen3-4B generation rate on this CPU, why a 4B model is unusable here
    - `n_tools=3, weight=1.0` — agent + MISP + Sigma fusing on one connection
    - `173` — tests passing
 7. **Be ready for "so your AI doesn't work?"** The answer is not defensive:
-   *"The orchestration works and is tested. The 3B model that fits in 5.8 GB of RAM does not
-   commit to a verdict. I measured that rather than assuming it, and it tells you exactly what
-   hardware this design needs — which is a more useful result than a demo that happened to
-   pass."*
+   *"The orchestration works and is tested. Neither 3B model that fits in 5.8 GB of RAM
+   commits to a verdict — I checked two, from different vendors, on the same twelve cases,
+   specifically so I couldn't blame my prompt. I measured that rather than assuming it, and
+   it tells you exactly what hardware this design needs — which is a more useful result than
+   a demo that happened to pass."*
+8. **Be ready for "isn't your air-gap just a claim?"** — you now have a better answer than
+   the script: *"It was partly a claim, and I found that out by testing it. Twenty-one of
+   thirty-five services weren't on the sealed network, including the one that talks to the
+   LLM. Worse, my verification script passed anyway, because it tested whether the network
+   had a route instead of whether the services were on it. I fixed both, and the check now
+   fails when the property is violated — which is the only kind of check worth having."*

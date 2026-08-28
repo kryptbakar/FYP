@@ -236,6 +236,7 @@ On the real prompt and real evidence.
 |---|---|---|---|---|---|---|
 | `llama3.2:3b` | 6 (3 corroborated × 2) | 6/6 | **0/6** | 6/6 | 29.1 s | yes |
 | `llama3.2:3b` | **12 (diverse findings)** | **12/12** | **0/12** | **12/12** | 48.7 s | yes |
+| `qwen2.5:3b` | **12 (same 12 findings)** | **12/12** | **0/12** | **12/12** | 45.5 s | yes |
 | `qwen3:4b` | 6 | **0/6** | — | — | 240.1 s (timeout) | yes |
 
 The 12-case run was specifically to test whether the first result was a selection
@@ -244,6 +245,29 @@ abstaining there is the most revealing, but also the least representative. Acros
 findings spanning corroborated, intel-backed and plain vulnerability cases, the answer is
 unambiguous: **llama3.2:3b abstained on every single one and cited nothing on every single
 one.** It does not decide, and it does not ground.
+
+**`qwen2.5:3b` was then run on the identical 12 findings, and reproduced the result
+exactly: 12/12 schema valid, 12/12 abstained, 0/12 cited.** This was the test that
+mattered most, because it is the strongest available check on whether the finding is about
+*a* model or about *this class of model*. Qwen2.5 is a different vendor, a different
+training corpus and a non-thinking architecture, chosen precisely because it fails
+differently from llama if the cause is model-specific. It did not fail differently. Two
+independent 3B families, identical behaviour, to the case.
+
+That materially changes what can be claimed. One model abstaining is a model quirk, or a
+prompt the author failed to tune. Two unrelated models abstaining on all 12, both with
+perfect schema discipline, is evidence for a capacity ceiling — the instruction-following
+needed to bind every claim to an evidence id is not present at 3B, regardless of vendor.
+
+Worth recording verbatim, because it is the most diagnostic single line in the run:
+
+> *"The finding is marked as HIGH severity and has a ML risk score of 98.76, indicating a
+> high risk. However, the evidence provided is insufficient to def…"* — `qwen2.5:3b`
+
+The model reads the evidence, states its content correctly, and then declines to act on it.
+The failure is not comprehension and it is not format. It is the refusal to commit — which
+is why prompt tuning was declined as a fix (§7): it would be tuning against the one symptom
+the benchmark exists to measure.
 
 **`qwen3:4b` is unusable on this hardware — not slow, unusable.** Every run hit the timeout
 exactly. Given a 900 s ceiling it *still* timed out (`ReadTimeout`, no output). Diagnosis:
@@ -262,15 +286,24 @@ and cites nothing while doing so.
 ### What this means
 
 The pipeline is demonstrably correct — schema-constrained output, zero unresolved citations,
-complete evidence sets, deterministic replay. **The constraint is the model.** On CPU-only
-hardware with 5.8 GiB, no locally-runnable model tested so far satisfies the
-citation-grounded contract.
+complete evidence sets, deterministic replay. **The constraint is the model.** Across three
+models from two vendors, none satisfies the citation-grounded contract on CPU-only hardware
+with 5.8 GiB: the two that fit abstain on everything, and the one that might not is too slow
+to finish.
 
 That is a legitimate systems result rather than a failure, and should be reported as one:
-the design's viability is bounded by inference hardware. Honest options are (a) larger
+the design's viability is bounded by inference capacity. Honest options are (a) larger
 models on better hardware, (b) a non-thinking 3–4B model that follows instructions more
-closely, or (c) accepting abstention as the operating point and evaluating the *grounding*
-rather than the verdict.
+closely — **now partly answered: qwen2.5:3b is exactly that model, and it made no
+difference**, which removes the cheapest of the three options — or (c) accepting abstention
+as the operating point and evaluating the *grounding* rather than the verdict.
+
+Option (b) is not fully closed, since only two 3B families were tested, but the result puts
+the burden of proof on it: any further 3B candidate now has to explain why it would differ
+from two that already didn't. The more informative experiment is a size ablation (7B+ on
+borrowed hardware) rather than another model at the same size, because that isolates
+capacity from vendor — and it is the one experiment this laptop cannot run, which is itself
+the finding.
 
 It also means one Phase 2 exit-gate item **cannot yet be signed off**: "every factual claim
 carries ≥1 resolvable citation" is enforced and unit-tested, but has never been exercised on
