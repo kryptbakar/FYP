@@ -20,7 +20,29 @@ RNG = np.random.default_rng(42)
 
 
 def _label(fd: dict[str, float], rng) -> float:
-    base, _ = composite(fd)  # linear baseline 0..100
+    """Synthetic stand-in for analyst judgement.
+
+    ⚠ THIS IS THE SOURCE OF THE CIRCULARITY — read before quoting any metric.
+
+    The label starts from `composite(fd)`, the very function the evaluation compares
+    against. So in ml/evaluate.py:
+      * the "composite" ranker is being scored on its correlation with ITSELF plus
+        monotone boosts plus N(0,4) noise. Its high Spearman/NDCG is arithmetic, not
+        evidence.
+      * the ML model's R²/MAE/RMSE measure how well XGBoost refits a smooth deterministic
+        polynomial whose only irreducible noise is σ=4 against a label of σ≈15-20. A high
+        R² here says the fit converged, NOT that the model ranks real findings well.
+
+    Only `cvss_only` is independent of the label, so the CVSS-vs-composite gap is the one
+    comparison with meaning — and even that is guaranteed by construction, since the label
+    contains six non-CVSS terms.
+
+    None of these numbers may be presented as accuracy on real findings. The genuinely
+    non-circular harness in this repo is ml/eval_fusion.py (clustering measured against
+    hand-labelled truth). Real evaluation requires analyst labels in `analyst_feedback`;
+    see docs/METHODOLOGY.md §4.1.
+    """
+    base, _ = composite(fd)  # linear baseline 0..100 — NOTE: also the thing being evaluated
     boost = 0.0
     boost += 25.0 * fd["kev"] * fd["epss"]                     # known-exploited AND likely
     boost += 12.0 * fd["exposure"] * fd["cvss"]                # exploitable AND reachable

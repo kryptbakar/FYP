@@ -19,8 +19,42 @@ The Fusion Engine turns that redundancy into signal instead of noise.
 
 Every producer stamps a deterministic `dedup_key` on each finding (added in Phase A,
 populated in Phases C–E). Findings that share a `dedup_key` are treated as **one
-cluster** describing one issue. The key is intentionally tool-independent so two tools
-that discover the same thing collide on the same key:
+cluster** describing one issue.
+
+> ### ⚠ Known limitation — cross-tool clustering does not work yet
+>
+> The recipes below are **per-producer**, not per-observable. Two tools only collide when
+> they run the *same* recipe with the *same* inputs — in practice that means the same
+> vulnerability recipe (agent/Trivy/Nuclei on one CVE+asset+port), or Wazuh FIM against
+> the agent's polling FIM. **Different-family detections about the same event do not
+> cluster**, because their keys are built from different things.
+>
+> Measured on 2026-08-22, one outbound connection to `185.220.101.45:4444` from a lab
+> host produced three findings with three unrelated keys:
+>
+> | id | tool | `dedup_key` | built from |
+> |---|---|---|---|
+> | 3370 | agent | `1d108c9f…` | asset + `net.suspicious_egress.4444` + port |
+> | 3371 | misp  | `64d2848e…` | asset + `"ioc"` + indicator |
+> | 3373 | sigma | `c9c72f9a…` | asset + `"sigma"` + rule_id |
+>
+> Result: `n_tools = 1` for all three, `consensus = 0.0`, and the risk engine reports
+> *"0 corroborated by >1 tool"* — on the very scenario this document uses as its example.
+>
+> **Root cause.** The key identifies *the rule that fired*, not *the thing observed*.
+> Worse, the data needed to build a shared key is not all recorded: the Sigma producer
+> stores only its query string (`evidence.sigma_query`), never the host/IP it actually
+> matched, so nothing links it to the IOC hit.
+>
+> **The fix** (scheduled with the Phase 2 fusion evidence node, which requires it anyway):
+> have each producer record the observable it matched — for network detections the
+> `(remote_ip, remote_port)` tuple — and derive an observable-scoped key such as
+> `sha1(asset, "flow", remote_ip, remote_port)` alongside the existing per-rule key.
+> Clustering then keys on the observable while `fingerprint` keeps each tool's row
+> distinct. Until that lands, treat `consensus` as *within-family* deduplication only,
+> and do not present cross-tool corroboration as a working capability.
+
+The recipes as they exist today:
 
 | Producer / domain        | `dedup_key` recipe                                  | Rationale |
 |--------------------------|-----------------------------------------------------|-----------|
@@ -44,7 +78,13 @@ A finding with **no** `dedup_key` is simply its own singleton cluster
 ## 2. Consensus weight
 
 For each cluster we count the **distinct** `source_tool`s that contributed and map that
-to a saturating 0..1 weight (`fusion.consensus_weight`):
+to a saturating 0..1 weight (`fusion.consensus_weight`).
+
+> The mechanism below is implemented and unit-tested (`ml/tests/test_fusion.py`,
+> `ml/eval_fusion.py`). What it currently lacks is *input*: per the limitation in §1,
+> multi-tool clusters rarely form on real data, so `n_tools` is almost always 1 and the
+> weight almost always 0.0. The worked example that follows is therefore **illustrative
+> of the intended behaviour, not a capture of live output.**
 
 | Distinct tools | weight | meaning |
 |----------------|--------|---------|
@@ -72,6 +112,10 @@ context the console and the model use:
 `threat_intel` and `attack` are **inherited across the cluster**: if MISP flagged the
 IP while Suricata raised the alert and the agent saw the egress, every member benefits
 from the combined picture.
+
+That inheritance is exactly what the §1 limitation currently blocks — those three
+findings land in three separate clusters, so nothing is inherited and each row carries
+only what its own producer knew.
 
 ---
 

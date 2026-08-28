@@ -82,6 +82,17 @@ End on beat 7. That's your mic-drop. **Pause there.**
 > agreement into a consensus weight, the **signed/two-person/hash-chained** response governance, and
 > the air-gap architecture that makes it deployable where cloud SOCs are illegal."
 
+> ⚠️ **Do not overclaim fusion in the viva.** The consensus mechanism is implemented and
+> unit-tested, but clustering is currently **within-tool-family only**: a MISP IOC hit, a Sigma
+> detection and an agent rule describing the *same* connection get three different `dedup_key`s,
+> so the live system reports *"0 corroborated by >1 tool"*. An examiner who checks will find that.
+>
+> Say instead: *"The consensus weighting and its effect on the score are built and tested. The
+> clustering that feeds it currently only merges within a tool family — cross-family correlation
+> needs each producer to record the observable it matched, which is the next piece of work.
+> Here's the measured evidence and the fix."* Owning a known limitation with a diagnosis reads
+> as engineering maturity; being caught asserting it works does not. See [ml/FUSION.md §1](../ml/FUSION.md).
+
 **Q: Does the response actually do anything, or is it a button?**
 > "The governance is real: two-person approval state machine, Ed25519 signing, hash-chained audit with
 > a `/verify` endpoint that detects tampering. The destructive execution on a live endpoint is the one

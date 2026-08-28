@@ -65,7 +65,12 @@ State requirements as testable objectives so §5 can score each one.
 | NFR3 | End-to-end latency | p95 target | docs/BENCHMARKS.md B2 |
 | NFR4 | API responsiveness under load | p95 < 400 ms | k6 gate (B3) |
 | NFR5 | Tamper-evidence of audit + compliance | hash-chain verifies | audit-chain tests |
-| NFR6 | Explainable & reproducible ML | R² + fixed seeds | evaluate.py regression + seeds |
+| NFR6 | Explainable & reproducible ML | SHAP per finding + fixed seeds reproduce byte-identical scores | evaluate.py regression + seeds |
+
+> **NFR6 deliberately does not use R² as an acceptance target.** The synthetic R² is
+> circular (see §4.1) and would be a target that is trivially met while saying nothing
+> about real performance. Reproducibility and per-finding explainability are the
+> properties actually being claimed here.
 
 ## 4. Evaluation strategy
 
@@ -73,12 +78,33 @@ Three complementary methods, each answering a different examiner question:
 
 1. **Controlled experiment (quantitative, in-silico).** `ml/evaluate.py` compares
    three rankers — CVSS-only baseline, VYREX composite, VYREX ML — on a held-out
-   population with metrics (Spearman, NDCG@k, precision@k, KEV-capture). This
-   isolates the contribution of the intelligence layer. `ml/eval_fusion.py` does
-   the same for dedup with pairwise false/missed-merge rates on a labeled sample.
-   *Threat to validity (stated openly):* ground truth is synthetic analyst
-   judgement until real `analyst_feedback` accrues — the harness re-runs unchanged
-   on real labels.
+   population with metrics (Spearman, NDCG@k, precision@k, KEV-capture). `ml/eval_fusion.py`
+   does the same for dedup with pairwise false/missed-merge rates on a labeled sample.
+
+   **Threat to validity — the ranking metrics are CIRCULAR, and this must be stated
+   wherever they appear.** The ground-truth label (`ml/dataset.py::_label`) is computed as
+   `composite() + fixed interaction boosts + N(0,4) noise`. Consequently:
+
+   - The **composite** ranker is being correlated with *itself* plus monotone terms. Its
+     high Spearman/NDCG is arithmetic, not evidence.
+   - The **ML** model's R²/MAE/RMSE measure how well XGBoost refits a smooth deterministic
+     polynomial whose only irreducible noise is σ=4, against a label of σ≈15–20. A high R²
+     means the fit converged — not that real findings are ranked well. It is **not** an
+     accuracy figure and must never be reported as one.
+   - Only **cvss_only** is independent of the label, so the CVSS-vs-composite gap is the
+     single comparison carrying meaning — and even that is partly guaranteed by
+     construction, since the label contains six non-CVSS terms.
+
+   **`ml/eval_fusion.py` is the one non-circular quantitative harness in the repo**: it
+   scores clustering against hand-labelled `truth_cluster` values that were not produced
+   by the code under test. Its false-merge / missed-merge rates are the results that can
+   be quoted without qualification (bounded by fixture size, not by circularity).
+
+   The ranking harness re-runs unchanged once real labels exist; until `analyst_feedback`
+   holds independently-assigned labels, its output is a **regression guard against weight
+   changes**, not a performance claim. Real evaluation of the investigation layer is
+   specified separately (blinded labelling protocol, ablations) and is the only basis on
+   which accuracy will be reported.
 2. **Adversary emulation (behavioural, out-of-distribution).** The Atomic Red
    Team study (docs/VALIDATION-ATTACK-SIM.md) runs real techniques against a
    monitored host and measures detection coverage, latency, fusion lift, and
