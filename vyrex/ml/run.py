@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +25,7 @@ import feedback
 import fusion
 import scoring
 import train as trainer
+import trigger
 from explain import Explainer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -77,13 +79,27 @@ def do_train() -> None:
     log.info("training done: %s", res)
 
 
-def do_score_once(pg, ctx, explainer, mver) -> int:
+def _event_key(finding_id: int, policy, run_started: str) -> str:
+    """Identity of one crossing event.
+
+    Stable for everything detected in a single scoring pass (so a retried pass cannot
+    double-enqueue), but distinct across passes — a finding that genuinely falls back
+    below the threshold and re-crosses next week must be investigated again.
+    """
+    return f"finding:{finding_id}:{policy.version}:{run_started}"
+
+
+def do_score_once(pg, ctx, explainer, mver, policy=None) -> int:
+    policy = policy or trigger.TriggerPolicy.from_env()
+    run_started = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     findings = db.load_findings(pg)
     # Fusion stage: dedup into clusters + derive each finding's consensus weight, and
     # persist the cluster record (which tools agree) onto every member.
     clusters = fusion.build_clusters(findings)
     corroborated = 0
     band_counts: dict[str, int] = {}
+    crossings: list[tuple[dict, trigger.Decision]] = []
+    enqueued = 0
     for fr in findings:
         con = clusters.get(fr["id"])
         if con:
@@ -98,11 +114,42 @@ def do_score_once(pg, ctx, explainer, mver) -> int:
             exp = explainer.explain(features.to_vector(fd))
             ml_score = exp["ml_risk_score"]
             db.upsert_explanation(pg, fr["id"], exp, mver)
-        db.write_risk(pg, fr["id"], comp, components, ml_score, mver)
+        # Transactional outbox: the score write and the request-to-investigate it
+        # justifies commit together or not at all. write_risk also shifts
+        # risk_score -> previous_risk_score and hands back both, so a rise THROUGH the
+        # threshold is distinguishable from sitting above it.
+        with pg.transaction():
+            previous, current = db.write_risk(pg, fr["id"], comp, components, ml_score, mver)
+            decision = trigger.evaluate(previous, current, policy)
+            if decision.action == "publish":
+                enqueued += db.enqueue_investigation(
+                    pg,
+                    event_key=_event_key(fr["id"], policy, run_started),
+                    subject_type="finding", subject_id=fr["id"],
+                    payload={
+                        "subject_type": "finding", "subject_id": fr["id"],
+                        "asset_id": fr.get("asset_id"),
+                        "trigger_type": "automatic",
+                        "trigger_score_snapshot": float(current) if current is not None else None,
+                        "previous_score": float(previous) if previous is not None else None,
+                        "trigger_policy_version": policy.version,
+                        "threshold": policy.threshold,
+                        "model_version": mver,
+                    },
+                )
+        if decision.fired:
+            crossings.append((fr, decision))
         band_counts[scoring.band(comp)] = band_counts.get(scoring.band(comp), 0) + 1
     db.recompute_ranks(pg)
     log.info("scored %d findings; %d corroborated by >1 tool; composite bands=%s; model=%s",
              len(findings), corroborated, band_counts, mver or "none")
+    for fr, d in crossings:
+        log.info("trigger[%s] finding=%s asset=%s %s -> %s (%s)",
+                 d.action, fr["id"], fr.get("asset_id"), d.previous, d.current, d.reason)
+    # Always report the policy, even at zero crossings: "nothing fired" is ambiguous
+    # between "correctly quiet" and "misconfigured", and the threshold is the difference.
+    log.info("trigger policy: %s -> %d crossing(s), %d queued to outbox",
+             policy.describe(), len(crossings), enqueued)
     return len(findings)
 
 

@@ -243,6 +243,143 @@ ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS kind text DEFAULT 'triage';
 ALTER TABLE agent_runs ADD COLUMN IF NOT EXISTS ref_id text;
 CREATE INDEX IF NOT EXISTS agent_runs_time ON agent_runs (created_at DESC);
 
+-- ===================================================================================
+-- Investigation orchestrator (durable, evidence-grounded LangGraph investigations).
+--
+-- Supersedes agent_runs, which stores a whole run as one opaque jsonb blob with no
+-- per-step trace, no evidence, no citations, no status and no way to resume. These five
+-- tables split that into: the run, what each node did, the frozen facts it used, the
+-- verdict, and the outbox that makes automatic triggering exactly-once.
+--
+-- agent_runs is NOT dropped: /agent/triage and /agent/investigate stay as compatibility
+-- wrappers until the console and the n8n workflow have migrated.
+-- ===================================================================================
+CREATE TABLE IF NOT EXISTS investigations (
+    id             bigserial PRIMARY KEY,
+    investigation_id text NOT NULL UNIQUE,     -- external id (uuid); what the API exposes
+    subject_type   text NOT NULL,              -- finding | incident
+    subject_id     bigint NOT NULL,
+    trigger_type   text NOT NULL DEFAULT 'manual',   -- manual | automatic
+    status         text NOT NULL DEFAULT 'queued',   -- queued|running|completed|partial|failed|cancelled
+    -- Why this run exists, frozen at request time. The score moves on; without the
+    -- snapshot an automatic trigger becomes unexplainable after the next scoring pass.
+    trigger_score_snapshot numeric,
+    trigger_policy_version text,
+    -- Idempotency: the same logical request must not create a second run. Set from the
+    -- outbox event key for automatic runs, or a client-supplied key for manual ones.
+    idempotency_key text UNIQUE,
+    requested_by   text,
+    graph_version  text,
+    prompt_version text,
+    model_name     text,
+    model_digest   text,
+    contract_version text,
+    error          text,
+    started_at     timestamptz,
+    finished_at    timestamptz,
+    duration_ms    integer,
+    created_at     timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS investigations_subject ON investigations (subject_type, subject_id);
+CREATE INDEX IF NOT EXISTS investigations_time ON investigations (created_at DESC);
+-- At most ONE active run per subject per policy. Partial index so completed runs don't
+-- block a later re-investigation of the same finding.
+CREATE UNIQUE INDEX IF NOT EXISTS investigations_one_active
+    ON investigations (subject_type, subject_id, COALESCE(trigger_policy_version, ''))
+    WHERE status IN ('queued', 'running');
+
+-- One row per graph node execution. This is what the console's execution graph renders,
+-- and what makes "the historical branch found nothing" distinguishable from "the
+-- historical branch crashed" — a distinction a single result blob destroys.
+CREATE TABLE IF NOT EXISTS investigation_steps (
+    id             bigserial PRIMARY KEY,
+    investigation_id text NOT NULL REFERENCES investigations(investigation_id) ON DELETE CASCADE,
+    node           text NOT NULL,
+    attempt        int DEFAULT 1,
+    status         text NOT NULL DEFAULT 'queued',  -- queued|running|succeeded|skipped|failed
+    reason         text,                    -- why skipped / why failed (analyst-facing)
+    input          jsonb,
+    output         jsonb,
+    evidence_ids   jsonb,                   -- citation ids this node contributed
+    tool_calls     jsonb,                   -- what it queried; NOT hidden chain-of-thought
+    duration_ms    integer,
+    started_at     timestamptz,
+    finished_at    timestamptz,
+    created_at     timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS investigation_steps_inv ON investigation_steps (investigation_id);
+CREATE UNIQUE INDEX IF NOT EXISTS investigation_steps_node_attempt
+    ON investigation_steps (investigation_id, node, attempt);
+
+-- Frozen, addressable facts. Evidence is a SNAPSHOT, not a pointer: a report must stay
+-- readable after the underlying finding is rescored, retriaged or deleted, so the payload
+-- is copied in and hashed rather than re-read at render time.
+CREATE TABLE IF NOT EXISTS investigation_evidence (
+    id             bigserial PRIMARY KEY,
+    investigation_id text NOT NULL REFERENCES investigations(investigation_id) ON DELETE CASCADE,
+    citation_id    text NOT NULL,           -- stable within one investigation, e.g. 'E3'
+    source_type    text NOT NULL,
+    source_reference text,                  -- provenance only, e.g. 'findings:12'
+    structured_payload jsonb NOT NULL,
+    content_hash   text NOT NULL,           -- sha256 of the canonical payload
+    source_tool    text,
+    tlp            text DEFAULT 'TLP:AMBER',
+    observed_at    timestamptz,
+    collected_at   timestamptz DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS investigation_evidence_cid
+    ON investigation_evidence (investigation_id, citation_id);
+
+-- The analyst-facing verdict. One current report per investigation; analyst review is
+-- recorded here so accept/override becomes training signal later.
+CREATE TABLE IF NOT EXISTS triage_reports (
+    id             bigserial PRIMARY KEY,
+    investigation_id text NOT NULL REFERENCES investigations(investigation_id) ON DELETE CASCADE,
+    recommended_severity text,
+    recommended_disposition text,           -- ESCALATE|MONITOR|DISMISS|INSUFFICIENT_EVIDENCE
+    confidence     numeric,                 -- DERIVED from evidence coverage, never model self-report
+    summary        text,
+    rationale_claims jsonb,                 -- [{text, citation_ids[]}]
+    recommended_next_steps jsonb,
+    missing_evidence jsonb,
+    completeness   text DEFAULT 'complete', -- complete | partial
+    unresolved_citations jsonb,             -- ids the model cited that no evidence provides
+    graph_version  text,
+    prompt_version text,
+    model_name     text,
+    model_digest   text,
+    contract_version text,
+    analyst_action text,                    -- accept | reject | override
+    analyst_note   text,
+    analyst_severity text,                  -- what the analyst said instead, if overridden
+    analyst_disposition text,
+    reviewed_by    text,
+    reviewed_at    timestamptz,
+    created_at     timestamptz DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS triage_reports_inv ON triage_reports (investigation_id);
+
+-- Transactional outbox. The risk engine writes the score change and the request to
+-- investigate in ONE transaction, so an event can never announce work that rolled back,
+-- and work can never commit without its event. A relay publishes unsent rows to
+-- JetStream and marks them sent; `event_key` makes redelivery harmless.
+CREATE TABLE IF NOT EXISTS investigation_outbox (
+    id             bigserial PRIMARY KEY,
+    event_key      text NOT NULL UNIQUE,    -- dedup: subject+policy+crossing identity
+    subject_type   text NOT NULL,
+    subject_id     bigint NOT NULL,
+    trigger_type   text NOT NULL DEFAULT 'automatic',
+    payload        jsonb NOT NULL,
+    status         text NOT NULL DEFAULT 'pending',  -- pending | sent | failed
+    attempts       int DEFAULT 0,
+    last_error     text,
+    created_at     timestamptz DEFAULT now(),
+    sent_at        timestamptz
+);
+-- The relay's hot path: "give me the pending ones, oldest first".
+CREATE INDEX IF NOT EXISTS investigation_outbox_pending
+    ON investigation_outbox (created_at) WHERE status = 'pending';
+
 -- Seed an n8n automation alert channel + a routing rule, so dispatched alerts also flow into
 -- the n8n automation engine (not just playbook hand-offs). Idempotent (guarded by target/name).
 INSERT INTO alert_channels (name, type, target)

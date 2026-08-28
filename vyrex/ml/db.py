@@ -20,6 +20,10 @@ ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_rank       integer;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_components jsonb;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS ml_risk_score   numeric;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS model_version   text;
+-- The score this finding had before the current scoring pass. Without it there is no
+-- way to tell "rose through the threshold" from "has been above it for a week", and the
+-- 180s scoring loop would re-request an investigation for the same finding forever.
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS previous_risk_score numeric;
 ALTER TABLE assets   ADD COLUMN IF NOT EXISTS criticality     numeric DEFAULT 0.5;
 
 CREATE TABLE IF NOT EXISTS finding_explanations (
@@ -67,6 +71,31 @@ def load_findings(pg: psycopg.Connection) -> list[dict]:
         return cur.fetchall()
 
 
+def enqueue_investigation(pg: psycopg.Connection, event_key: str, subject_type: str,
+                          subject_id: int, payload: dict) -> bool:
+    """Append a request-to-investigate to the outbox. Returns True if a row was written.
+
+    Call this INSIDE the same `with pg.transaction():` block as `write_risk`. That is the
+    entire point of the outbox: the score change and the event announcing it commit
+    together or not at all. Two autocommitting statements could crash in between and
+    either publish an event for a score that rolled back, or lose the event for a score
+    that landed — and a lost automatic trigger is invisible, which makes it the worse of
+    the two.
+
+    `ON CONFLICT DO NOTHING` on the unique `event_key` makes re-enqueueing the same
+    logical crossing harmless, so a retried scoring pass cannot double-request.
+    """
+    with pg.cursor() as cur:
+        cur.execute(
+            """INSERT INTO investigation_outbox (event_key, subject_type, subject_id, payload)
+               VALUES (%s, %s, %s, %s)
+               ON CONFLICT (event_key) DO NOTHING
+            RETURNING id""",
+            (event_key, subject_type, subject_id, Jsonb(payload)),
+        )
+        return cur.fetchone() is not None
+
+
 def load_context(pg: psycopg.Connection) -> features.Context:
     with pg.cursor() as cur:
         # Asset exposure from network findings.
@@ -90,13 +119,34 @@ def load_context(pg: psycopg.Connection) -> features.Context:
 
 
 def write_risk(pg: psycopg.Connection, finding_id: int, composite: float,
-               components: dict, ml_score: float | None, model_version: str | None) -> None:
+               components: dict, ml_score: float | None, model_version: str | None
+               ) -> tuple[float | None, float | None]:
+    """Write the new score; return (previous, current) so the caller can detect a crossing.
+
+    One statement, deliberately. `previous_risk_score = risk_score` reads the row's OLD
+    value (standard SQL: every right-hand side sees the pre-update row), so the shift and
+    the overwrite are atomic. Reading the old score with a separate SELECT would race the
+    next scoring pass and could lose an edge entirely.
+
+    RETURNING gives back both values, so no extra round-trip is needed either. Values are
+    Postgres `numeric` and arrive as Decimal; trigger.crossed() coerces to float.
+    """
     with pg.cursor() as cur:
         cur.execute(
-            """UPDATE findings SET risk_score=%s, risk_components=%s, ml_risk_score=%s, model_version=%s
-               WHERE id=%s""",
+            """UPDATE findings
+                  SET previous_risk_score = risk_score,
+                      risk_score          = %s,
+                      risk_components     = %s,
+                      ml_risk_score       = %s,
+                      model_version       = %s
+                WHERE id = %s
+            RETURNING previous_risk_score, risk_score""",
             (composite, Jsonb(components), ml_score, model_version, finding_id),
         )
+        row = cur.fetchone()
+    if not row:
+        return (None, None)          # finding vanished mid-pass (deleted between load and write)
+    return (row["previous_risk_score"], row["risk_score"])
 
 
 def write_consensus(pg: psycopg.Connection, finding_id: int, consensus: dict) -> None:

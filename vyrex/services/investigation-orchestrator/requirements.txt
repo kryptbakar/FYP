@@ -1,0 +1,11 @@
+# Phase 0 ships the frozen contracts only — pydantic is genuinely all they need.
+# Versions match services/api so both sides of the API boundary validate identically.
+pydantic==2.10.4
+
+# Phase 1 adds, when the graph and its durability actually exist (not before — every
+# dependency listed here has to travel through the air-gap bundle as image layers):
+#   langgraph, langgraph-checkpoint-postgres   graph + Postgres checkpointing/resume
+#   psycopg[binary]==3.2.3                     same pin as the other services
+#   nats-py==2.9.0                             INVESTIGATIONS stream consumer
+#   fastapi / uvicorn                          health + readiness endpoints
+#   httpx==0.28.1                              Ollama calls
