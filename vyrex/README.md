@@ -17,12 +17,12 @@ for an **air-gapped / on-premises** government deployment (PITB).
 - **Enriches** every CVE with CVSS + EPSS exploit probability + CISA KEV from a **local
   mirror** (no live calls), and evaluates **CIS compliance** with a hash-chained,
   tamper-evident evidence log.
-- **Prioritizes** with the **AI Fusion Engine**: dedup + consensus weighting (independent
-  tools agreeing raises confidence) feeding a composite score **and** an XGBoost model,
-  with a per-finding **SHAP waterfall** so every score is explainable.
-  *Status: the weighting mechanism is implemented and tested, but clustering is currently
-  **within-tool-family only** — cross-family corroboration (e.g. a MISP IOC hit and a Sigma
-  detection on the same connection) does not yet cluster. See [ml/FUSION.md §1](ml/FUSION.md).*
+- **Prioritizes** with the **AI Fusion Engine**: cross-tool dedup + consensus weighting
+  (independent tools agreeing raises confidence) feeding a composite score **and** an
+  XGBoost model, with a per-finding **SHAP waterfall** so every score is explainable.
+  Clustering keys on the **observable** (which connection) rather than the rule that
+  fired, so an agent egress rule, a MISP IOC hit and a Sigma detection about the same
+  connection fuse into one issue at full consensus. See [ml/FUSION.md](ml/FUSION.md).
 - **Responds** via an Ed25519-**signed** command channel with two-person approval and a
   hash-chained audit trail (containment only).
 - **Presents** it all in a real-time analyst **console** + Grafana dashboards.

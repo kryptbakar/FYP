@@ -44,6 +44,24 @@ def candidates(row: dict) -> set[str]:
     return out
 
 
+def _observable(row: dict, ind: str) -> tuple[str | None, int | None]:
+    """The (remote_ip, remote_port) this indicator was seen on, when it IS the peer.
+
+    Only meaningful when the matched indicator is the remote endpoint of a flow — a
+    domain from a DNS query has no port, and we return (None, None) rather than invent
+    one. A wrong observable is worse than no observable: it would cluster two unrelated
+    findings and manufacture corroboration that does not exist.
+    """
+    p = row.get("payload") or {}
+    if row.get("kind") == "network_flow" and p.get("remote_ip") == ind:
+        port = p.get("remote_port")
+        return ind, int(port) if port is not None else None
+    if row.get("kind") == "ids_alert" and p.get("dest_ip") == ind:
+        port = p.get("dest_port")
+        return ind, int(port) if port is not None else None
+    return None, None
+
+
 def run(pg, ts) -> int:
     iocs = load_iocs()
     rows = db.network_rows(ts)
@@ -53,9 +71,16 @@ def run(pg, ts) -> int:
         asset = row["host_id"]
         for ind in candidates(row):
             ioc = iocs.get(ind)
-            if not ioc or (asset, ind) in seen:
+            if not ioc:
                 continue
-            seen.add((asset, ind))
+            obs_ip, obs_port = _observable(row, ind)
+            # Dedup at OBSERVABLE granularity, not just (asset, indicator): the same bad
+            # IP contacted on two ports is two flows, and collapsing them would leave one
+            # of them unable to cluster with the agent/Sigma findings about it.
+            key = (asset, ind, obs_port)
+            if key in seen:
+                continue
+            seen.add(key)
             db.ensure_asset(pg, asset)
             db.upsert_finding(pg, {
                 "asset_id": asset, "domain": "network", "rule_id": f"ioc.{ind}",
@@ -64,11 +89,16 @@ def run(pg, ts) -> int:
                                f"observed in {row['kind']} telemetry.",
                 "severity": _SEV.get((ioc.get("threat_level") or "high").lower(), "HIGH"),
                 "source_tool": "misp", "raw_ref": ind, "dedup_key": db.fp(asset, "ioc", ind),
-                "fingerprint": db.fp("misp", asset, "network", f"ioc.{ind}"),
+                # What was OBSERVED, so this clusters with the agent rule and the Sigma
+                # detection about the same connection instead of standing alone.
+                "observable_key": db.observable_key(asset, obs_ip, obs_port),
+                "port": obs_port,
+                "fingerprint": db.fp("misp", asset, "network", f"ioc.{ind}", obs_port),
                 "threat_intel": {"indicator": ind, "type": ioc.get("type"),
                                  "misp_event": ioc.get("event_info"), "tags": ioc.get("tags"),
                                  "observed_in": row["kind"]},
-                "evidence": {"indicator": ind, "observed_in": row["kind"]},
+                "evidence": {"indicator": ind, "observed_in": row["kind"],
+                             "remote_ip": obs_ip, "remote_port": obs_port},
             })
             created += 1
     log.info("misp: %d IOC-match finding(s) from %d telemetry rows", created, len(rows))

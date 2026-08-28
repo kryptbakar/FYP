@@ -57,8 +57,18 @@ def run(pg, os_url: str) -> int:
         rid = f"sigma.{str(meta.get('id', rf.stem))[:8]}"
 
         for q in queries:
+            # Sub-aggregate the PEER the rule matched, not just the host. Previously we
+            # recorded only host + the query string, so a Sigma hit could never be tied
+            # to the connection it fired on - and therefore could never cluster with the
+            # MISP IOC hit or the agent rule about that same connection.
+            # payload.remote_ip is `text` with a .keyword subfield; remote_port is `long`.
             body = {"size": 0, "query": {"query_string": {"query": q}},
-                    "aggs": {"by_host": {"terms": {"field": "host.host_id", "size": 100}}}}
+                    "aggs": {"by_host": {
+                        "terms": {"field": "host.host_id", "size": 100},
+                        "aggs": {"by_peer": {
+                            "terms": {"field": "payload.remote_ip.keyword", "size": 10},
+                            "aggs": {"by_port": {
+                                "terms": {"field": "payload.remote_port", "size": 10}}}}}}}}
             r = httpx.post(f"{os_url}/telemetry-v1/_search", json=body, timeout=20)
             if r.status_code >= 300:
                 log.warning("sigma query failed (%s): %s", q, r.text[:160])
@@ -70,16 +80,29 @@ def run(pg, os_url: str) -> int:
             for b in buckets:
                 asset, cnt = b["key"], b["doc_count"]
                 db.ensure_asset(pg, asset)
-                db.upsert_finding(pg, {
-                    "asset_id": asset, "domain": "network", "rule_id": rid,
-                    "title": f"Sigma: {meta.get('title')}",
-                    "description": meta.get("description"), "severity": sev,
-                    "source_tool": "sigma", "raw_ref": str(meta.get("id")),
-                    "dedup_key": db.fp(asset, "sigma", rid),
-                    "fingerprint": db.fp("sigma", asset, "network", rid),
-                    "attack": tech, "threat_intel": None,
-                    "evidence": {"sigma_query": q, "mode": mode, "matches": cnt, "level": level},
-                })
-                created += 1
+                # One finding per distinct peer the rule matched on this host. A rule with
+                # no network peer (host/process rules) yields no peer buckets and falls
+                # back to a single host-level finding, exactly as before.
+                peers = [(p["key"],
+                          (p.get("by_port", {}).get("buckets") or [{}])[0].get("key"),
+                          p["doc_count"])
+                         for p in (b.get("by_peer", {}).get("buckets") or [])]
+                for ip, port, pcnt in (peers or [(None, None, cnt)]):
+                    db.upsert_finding(pg, {
+                        "asset_id": asset, "domain": "network", "rule_id": rid,
+                        "title": f"Sigma: {meta.get('title')}"
+                                 + (f" ({ip}:{port})" if ip else ""),
+                        "description": meta.get("description"), "severity": sev,
+                        "source_tool": "sigma", "raw_ref": str(meta.get("id")),
+                        "dedup_key": db.fp(asset, "sigma", rid),
+                        "observable_key": db.observable_key(asset, ip, port),
+                        "port": port,
+                        # Peer in the fingerprint so two peers on one host stay two rows.
+                        "fingerprint": db.fp("sigma", asset, "network", rid, ip, port),
+                        "attack": tech, "threat_intel": None,
+                        "evidence": {"sigma_query": q, "mode": mode, "matches": pcnt,
+                                     "level": level, "remote_ip": ip, "remote_port": port},
+                    })
+                    created += 1
     log.info("sigma: %d detection finding(s)", created)
     return created

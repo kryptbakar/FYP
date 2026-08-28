@@ -36,6 +36,22 @@ def fp(*parts) -> str:
     return hashlib.sha1("|".join(str(p) for p in parts).encode()).hexdigest()
 
 
+def observable_key(asset: str, remote_ip: str | None, remote_port: int | None) -> str | None:
+    """Identity of the THING OBSERVED, not the rule that fired.
+
+    Every producer that sees the same connection must derive the same key, so the recipe
+    is duplicated verbatim in services/enrichment/domains.py — the two services are
+    packaged separately and share no library. Change one, change the other, or fusion
+    silently stops clustering across them.
+
+    Returns None when there is no concrete observable; the caller then leaves
+    observable_key NULL and fusion falls back to dedup_key.
+    """
+    if not remote_ip:
+        return None
+    return fp(asset, "flow", remote_ip, remote_port if remote_port is not None else "")
+
+
 def network_rows(ts: psycopg.Connection, window: str = "30 days", limit: int = 20000) -> list[dict]:
     """Telemetry rows that may carry network indicators (IPs/domains)."""
     with ts.cursor() as cur:
@@ -55,19 +71,21 @@ def upsert_finding(pg: psycopg.Connection, f: dict) -> None:
         cur.execute(
             """
             INSERT INTO findings (asset_id, domain, rule_id, title, description, severity,
-                cve_id, port, proto, source_tool, raw_ref, dedup_key, attack, threat_intel,
-                evidence, fingerprint, last_seen)
+                cve_id, port, proto, source_tool, raw_ref, dedup_key, observable_key, attack,
+                threat_intel, evidence, fingerprint, last_seen)
             VALUES (%(asset_id)s, %(domain)s, %(rule_id)s, %(title)s, %(description)s, %(severity)s,
                 %(cve_id)s, %(port)s, %(proto)s, %(source_tool)s, %(raw_ref)s, %(dedup_key)s,
-                %(attack)s, %(threat_intel)s, %(evidence)s, %(fingerprint)s, now())
+                %(observable_key)s, %(attack)s, %(threat_intel)s, %(evidence)s, %(fingerprint)s, now())
             ON CONFLICT (fingerprint) DO UPDATE SET
                 severity = EXCLUDED.severity, description = EXCLUDED.description,
                 attack = COALESCE(EXCLUDED.attack, findings.attack),
+                observable_key = COALESCE(EXCLUDED.observable_key, findings.observable_key),
                 threat_intel = EXCLUDED.threat_intel, evidence = EXCLUDED.evidence, last_seen = now()
             """,
             {**{k: f.get(k) for k in ("asset_id", "domain", "rule_id", "title", "description",
                                       "severity", "cve_id", "port", "proto", "source_tool",
-                                      "raw_ref", "dedup_key", "attack", "fingerprint")},
+                                      "raw_ref", "dedup_key", "observable_key", "attack",
+                                      "fingerprint")},
              "threat_intel": Jsonb(f["threat_intel"]) if f.get("threat_intel") else None,
              "evidence": Jsonb(f.get("evidence", {}))},
         )

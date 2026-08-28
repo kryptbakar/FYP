@@ -82,16 +82,23 @@ End on beat 7. That's your mic-drop. **Pause there.**
 > agreement into a consensus weight, the **signed/two-person/hash-chained** response governance, and
 > the air-gap architecture that makes it deployable where cloud SOCs are illegal."
 
-> ⚠️ **Do not overclaim fusion in the viva.** The consensus mechanism is implemented and
-> unit-tested, but clustering is currently **within-tool-family only**: a MISP IOC hit, a Sigma
-> detection and an agent rule describing the *same* connection get three different `dedup_key`s,
-> so the live system reports *"0 corroborated by >1 tool"*. An examiner who checks will find that.
+> 💡 **Fusion is demonstrable — show it, don't just assert it.** Clustering keys on the
+> *observable* (`sha1(asset, "flow", remote_ip, remote_port)`), not the rule that fired, so an
+> agent egress rule, a MISP IOC hit and a Sigma detection about one connection fuse into a
+> single cluster at `n_tools = 3, weight = 1.0`. Run it live:
 >
-> Say instead: *"The consensus weighting and its effect on the score are built and tested. The
-> clustering that feeds it currently only merges within a tool family — cross-family correlation
-> needs each producer to record the observable it matched, which is the next piece of work.
-> Here's the measured evidence and the fix."* Owning a known limitation with a diagnosis reads
-> as engineering maturity; being caught asserting it works does not. See [ml/FUSION.md §1](../ml/FUSION.md).
+> ```sql
+> SELECT source_tool, consensus->>'n_tools' AS n_tools, consensus->>'tools' AS tools
+> FROM findings WHERE observable_key IS NOT NULL AND asset_id = 'lab-vm-01';
+> ```
+>
+> Worth telling as a story, because it is a better answer than "it works": until 2026-08-28
+> this did **not** work. `dedup_key` identified the rule that fired, so those three findings had
+> three unrelated keys and the engine reported *"0 corroborated by >1 tool"* — on the very
+> scenario the docs used as their worked example. The Sigma producer did not even record which
+> host it had matched. Diagnosing that, fixing each producer to record its observable, and
+> pinning it with a regression test is exactly the kind of engineering an examiner wants to hear
+> about. See [ml/FUSION.md](../ml/FUSION.md).
 
 **Q: Does the response actually do anything, or is it a button?**
 > "The governance is real: two-person approval state machine, Ed25519 signing, hash-chained audit with

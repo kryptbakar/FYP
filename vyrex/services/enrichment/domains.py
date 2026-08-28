@@ -29,6 +29,19 @@ def _fp(*parts: Any) -> str:
     return hashlib.sha1("|".join(str(p) for p in parts).encode()).hexdigest()
 
 
+def _observable_key(asset: str, remote_ip: str | None, remote_port: Any) -> str | None:
+    """Identity of the THING OBSERVED, not the rule that fired.
+
+    Must stay byte-identical to services/intel-enricher/db.py::observable_key — the two
+    services are packaged separately and share no library, so the recipe is duplicated.
+    Change one and you must change the other, or fusion silently stops clustering MISP
+    and Sigma findings with the agent's.
+    """
+    if not remote_ip:
+        return None
+    return _fp(asset, "flow", remote_ip, remote_port if remote_port is not None else "")
+
+
 # CVSS-from-text: when a matched CVE has no CVSS severity (NVD sometimes lags), estimate one
 # from the description via impact keywords. A defensible, air-gap-clean stand-in for the
 # cvss_score_prediction_model reference (no heavy NLP); flagged cvss_predicted so the UI is
@@ -70,6 +83,9 @@ def _finding(asset_id: str, domain: str, rule_id: str, title: str, severity: str
         "epss_percentile": kw.get("epss_percentile"), "kev": kw.get("kev", False),
         "kev_due_date": kw.get("kev_due_date"), "evidence": kw.get("evidence", {}),
         "source_tool": source_tool, "raw_ref": kw.get("raw_ref"), "dedup_key": dedup_key,
+        # Set only by producers that saw a concrete observable; NULL otherwise, in which
+        # case fusion falls back to dedup_key.
+        "observable_key": kw.get("observable_key"),
         "exploit_refs": kw.get("exploit_refs", []),
         "exploit_available": bool(kw.get("exploit_refs")) or kw.get("kev", False),
         "cwe": kw.get("cwe"), "cvss_predicted": kw.get("cvss_predicted", False),
@@ -176,11 +192,20 @@ def assess_network(asset_id: str, flows: list[dict]) -> list[dict]:
             evidence={"bind_addresses": sorted(ips)[:10]},
         ))
     for port, ips in egress.items():
+        peers = sorted(p for p in ips if p and p != "?")
+        # Attribute to a concrete observable ONLY when the egress is to a single peer.
+        # With several peers this one row is about all of them, so pinning it to one
+        # would cluster it with detections about a connection it is not solely about -
+        # manufacturing corroboration rather than measuring it. Ambiguity leaves it NULL
+        # and fusion falls back to dedup_key.
+        obs = _observable_key(asset_id, peers[0], port) if len(peers) == 1 else None
         findings.append(_finding(
             asset_id, "network", f"net.suspicious_egress.{port}",
             title=f"Suspicious outbound traffic to port {port}",
-            severity="HIGH", port=port, proto="tcp",
+            severity="HIGH", port=port, proto="tcp", observable_key=obs,
             description=f"Outbound connections to port {port} (commonly C2 / reverse shells).",
-            evidence={"sample_remote_ips": sorted(ips)[:10], "distinct_peers": len(ips)},
+            evidence={"sample_remote_ips": sorted(ips)[:10], "distinct_peers": len(ips),
+                      "remote_ip": peers[0] if len(peers) == 1 else None,
+                      "remote_port": port},
         ))
     return findings

@@ -22,9 +22,22 @@ log = logging.getLogger("ml.fusion")
 
 
 def cluster_key(f: dict) -> str:
-    """The fusion grouping key. Prefer the producer's deterministic dedup_key; fall
-    back to the finding's own id so a key-less finding is simply its own cluster."""
-    return f.get("dedup_key") or f"solo:{f['id']}"
+    """The fusion grouping key, in priority order.
+
+    1. `observable_key` — the THING OBSERVED (this host talked to 185.220.101.45:4444).
+       Different tools inspecting the same connection derive the same observable, which
+       is what makes cross-tool corroboration possible at all.
+    2. `dedup_key` — the RULE THAT FIRED. Correct for vulnerability findings, where the
+       same CVE on the same asset is one issue whichever scanner reported it, but it
+       cannot cluster across tool families because each family builds it differently.
+    3. `solo:<id>` — a key-less finding is its own cluster, never lost.
+
+    Ordering matters: keying on the rule first was the bug. A MISP IOC hit, a Sigma
+    detection and an agent rule about ONE connection produced three unrelated dedup_keys,
+    so `n_tools` was 1 for all three and the engine reported "0 corroborated by >1 tool"
+    on the exact scenario ml/FUSION.md used as its worked example.
+    """
+    return f.get("observable_key") or f.get("dedup_key") or f"solo:{f['id']}"
 
 
 def consensus_weight(n_tools: int) -> float:

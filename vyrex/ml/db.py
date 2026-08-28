@@ -65,7 +65,7 @@ def load_findings(pg: psycopg.Connection) -> list[dict]:
     with pg.cursor() as cur:
         cur.execute(
             """SELECT id, asset_id, domain, rule_id, severity, cve_id, cvss_score, epss, kev,
-                      first_seen, source_tool, dedup_key, attack, threat_intel
+                      first_seen, source_tool, dedup_key, observable_key, attack, threat_intel
                FROM findings"""
         )
         return cur.fetchall()

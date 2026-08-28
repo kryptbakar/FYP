@@ -21,40 +21,53 @@ Every producer stamps a deterministic `dedup_key` on each finding (added in Phas
 populated in Phases C–E). Findings that share a `dedup_key` are treated as **one
 cluster** describing one issue.
 
-> ### ⚠ Known limitation — cross-tool clustering does not work yet
->
-> The recipes below are **per-producer**, not per-observable. Two tools only collide when
-> they run the *same* recipe with the *same* inputs — in practice that means the same
-> vulnerability recipe (agent/Trivy/Nuclei on one CVE+asset+port), or Wazuh FIM against
-> the agent's polling FIM. **Different-family detections about the same event do not
-> cluster**, because their keys are built from different things.
->
-> Measured on 2026-08-22, one outbound connection to `185.220.101.45:4444` from a lab
-> host produced three findings with three unrelated keys:
->
-> | id | tool | `dedup_key` | built from |
-> |---|---|---|---|
-> | 3370 | agent | `1d108c9f…` | asset + `net.suspicious_egress.4444` + port |
-> | 3371 | misp  | `64d2848e…` | asset + `"ioc"` + indicator |
-> | 3373 | sigma | `c9c72f9a…` | asset + `"sigma"` + rule_id |
->
-> Result: `n_tools = 1` for all three, `consensus = 0.0`, and the risk engine reports
-> *"0 corroborated by >1 tool"* — on the very scenario this document uses as its example.
->
-> **Root cause.** The key identifies *the rule that fired*, not *the thing observed*.
-> Worse, the data needed to build a shared key is not all recorded: the Sigma producer
-> stores only its query string (`evidence.sigma_query`), never the host/IP it actually
-> matched, so nothing links it to the IOC hit.
->
-> **The fix** (scheduled with the Phase 2 fusion evidence node, which requires it anyway):
-> have each producer record the observable it matched — for network detections the
-> `(remote_ip, remote_port)` tuple — and derive an observable-scoped key such as
-> `sha1(asset, "flow", remote_ip, remote_port)` alongside the existing per-rule key.
-> Clustering then keys on the observable while `fingerprint` keeps each tool's row
-> distinct. Until that lands, treat `consensus` as *within-family* deduplication only,
-> and do not present cross-tool corroboration as a working capability.
+Findings cluster on **two** keys, in priority order (`fusion.cluster_key`):
 
-The recipes as they exist today:
+| Priority | Key | Identifies | Set by |
+|---|---|---|---|
+| 1 | `observable_key` | the **thing observed** — `sha1(asset, "flow", remote_ip, remote_port)` | producers that saw a concrete peer |
+| 2 | `dedup_key` | the **rule that fired** (recipes below) | every producer |
+| 3 | `solo:<id>` | nothing — the finding is its own cluster | fallback, so nothing is lost |
+
+**Why two keys, and why the observable wins.** Until 2026-08-28 there was only
+`dedup_key`, which identifies *the rule that fired*. Each tool family builds it
+differently, so detections from different families about the **same event** could never
+collide. One outbound connection to `185.220.101.45:4444` produced three findings with
+three unrelated keys — `n_tools = 1` for all three, and the engine reported
+*"0 corroborated by >1 tool"* on the very scenario this document uses as its example.
+
+The fix was to record what each producer actually **observed**, not merely which rule
+matched, and to key clustering on that:
+
+- `services/intel-enricher/sigma_eval.py` now sub-aggregates `payload.remote_ip` /
+  `payload.remote_port`, so a Sigma hit is tied to the connection it fired on. It
+  previously stored only its query string and could not be linked to anything.
+- `services/intel-enricher/ioc.py` records the `(ip, port)` the indicator was seen on,
+  and de-duplicates at observable granularity so one bad IP on two ports stays two flows.
+- `services/enrichment/domains.py` sets it for single-peer egress only. With several
+  peers that one row is about all of them, so pinning it to one would **manufacture**
+  corroboration rather than measure it; ambiguity leaves it NULL and falls back to
+  `dedup_key`.
+
+Measured after the change, same connection:
+
+| id | tool | `observable_key` | `n_tools` | `weight` |
+|---|---|---|---|---|
+| 3370 | agent | `57cd676d…` | 3 | 1.0 |
+| 4289 | misp  | `57cd676d…` | 3 | 1.0 |
+| 4300 | sigma | `57cd676d…` | 3 | 1.0 |
+
+`fingerprint` still keeps each tool's own row distinct — nothing is deleted, and the
+analyst can still see exactly what each tool said. Guarded by
+`ml/tests/test_fusion.py::test_three_tools_on_one_connection_reach_full_consensus`.
+
+> ⚠ The `observable_key` recipe is duplicated verbatim in
+> `services/enrichment/domains.py::_observable_key` and
+> `services/intel-enricher/db.py::observable_key` — the two services are packaged
+> separately and share no library. **Change one and you must change the other**, or they
+> stop agreeing and cross-tool clustering silently degrades to the old behaviour.
+
+The per-rule `dedup_key` recipes, still used whenever there is no observable:
 
 | Producer / domain        | `dedup_key` recipe                                  | Rationale |
 |--------------------------|-----------------------------------------------------|-----------|
@@ -80,11 +93,9 @@ A finding with **no** `dedup_key` is simply its own singleton cluster
 For each cluster we count the **distinct** `source_tool`s that contributed and map that
 to a saturating 0..1 weight (`fusion.consensus_weight`).
 
-> The mechanism below is implemented and unit-tested (`ml/tests/test_fusion.py`,
-> `ml/eval_fusion.py`). What it currently lacks is *input*: per the limitation in §1,
-> multi-tool clusters rarely form on real data, so `n_tools` is almost always 1 and the
-> weight almost always 0.0. The worked example that follows is therefore **illustrative
-> of the intended behaviour, not a capture of live output.**
+> Verified on live data 2026-08-28: an agent egress rule, a MISP IOC hit and a Sigma
+> detection about one connection now form a single cluster with `n_tools = 3`,
+> `weight = 1.0`. Before the observable key existed they were three singletons.
 
 | Distinct tools | weight | meaning |
 |----------------|--------|---------|
@@ -113,9 +124,9 @@ context the console and the model use:
 IP while Suricata raised the alert and the agent saw the egress, every member benefits
 from the combined picture.
 
-That inheritance is exactly what the §1 limitation currently blocks — those three
-findings land in three separate clusters, so nothing is inherited and each row carries
-only what its own producer knew.
+That inheritance is what the observable key unlocked. Before it, those three findings
+landed in three separate clusters and each row carried only what its own producer knew;
+now the agent's egress row inherits the MISP intel flag and the Sigma ATT&CK technique.
 
 ---
 

@@ -74,6 +74,21 @@ ALTER TABLE findings ADD COLUMN IF NOT EXISTS exploit_refs jsonb;
 -- CWE weakness class + a flag when severity was predicted from text (CVSS missing).
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS cwe text;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS cvss_predicted boolean DEFAULT false;
+-- The OBSERVABLE this finding is about, as opposed to the rule that fired.
+--
+-- dedup_key identifies "agent rule net.suspicious_egress on port 4444"; observable_key
+-- identifies "this host talked to 185.220.101.45:4444". Different tools inspecting the
+-- same connection produce different rule identities but the SAME observable, which is
+-- what lets fusion cluster a MISP IOC hit, a Sigma detection and an agent rule into one
+-- corroborated issue. Without it they were three singleton clusters and consensus never
+-- fired - see ml/FUSION.md section 1.
+--
+-- Nullable on purpose: only detections with a concrete observable set it (network flows
+-- today). Vulnerability findings keep clustering on dedup_key, which is correct for them
+-- - the same CVE on the same asset IS one issue regardless of which scanner saw it.
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS observable_key text;
+CREATE INDEX IF NOT EXISTS findings_observable ON findings (observable_key)
+  WHERE observable_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS findings_dedup  ON findings (dedup_key);
 CREATE INDEX IF NOT EXISTS findings_source ON findings (source_tool);
 CREATE INDEX IF NOT EXISTS findings_exploit ON findings (exploit_available) WHERE exploit_available;
@@ -219,12 +234,13 @@ def upsert_findings(pg: psycopg.Connection, findings: list[dict]) -> int:
                 INSERT INTO findings (asset_id, domain, rule_id, title, description, severity,
                     cve_id, package_name, package_version, port, proto,
                     cvss_score, cvss_severity, epss, epss_percentile, kev, kev_due_date,
-                    source_tool, raw_ref, dedup_key, exploit_available, exploit_refs,
+                    source_tool, raw_ref, dedup_key, observable_key, exploit_available, exploit_refs,
                     cwe, cvss_predicted, evidence, fingerprint, last_seen)
                 VALUES (%(asset_id)s, %(domain)s, %(rule_id)s, %(title)s, %(description)s, %(severity)s,
                     %(cve_id)s, %(package_name)s, %(package_version)s, %(port)s, %(proto)s,
                     %(cvss_score)s, %(cvss_severity)s, %(epss)s, %(epss_percentile)s, %(kev)s, %(kev_due_date)s,
-                    %(source_tool)s, %(raw_ref)s, %(dedup_key)s, %(exploit_available)s, %(exploit_refs)s,
+                    %(source_tool)s, %(raw_ref)s, %(dedup_key)s, %(observable_key)s,
+                    %(exploit_available)s, %(exploit_refs)s,
                     %(cwe)s, %(cvss_predicted)s, %(evidence)s, %(fingerprint)s, now())
                 ON CONFLICT (fingerprint) DO UPDATE SET
                     severity = EXCLUDED.severity, description = EXCLUDED.description,
@@ -233,6 +249,7 @@ def upsert_findings(pg: psycopg.Connection, findings: list[dict]) -> int:
                     kev = EXCLUDED.kev, kev_due_date = EXCLUDED.kev_due_date,
                     source_tool = EXCLUDED.source_tool, raw_ref = EXCLUDED.raw_ref,
                     dedup_key = EXCLUDED.dedup_key,
+                    observable_key = COALESCE(EXCLUDED.observable_key, findings.observable_key),
                     exploit_available = EXCLUDED.exploit_available, exploit_refs = EXCLUDED.exploit_refs,
                     cwe = EXCLUDED.cwe, cvss_predicted = EXCLUDED.cvss_predicted,
                     evidence = EXCLUDED.evidence, last_seen = now()
@@ -240,6 +257,8 @@ def upsert_findings(pg: psycopg.Connection, findings: list[dict]) -> int:
                 {**f, "evidence": Jsonb(f.get("evidence", {})),
                  "source_tool": f.get("source_tool", "agent"),
                  "raw_ref": f.get("raw_ref"), "dedup_key": f.get("dedup_key"),
+                 # .get so producers that never set it (scanners) still bind the param.
+                 "observable_key": f.get("observable_key"),
                  "exploit_available": f.get("exploit_available", False),
                  "exploit_refs": Jsonb(f.get("exploit_refs") or []),
                  "cwe": f.get("cwe"), "cvss_predicted": f.get("cvss_predicted", False)},
