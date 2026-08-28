@@ -47,6 +47,19 @@ risk-train: ## Train the XGBoost risk model (synthetic + analyst feedback)
 risk-score: ## Score all findings: composite + ML risk + SHAP explanations
 	$(COMPOSE) --profile ml run --rm risk-engine score
 
+investigate: ## Drain pending investigation requests through the orchestrator, then exit
+	$(COMPOSE) --profile agentic run --rm investigation-orchestrator --once
+
+# Behaviour, NOT accuracy — accuracy needs analyst labels (see benchmark.py header).
+# Override e.g.: make model-benchmark MODELS=llama3.2:3b,qwen3:4b CASES=5 REPEATS=2
+MODELS  ?= llama3.2:3b
+CASES   ?= 5
+REPEATS ?= 1
+model-benchmark: ## Compare LLMs on the synthesis step (schema/citations/latency/determinism)
+	@echo "NOTE: stop the heavy tools profile first — a 4B model needs the RAM."
+	$(COMPOSE) --profile agentic run --rm --entrypoint python investigation-orchestrator \
+		-m orchestrator.benchmark --models $(MODELS) --cases $(CASES) --repeats $(REPEATS)
+
 risk-eval: ## Ranking experiment: CVSS-only vs composite vs ML on held-out data → reports/
 	$(COMPOSE) --profile ml run --rm -v "$(CURDIR)/reports:/reports" risk-engine evaluate --out /reports
 
