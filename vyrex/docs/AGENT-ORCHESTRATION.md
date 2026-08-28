@@ -230,12 +230,20 @@ Everything it does measure is objective and label-free — which is why it is en
 
 ### Results — 2026-08-28, CPU-only, temperature 0
 
-3 corroborated findings × 2 repeats per model, on the real prompt and real evidence.
+On the real prompt and real evidence.
 
-| model | schema valid | cited anything | abstained | p50 | deterministic |
-|---|---|---|---|---|---|
-| `llama3.2:3b` | **6/6** | **0/6** | 6/6 | 29.1 s | yes |
-| `qwen3:4b` | **0/6** | — | — | 240.1 s (timeout) | yes |
+| model | n | schema valid | cited anything | abstained | p50 | deterministic |
+|---|---|---|---|---|---|---|
+| `llama3.2:3b` | 6 (3 corroborated × 2) | 6/6 | **0/6** | 6/6 | 29.1 s | yes |
+| `llama3.2:3b` | **12 (diverse findings)** | **12/12** | **0/12** | **12/12** | 48.7 s | yes |
+| `qwen3:4b` | 6 | **0/6** | — | — | 240.1 s (timeout) | yes |
+
+The 12-case run was specifically to test whether the first result was a selection
+artefact — the 3 corroborated cases are where a model has the most to work with, so
+abstaining there is the most revealing, but also the least representative. Across 12
+findings spanning corroborated, intel-backed and plain vulnerability cases, the answer is
+unambiguous: **llama3.2:3b abstained on every single one and cited nothing on every single
+one.** It does not decide, and it does not ground.
 
 **`qwen3:4b` is unusable on this hardware — not slow, unusable.** Every run hit the timeout
 exactly. Given a 900 s ceiling it *still* timed out (`ReadTimeout`, no output). Diagnosis:
