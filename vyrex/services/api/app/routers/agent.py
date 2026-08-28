@@ -20,6 +20,27 @@ from ..config import settings
 
 router = APIRouter(tags=["agent"])
 
+# SUPERSEDED BY THE INVESTIGATION ORCHESTRATOR (POST /investigations).
+#
+# These endpoints are synchronous and store a whole run as one opaque jsonb blob in
+# agent_runs: no per-step trace, no evidence, no citations, no resumability, and no way
+# to tell "the model declined" from "the model was unreachable". They also cannot work
+# behind the console's own nginx, which caps a proxied response at 30s while these calls
+# run 180-240s.
+#
+# They are kept WORKING, not removed, because live consumers depend on them right now:
+# the n8n master workflow's "Run AI analyst (Ollama)" lane, and the console at
+# views.js:438/1700/2058. Breaking a working demo path to satisfy a migration would be
+# the wrong trade. `deprecated=True` marks them in /docs, and the `_deprecated` field
+# tells any programmatic caller where to go; they are removed once those two callers
+# have moved to /investigations.
+DEPRECATION = {
+    "replacement": "POST /investigations",
+    "why": ("returns 202 immediately (no 30s proxy ceiling), and persists a per-node "
+            "trace, frozen evidence and citation-checked claims instead of one blob"),
+    "removed_after": "the console and the n8n master workflow migrate",
+}
+
 SYSTEM = (
     "You are VYREX, a senior SOC analyst performing tier-1 triage in an air-gapped environment. "
     "You receive open security findings that are already scored and explained: severity, composite "
@@ -79,7 +100,8 @@ async def agent_status() -> dict:
     }
 
 
-@router.post("/agent/triage", summary="Agentic AI analyst — LLM triages open findings (governed)")
+@router.post("/agent/triage", deprecated=True,
+             summary="[DEPRECATED — use POST /investigations] LLM triages open findings")
 async def agent_triage(req: TriageReq) -> dict:
     rows = await db.fetch(
         "SELECT id, asset_id, title, severity, cve_id, risk_score, kev, cvss_score, epss, "
@@ -130,7 +152,8 @@ async def agent_triage(req: TriageReq) -> dict:
          "e": escalated, "d": json.dumps(out)},
     )
     return {"model": settings.ollama_model, "considered": len(rows), "escalated": escalated,
-            "summary": parsed.get("summary"), "decisions": out, "run_id": (run or {}).get("id")}
+            "summary": parsed.get("summary"), "decisions": out, "run_id": (run or {}).get("id"),
+            "_deprecated": DEPRECATION}
 
 
 @router.get("/agent/runs", summary="Recent AI-analyst runs")
@@ -159,7 +182,9 @@ class InvestigateReq(BaseModel):
     incident_id: int
 
 
-@router.post("/agent/investigate", summary="Investigation agent — LLM pivots an incident into a narrative + kill-chain")
+@router.post("/agent/investigate", deprecated=True,
+             summary="[DEPRECATED — use POST /investigations with subject_type=incident] "
+                     "LLM pivots an incident into a narrative + kill-chain")
 async def agent_investigate(req: InvestigateReq) -> dict:
     inc = await db.fetch_one(
         "SELECT id, title, severity, status, created_at FROM incidents WHERE id = %(id)s",
@@ -229,7 +254,9 @@ async def agent_investigate(req: InvestigateReq) -> dict:
          "c": len(findings), "rid": str(req.incident_id), "d": json.dumps(result)},
     )
     return {"model": settings.ollama_model, "incident": dict(inc), "considered": len(findings),
-            "result": result, "run_id": (run or {}).get("id")}
+            "result": result, "run_id": (run or {}).get("id"),
+            "_deprecated": {**DEPRECATION,
+                            "replacement": "POST /investigations {subject_type: incident}"}}
 
 
 @router.get("/agent/investigations", summary="Recent investigation runs")
