@@ -1,5 +1,15 @@
 # VYREX — the agentic AI analyst (air-gapped, governed)
 
+> **Superseded by the investigation orchestrator.** The `/agent/*` endpoints described here
+> still work but are **deprecated**: they are synchronous (so they cannot survive the
+> console's own 30 s proxy ceiling) and they store a whole run as one opaque blob — no
+> per-step trace, no evidence, no citations, no resumability.
+>
+> The current design — a LangGraph graph with five deterministic evidence specialists and a
+> single citation-bound LLM synthesis step, plus the measured behaviour of the model itself
+> — is in **[AGENT-ORCHESTRATION.md](AGENT-ORCHESTRATION.md)**. Read that first; this page
+> is kept for the endpoints still in use by the console and the n8n workflow.
+
 VYREX runs a **self-hosted LLM** as an autonomous tier-1 analyst: it reasons over your
 *already-explained* findings and proposes triage decisions — **entirely on-prem, nothing egresses**,
 and it can **never** execute a destructive action. This is the rare combination cloud agentic-SOC
