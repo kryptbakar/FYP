@@ -229,3 +229,44 @@ def test_state_defaults_to_queued():
         subject_id=1, trigger_type=TriggerType.MANUAL,
     )
     assert s.status is InvestigationStatus.QUEUED and s.report is None
+
+
+# --- invariant 4: a decision must be justified ---------------------------------------
+# Added after benchmarking showed models will happily return a disposition with zero
+# claims. Abstention needs no claims; a DECISION does.
+
+@pytest.mark.parametrize("disposition", [
+    Disposition.ESCALATE, Disposition.MONITOR, Disposition.DISMISS])
+def test_deciding_without_citing_anything_is_rejected(disposition):
+    """A confident verdict with no cited evidence is an assertion, not a verdict."""
+    with pytest.raises(ValidationError) as e:
+        SynthesisOutput(
+            recommended_severity=Severity.HIGH,
+            recommended_disposition=disposition,
+            summary="Trust me.",
+            rationale_claims=[],
+        )
+    assert "at least one cited claim" in str(e.value)
+
+
+def test_abstaining_without_claims_is_allowed():
+    """'I cannot tell from this' needs no supporting evidence - missing_evidence carries
+    the reasoning instead. Requiring claims here would force fabrication."""
+    out = SynthesisOutput(
+        recommended_severity=Severity.INFO,
+        recommended_disposition=Disposition.INSUFFICIENT_EVIDENCE,
+        summary="Not enough to decide.",
+        rationale_claims=[],
+        missing_evidence=["no corroboration from any second tool"],
+    )
+    assert out.rationale_claims == []
+
+
+def test_deciding_with_a_cited_claim_is_allowed():
+    out = SynthesisOutput(
+        recommended_severity=Severity.HIGH,
+        recommended_disposition=Disposition.ESCALATE,
+        summary="Escalate.",
+        rationale_claims=[Claim(text="KEV-listed and reachable", citation_ids=["F1"])],
+    )
+    assert out.recommended_disposition is Disposition.ESCALATE

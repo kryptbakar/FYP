@@ -31,7 +31,7 @@ import json
 from datetime import datetime, timezone
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Bump on any breaking change to the shapes below. Persisted on every report so a stored
 # investigation can always be read back by the contract that produced it.
@@ -241,6 +241,32 @@ class SynthesisOutput(BaseModel):
     rationale_claims: list[Claim] = Field(default_factory=list)
     recommended_next_steps: list[str] = Field(default_factory=list)
     missing_evidence: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _a_decision_must_be_justified(self) -> "SynthesisOutput":
+        """Deciding while citing nothing is not a verdict, it is an assertion.
+
+        Abstaining with no claims is legitimate — "I cannot tell from this" needs no
+        supporting evidence, and `missing_evidence` carries the reasoning. But ESCALATE /
+        MONITOR / DISMISS are consequential calls, and one made with zero cited evidence is
+        precisely the unfalsifiable output this design exists to prevent.
+
+        Rejecting it here gives the bounded repair attempt a chance to produce a justified
+        answer; failing that the graph abstains, which is the honest outcome. Without this
+        the schema would accept a confident, unsupported ESCALATE and the console would
+        render it as a finished verdict.
+
+        Found by benchmarking: llama3.2:3b returns 0 claims on 12/12 cases. It abstains, so
+        this rule does not change its behaviour — but a model that *decides* while citing
+        nothing would previously have sailed straight through.
+        """
+        if self.recommended_disposition is not Disposition.INSUFFICIENT_EVIDENCE \
+                and not self.rationale_claims:
+            raise ValueError(
+                f"{self.recommended_disposition.value} requires at least one cited claim; "
+                "return INSUFFICIENT_EVIDENCE if the evidence does not support a decision"
+            )
+        return self
 
 
 class TriageReport(BaseModel):
