@@ -31,6 +31,7 @@ from .routers import (
     incidents,
     insights,
     intel,
+    investigations,
     notifications,
     playbooks,
     reports,
@@ -101,6 +102,7 @@ app.include_router(toolkit.router)
 app.include_router(automation.router)
 app.include_router(agent.router)
 app.include_router(defense.router)
+app.include_router(investigations.router)
 
 
 @app.get("/metrics", tags=["system"], summary="Prometheus metrics")
