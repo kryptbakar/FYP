@@ -49,6 +49,46 @@ End on beat 7. That's your mic-drop. **Pause there.**
 
 ---
 
+## 2b. The Investigations workspace (the strongest thing you have — spend time here)
+
+Open **Investigations**. This is where the project stops being an integration exercise.
+
+> "Most 'AI SOC' demos show you a verdict. The problem is you cannot check it. Here is the
+> same investigation, but every step is recorded and every claim is *attributable*."
+
+Walk it in this order:
+
+1. **The execution graph.** "Five specialists ran in parallel — asset, ATT&CK, threat intel,
+   multi-tool corroboration, historical. All of them are deterministic SQL. Exactly one node
+   in this graph talks to a model." That last sentence is the design position: everything
+   feeding the LLM is code you can read and test, so *"the model decided"* is never the
+   explanation for a verdict.
+2. **A skipped branch vs a failed one.** Point at one. "These look the same in any
+   single-blob agent. 'Found nothing' and 'crashed' are completely different facts, and an
+   analyst has to be able to tell them apart."
+3. **Click a citation.** It jumps to the evidence record that backs the claim. "Grounded is
+   a claim you should not take on trust. This is how you check it."
+4. **The confidence number.** "The model is not allowed to set this. The schema it is given
+   has no confidence field — it fails validation if it tries. This number comes from how
+   many evidence branches actually succeeded."
+
+**Then show the honest part, deliberately.** Do not hide it — lead with it:
+
+> "And here is what it currently says: *insufficient evidence*, with no citations. That is
+> real. I benchmarked it — across twelve findings, llama3.2:3b abstained on twelve out of
+> twelve and cited nothing on twelve out of twelve. Qwen3-4B could not finish a single
+> response in fifteen minutes on this hardware, at 3.2 tokens a second.
+>
+> So the honest result is this: the pipeline is provably correct — schema-constrained
+> output, zero unresolved citations, deterministic replay, unit-tested — and the binding
+> constraint is inference hardware, not the design. That is a measured finding with a
+> benchmark behind it, not an excuse."
+
+Examiners reward this. A student who measured the limit of their own system and can state
+it precisely is in a stronger position than one whose demo happened to work.
+
+---
+
 ## 3. The closer (after the storyline)
 
 > "So: ten open-source tools, unified. Every score **explained**. Every action **signed, approved,
@@ -130,3 +170,17 @@ End on beat 7. That's your mic-drop. **Pause there.**
 2. **Have the Model card open in a tab** for the ML question — show the honesty, don't just say it.
 3. **Run the egress-verification script once on the day** so you can say "I ran it this morning."
 4. Lead with the **buyer and the law** (§0), not the tech. Evaluators reward "who pays for this and why."
+5. **Pre-run one investigation before they walk in.** CPU-only inference takes ~50 s and dead
+   air kills a demo. Have a completed one on screen; start a second live only if asked, and
+   narrate the execution graph while it runs.
+6. **Know these four numbers cold** — they are the ones that make you sound like an engineer
+   rather than an integrator:
+   - `12/12` — findings on which llama3.2:3b abstained and cited nothing
+   - `3.2 tok/s` — Qwen3-4B generation rate on this CPU, why a 4B model is unusable here
+   - `n_tools=3, weight=1.0` — agent + MISP + Sigma fusing on one connection
+   - `173` — tests passing
+7. **Be ready for "so your AI doesn't work?"** The answer is not defensive:
+   *"The orchestration works and is tested. The 3B model that fits in 5.8 GB of RAM does not
+   commit to a verdict. I measured that rather than assuming it, and it tells you exactly what
+   hardware this design needs — which is a more useful result than a demo that happened to
+   pass."*
