@@ -128,6 +128,9 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       OLLAMA_TRIAGE_TIMEOUT_S: ${OLLAMA_TRIAGE_TIMEOUT_S:-180}
       OLLAMA_INVESTIGATE_TIMEOUT_S: ${OLLAMA_INVESTIGATE_TIMEOUT_S:-240}
+      # The API creates the orchestrator's least-privilege DB role at startup (only a
+      # superuser can), so it needs the password the orchestrator will authenticate with.
+      ORCH_DB_PASSWORD: ${ORCH_DB_POSTGRES_PASSWORD:-}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -320,8 +323,13 @@ services:
       POSTGRES_HOST: postgres
       POSTGRES_PORT_INTERNAL: 5432
       POSTGRES_DB: ${POSTGRES_DB:-soc_central}
-      POSTGRES_USER: ${POSTGRES_USER:-soc}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-soc}
+      # Connects as the least-privilege `vyrex_orchestrator` role when
+      # ORCH_DB_POSTGRES_PASSWORD is set (the API creates it at startup), otherwise falls
+      # back to the shared superuser. This service reads untrusted evidence into an LLM
+      # prompt, so it is the one that must not be able to write response_actions -
+      # see docs/THREAT-MODEL.md §3.1.
+      POSTGRES_USER: ${ORCH_DB_POSTGRES_USER:-${POSTGRES_USER:-soc}}
+      POSTGRES_PASSWORD: ${ORCH_DB_POSTGRES_PASSWORD:-${POSTGRES_PASSWORD:-soc}}
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       ORCH_POLL_INTERVAL_S: ${ORCH_POLL_INTERVAL_S:-5}

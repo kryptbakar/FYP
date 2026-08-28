@@ -558,6 +558,85 @@ ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_accepted_until date;
 """
 
 
+# Least-privilege database role for the investigation orchestrator.
+#
+# The orchestrator reads untrusted evidence and feeds it to a language model, and
+# docs/THREAT-MODEL.md §3.1 demonstrates a working prompt injection against it. It is
+# therefore the service most likely to be induced to do something unintended - and until
+# now it connected as `soc`, a SUPERUSER able to INSERT into response_actions and read
+# users. The threat model's claim that it "cannot execute containment" described the code
+# paths, not anything the database enforced. This makes it enforced.
+#
+# No REVOKE statements are needed and none are used: in PostgreSQL a freshly created role
+# has NO privileges on existing tables, and PUBLIC holds none by default. Granting exactly
+# what is required is therefore provably minimal, and safer than grant-then-revoke, which
+# leaves the outcome dependent on the revoke list staying in step with the schema.
+ORCHESTRATOR_ROLE = """
+DO $$
+DECLARE
+    pw text := current_setting('vyrex.orch_password', true);
+BEGIN
+    IF pw IS NULL OR pw = '' THEN
+        RAISE NOTICE 'vyrex.orch_password not set - skipping orchestrator role';
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'vyrex_orchestrator') THEN
+        EXECUTE format('CREATE ROLE vyrex_orchestrator LOGIN PASSWORD %L', pw);
+    ELSE
+        EXECUTE format('ALTER ROLE vyrex_orchestrator LOGIN PASSWORD %L', pw);
+    END IF;
+
+    EXECUTE format('GRANT CONNECT ON DATABASE %I TO vyrex_orchestrator', current_database());
+    EXECUTE 'GRANT USAGE ON SCHEMA public TO vyrex_orchestrator';
+
+    -- Its own orchestration tables, plus LangGraph's checkpoint tables: full DML.
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON
+                 investigations, investigation_steps, investigation_evidence,
+                 triage_reports, investigation_outbox,
+                 checkpoints, checkpoint_blobs, checkpoint_writes, checkpoint_migrations
+             TO vyrex_orchestrator';
+
+    -- Evidence sources: SELECT only. It must never be able to edit a finding it is
+    -- reasoning about, or the evidence and the verdict stop being independent.
+    EXECUTE 'GRANT SELECT ON findings, assets, finding_explanations,
+                             incidents, incident_findings
+             TO vyrex_orchestrator';
+
+    EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO vyrex_orchestrator';
+
+    -- Everything else - response_actions, users, sessions, action_audit, access_audit,
+    -- defense_policy, defense_decisions - is simply never granted.
+EXCEPTION
+    WHEN undefined_table THEN
+        RAISE NOTICE 'orchestrator role: a referenced table is missing - deferring';
+END $$;
+"""
+
+
+def ensure_orchestrator_role() -> None:
+    """Create/refresh the least-privilege orchestrator role. Idempotent, best-effort.
+
+    Runs from the API because only a superuser can create a role, and the API already
+    owns schema migration. Skipped silently when ORCH_DB_PASSWORD is unset, so existing
+    deployments keep working on the shared role rather than failing to start.
+    """
+    pw = getattr(settings, "orch_db_password", "") or ""
+    if not pw:
+        log.info("ORCH_DB_PASSWORD unset - orchestrator stays on the shared role")
+        return
+    try:
+        with psycopg.connect(settings.postgres_dsn, autocommit=True) as conn:
+            with conn.cursor() as cur:
+                # Passed via set_config rather than interpolated into the DDL text, so the
+                # password never appears in a SQL string this process builds.
+                cur.execute("SELECT set_config('vyrex.orch_password', %s, false)", (pw,))
+                cur.execute(ORCHESTRATOR_ROLE)
+        log.info("orchestrator least-privilege role ready")
+    except Exception as e:
+        log.warning("orchestrator role deferred: %s", e)
+
+
 def ensure_schema() -> None:
     try:
         with psycopg.connect(settings.postgres_dsn, autocommit=True) as conn:
@@ -574,3 +653,5 @@ def ensure_schema() -> None:
         log.info("findings lifecycle columns ready")
     except Exception as e:
         log.info("findings augment deferred (table not present yet): %s", e)
+    # Last, because it grants on tables the two steps above create.
+    ensure_orchestrator_role()

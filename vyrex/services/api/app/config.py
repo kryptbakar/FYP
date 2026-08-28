@@ -61,6 +61,11 @@ class Settings(BaseSettings):
     # Health probe only - must stay short so /agent/status cannot hang the console.
     ollama_probe_timeout_s: int = 4
 
+    # Password for the least-privilege `vyrex_orchestrator` DB role (schema.py). Blank
+    # keeps the orchestrator on the shared `soc` superuser, which is how it shipped before
+    # 2026-08-28 - set it in .env and the role is created and enforced at API startup.
+    orch_db_password: str = ""
+
     # Active response (Phase 6): shared agent token + Ed25519 command-signing key path.
     ingest_agent_token: str = ""
     command_signing_key: str = "/keys/command_signing.key"

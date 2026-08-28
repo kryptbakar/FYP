@@ -77,7 +77,7 @@ can steer a VYREX recommendation.** That is a real finding and it is not hedged 
 | `rationale_claims: []` | **Refused** — 1 claim produced | `SynthesisOutput` rejects any non-abstaining verdict with no cited claim |
 | cite fabricated id `Z9` | **Never appeared** (0 occurrences) | Citations are checked against ids the graph actually created |
 | conceal the instruction | **Failed** — the evidence is stored and visible in the console | Evidence is persisted and rendered, not summarised away |
-| — | **No action possible** | The orchestrator holds no grant on `response_actions` |
+| — | **No action possible** | The orchestrator's DB role has no grant on `response_actions` (§3.2) |
 
 So the attack's best case is a **recommendation** an analyst can inspect and overturn. It
 cannot forge evidence, cannot fabricate a citation, cannot act, and cannot hide itself.
@@ -116,6 +116,66 @@ Reductions worth the cost, in order:
    and doubles the inference cost on hardware that already cannot afford one model.
 
 Reproduce with `python eval/injection_probe.py` (see that file for the exact payloads).
+
+## 3.2 The orchestrator's database role — an assumption that was false
+
+While writing §3.1 the claim *"the orchestrator cannot execute containment"* was checked
+against the database rather than the code. **It was wrong.** The orchestrator connected as
+`soc`, and:
+
+```
+ rolname | rolsuper | rolcreatedb | rolbypassrls
+---------+----------+-------------+--------------
+ soc     | t        | t           | t
+```
+
+A superuser — with `INSERT` on `response_actions` and `SELECT` on `users`. The "cannot
+execute" property was a statement about which code paths existed, not something the
+database enforced. For the service that reads attacker-controlled text into an LLM, that
+is the wrong kind of guarantee.
+
+There is now a dedicated `vyrex_orchestrator` role, created idempotently at API startup
+(only a superuser can create a role) and enabled by setting `ORCH_DB_POSTGRES_PASSWORD`:
+
+| Grant | Tables |
+|---|---|
+| `SELECT, INSERT, UPDATE, DELETE` | `investigations`, `investigation_steps`, `investigation_evidence`, `triage_reports`, `investigation_outbox`, and LangGraph's `checkpoint*` tables |
+| `SELECT` only | `findings`, `assets`, `finding_explanations`, `incidents`, `incident_findings` |
+| *(nothing)* | `response_actions`, `users`, `sessions`, `action_audit`, `access_audit`, `defense_policy`, `defense_decisions`, everything else |
+
+**No `REVOKE` statements are used, deliberately.** In PostgreSQL a newly created role holds
+no privileges on existing tables and `PUBLIC` holds none by default, so granting exactly
+what is needed is *provably* minimal. Grant-then-revoke would make the outcome depend on a
+revoke list staying in step with the schema — one new sensitive table and the property
+silently lapses.
+
+Read access to `findings` is `SELECT` only on purpose: the orchestrator must not be able to
+edit a finding it is reasoning about, or the evidence and the verdict stop being
+independent.
+
+**Verified, as privileges rather than intentions:**
+
+```
+ response_actions INSERT | false      investigations INSERT | true
+ response_actions SELECT | false      triage_reports INSERT | true
+ users SELECT            | false      checkpoints    INSERT | true
+ sessions SELECT         | false      findings       SELECT | true
+ action_audit INSERT     | false      findings       UPDATE | false
+ defense_policy UPDATE   | false
+```
+
+…and functionally: a complete investigation ran under the role with no superuser — 8 steps,
+2 evidence records, 1 report.
+
+**One wrinkle worth recording**, because it is the kind of thing that quietly costs a
+security property. LangGraph's checkpointer calls `setup()`, which issues
+`CREATE TABLE IF NOT EXISTS` — and PostgreSQL refuses that without `CREATE` on the schema
+**even when every table already exists**. The first cut treated the resulting error as
+"checkpointer unavailable", which silently disabled resume-after-crash, a Phase 1 exit-gate
+property. The tempting fix — grant `CREATE ON SCHEMA public` — trades a real standing
+privilege for one idempotent DDL call. Instead the orchestrator now distinguishes *cannot
+create* from *cannot use*: if the tables exist and are writable it keeps the checkpointer
+and logs that setup was skipped. Resume works; the privilege is not granted.
 
 ---
 

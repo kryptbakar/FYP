@@ -45,21 +45,75 @@ def _handle_signal(signum, _frame):
     _stop = True
 
 
+def _checkpoint_tables_usable(saver) -> bool:
+    """True if the checkpoint tables already exist and this role can write them.
+
+    Distinguishes "cannot CREATE the tables" from "cannot USE them" - see make_checkpointer.
+    """
+    try:
+        # setup() raised inside a transaction, so the connection is in the aborted state
+        # and every subsequent statement fails with "current transaction is aborted".
+        # Without this rollback the probe always answers False and the fallback is dead
+        # code that looks like it works.
+        try:
+            saver.conn.rollback()
+        except Exception:  # noqa: BLE001
+            pass
+        with saver.conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM checkpoints LIMIT 1")
+            cur.execute("SELECT (has_table_privilege('checkpoints', 'INSERT') "
+                        "AND has_table_privilege('checkpoint_writes', 'INSERT') "
+                        "AND has_table_privilege('checkpoint_blobs', 'INSERT')) AS ok")
+            row = cur.fetchone()
+            # PostgresSaver configures a dict row factory, so `row[0]` is a KeyError, not
+            # the first column. Read by name and accept either shape rather than assuming
+            # one - getting this wrong made the probe always return False, which silently
+            # turned the fallback below into dead code that looked correct.
+            value = row["ok"] if isinstance(row, dict) else row[0]
+            return bool(value)
+    except Exception as e:  # noqa: BLE001
+        log.debug("checkpoint table probe failed: %s", e)
+        return False
+
+
 def make_checkpointer(dsn: str):
     """LangGraph's Postgres checkpointer, so a restart resumes mid-graph.
 
-    Optional on purpose: if setup fails the worker still runs, it just loses resume.
-    Refusing to start would turn a degraded feature into a total outage.
+    Optional on purpose: if it is genuinely unusable the worker still runs, it just loses
+    resume. Refusing to start would turn a degraded feature into a total outage.
+
+    The subtlety is `setup()`. It issues CREATE TABLE IF NOT EXISTS, which PostgreSQL
+    refuses without CREATE on the schema *even when every table already exists*. Under the
+    least-privilege `vyrex_orchestrator` role (services/api/app/schema.py) that raises -
+    and treating it as "checkpointer unavailable" silently disabled resume-after-crash, a
+    Phase 1 exit-gate property, to buy a privilege the service does not otherwise need.
+
+    So a setup() failure is not fatal by itself: if the tables are present and writable the
+    checkpointer works, and is kept. Granting CREATE on the schema so that one idempotent
+    DDL call can succeed would be the wrong trade.
     """
     try:
         from langgraph.checkpoint.postgres import PostgresSaver
         cm = PostgresSaver.from_conn_string(dsn)
         saver = cm.__enter__()
+    except Exception as e:  # noqa: BLE001
+        log.warning("checkpointer unavailable (%s) - running without resume", e)
+        return None, None
+
+    try:
         saver.setup()                      # creates its own checkpoint tables; idempotent
         log.info("checkpointer ready (resume enabled)")
         return saver, cm
     except Exception as e:  # noqa: BLE001
+        if _checkpoint_tables_usable(saver):
+            log.info("checkpointer setup skipped (%s) - tables exist and are writable, "
+                     "resume enabled", str(e).strip().splitlines()[0])
+            return saver, cm
         log.warning("checkpointer unavailable (%s) - running without resume", e)
+        try:
+            cm.__exit__(None, None, None)
+        except Exception:  # noqa: BLE001
+            pass
         return None, None
 
 
