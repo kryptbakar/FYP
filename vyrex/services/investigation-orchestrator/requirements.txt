@@ -1,11 +1,8 @@
-# Phase 0 ships the frozen contracts only — pydantic is genuinely all they need.
-# Versions match services/api so both sides of the API boundary validate identically.
+# Pinned to match the other services so the air-gap bundle carries one consistent set.
 pydantic==2.10.4
+psycopg[binary]==3.2.3
+httpx==0.28.1
 
-# Phase 1 adds, when the graph and its durability actually exist (not before — every
-# dependency listed here has to travel through the air-gap bundle as image layers):
-#   langgraph, langgraph-checkpoint-postgres   graph + Postgres checkpointing/resume
-#   psycopg[binary]==3.2.3                     same pin as the other services
-#   nats-py==2.9.0                             INVESTIGATIONS stream consumer
-#   fastapi / uvicorn                          health + readiness endpoints
-#   httpx==0.28.1                              Ollama calls
+# The graph runtime and its Postgres checkpointer (resume after a restart).
+langgraph==1.2.11
+langgraph-checkpoint-postgres==3.1.2
