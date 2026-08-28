@@ -63,6 +63,37 @@ def make_checkpointer(dsn: str):
         return None, None
 
 
+def resume_orphans(pg, graph) -> int:
+    """Re-drive investigations abandoned mid-graph by a previous crash.
+
+    Invoking with the same `thread_id` is what makes this cheap: LangGraph's checkpointer
+    replays completed nodes from the saved state instead of re-running them, so a run
+    killed during an 82-second synthesis does not repeat the evidence collection — and,
+    more importantly, does not repeat the LLM call if that had already returned.
+    """
+    orphans = repo.find_orphaned(pg)
+    if not orphans:
+        return 0
+    log.info("found %d investigation(s) abandoned mid-graph; resuming", len(orphans))
+    done = 0
+    for o in orphans:
+        inv_id = o["investigation_id"]
+        try:
+            state = {"investigation_id": inv_id, "subject_type": o["subject_type"],
+                     "subject_id": o["subject_id"], "evidence": [],
+                     "branch_outputs": {}, "errors": []}
+            final = graph.invoke(state, config={"configurable": {"thread_id": inv_id}})
+            report = final.get("report") or {}
+            status = "partial" if report.get("completeness") == "partial" else "completed"
+            repo.finish(pg, inv_id, status)
+            log.info("resumed investigation %s -> %s", inv_id, status)
+            done += 1
+        except Exception as e:  # noqa: BLE001
+            log.exception("could not resume %s", inv_id)
+            repo.finish(pg, inv_id, "failed", error=f"resume failed: {type(e).__name__}: {e}")
+    return done
+
+
 def process_one(pg, graph, job: dict) -> bool:
     """Run one claimed job. Returns True if an investigation actually ran."""
     payload = job["payload"] or {}
@@ -111,7 +142,9 @@ def run(once: bool = False) -> int:
     log.info("orchestrator up: model=%s graph=%s contract=%s poll=%ss",
              llm.name, settings.graph_version, CONTRACT_VERSION, settings.poll_interval_s)
 
-    processed = 0
+    # Before taking new work, finish what a previous crash left half-done. Otherwise
+    # those runs are stranded: their outbox row is already 'sent', so nothing redelivers.
+    processed = resume_orphans(pg, graph)
     try:
         while not _stop:
             job = repo.claim_next_job(pg, settings.max_attempts)

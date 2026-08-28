@@ -73,6 +73,29 @@ def claim_next_job(pg: psycopg.Connection, max_attempts: int) -> dict | None:
             return row
 
 
+def find_orphaned(pg: psycopg.Connection) -> list[dict]:
+    """Investigations left in 'running' by a worker that died mid-graph.
+
+    Without this they are lost forever: `claim_next_job` already marked their outbox row
+    'sent', so nothing re-delivers them, and the investigation sits in 'running'
+    indefinitely. The checkpointer can resume the graph, but only if something notices
+    the run needs resuming — that is what this is for.
+
+    Safe because the orchestrator runs single-instance (ORCH_CONCURRENCY=1 by default on
+    this hardware): at startup, any 'running' row is necessarily stale, because this
+    process is the only thing that could have been running it. Scaling to multiple
+    workers would need a lease column (worker id + heartbeat) so a live run on another
+    worker is not stolen; noted rather than built, since one worker is the deliberate
+    configuration here.
+    """
+    with pg.cursor() as cur:
+        cur.execute(
+            "SELECT investigation_id, subject_type, subject_id, started_at "
+            "FROM investigations WHERE status='running' ORDER BY started_at"
+        )
+        return cur.fetchall()
+
+
 def release_job(pg: psycopg.Connection, outbox_id: int, error: str) -> None:
     """Hand a job back for retry after a transient failure."""
     with pg.cursor() as cur:
