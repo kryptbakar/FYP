@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     # Self-hosted LLM (air-gapped) for the agentic AI-analyst loop.
     ollama_url: str = "http://ollama:11434"
     ollama_model: str = "llama3.2:3b"
+    # Generation timeouts, in seconds. These were hardcoded literals in agent.py, which
+    # made them undiscoverable and impossible to tune per deployment - and they are the
+    # numbers most likely to need tuning, because CPU-only inference varies by an order of
+    # magnitude with model size (measured: 3B ~45-110 s, qwen3:4b did not finish in 900 s;
+    # docs/AGENT-ORCHESTRATION.md §7). Investigate gets longer than triage because it
+    # reasons over a whole incident rather than one finding.
+    ollama_triage_timeout_s: int = 180
+    ollama_investigate_timeout_s: int = 240
+    # Health probe only - must stay short so /agent/status cannot hang the console.
+    ollama_probe_timeout_s: int = 4
 
     # Active response (Phase 6): shared agent token + Ed25519 command-signing key path.
     ingest_agent_token: str = ""

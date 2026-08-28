@@ -121,6 +121,13 @@ services:
       # Automation (n8n): optional API key lights up live execution status in the Automation view.
       N8N_BASE_URL: ${N8N_BASE_URL:-http://n8n:5678}
       N8N_API_KEY: ${N8N_API_KEY:-}
+      # Self-hosted LLM. docs/AI-ANALYST.md documented these as configurable while they
+      # were reaching the API only as config.py defaults, so setting OLLAMA_MODEL in .env
+      # changed the orchestrator but silently not /agent/*.
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
+      OLLAMA_TRIAGE_TIMEOUT_S: ${OLLAMA_TRIAGE_TIMEOUT_S:-180}
+      OLLAMA_INVESTIGATE_TIMEOUT_S: ${OLLAMA_INVESTIGATE_TIMEOUT_S:-240}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:

@@ -76,7 +76,7 @@ async def _ollama_chat(prompt: str) -> str:
         "options": {"temperature": 0.1},
         "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
     }
-    async with httpx.AsyncClient(timeout=180) as c:
+    async with httpx.AsyncClient(timeout=settings.ollama_triage_timeout_s) as c:
         r = await c.post(f"{settings.ollama_url}/api/chat", json=payload)
         r.raise_for_status()
         return ((r.json().get("message") or {}).get("content")) or ""
@@ -86,7 +86,7 @@ async def _ollama_chat(prompt: str) -> str:
 async def agent_status() -> dict:
     reachable, models = False, []
     try:
-        async with httpx.AsyncClient(timeout=4) as c:
+        async with httpx.AsyncClient(timeout=settings.ollama_probe_timeout_s) as c:
             r = await c.get(f"{settings.ollama_url}/api/tags")
             if r.status_code == 200:
                 reachable = True
@@ -230,7 +230,7 @@ async def agent_investigate(req: InvestigateReq) -> dict:
                      {"role": "user", "content": "\n".join(lines)}],
     }
     try:
-        async with httpx.AsyncClient(timeout=240) as c:
+        async with httpx.AsyncClient(timeout=settings.ollama_investigate_timeout_s) as c:
             r = await c.post(f"{settings.ollama_url}/api/chat", json=payload)
             r.raise_for_status()
             content = ((r.json().get("message") or {}).get("content")) or ""
