@@ -10,7 +10,7 @@
        assets/fonts/*.woff2, and --sans/--mono/--display each end in a full system stack.
        No font CDN is contacted — an air-gapped install must not depend on one, and the
        previous Google Fonts <link> made the first paint reach the public internet. -->
-  <link rel="stylesheet" href="assets/app.css?v=47" />
+  <link rel="stylesheet" href="assets/app.css?v=49" />
 </head>
 <body>
   <div class="app">
@@ -162,19 +162,19 @@
   <aside class="drawer" id="drawer"><div id="drawer-inner" style="display:flex;flex-direction:column;height:100%"></div></aside>
   <div class="toast" id="toast"></div>
 
-  <script src="assets/fixtures.js?v=47"></script>
-  <script src="assets/api.js?v=47"></script>
-  <script src="assets/ui.js?v=47"></script>
-  <script src="assets/toolkit.js?v=47"></script>
-  <script src="assets/views.js?v=47"></script>
+  <script src="assets/fixtures.js?v=49"></script>
+  <script src="assets/api.js?v=49"></script>
+  <script src="assets/ui.js?v=49"></script>
+  <script src="assets/toolkit.js?v=49"></script>
+  <script src="assets/views.js?v=49"></script>
   <!-- Chart primitives (hand-built inline SVG - D-044 forbids a charting CDN).
        After ui.js because it uses h()/sv(); before dashboard.js, which draws with it. -->
-  <script src="assets/charts.js?v=47"></script>
+  <script src="assets/charts.js?v=49"></script>
   <!-- Command deck. Loaded after views.js because it reuses its helpers (skPanel, band,
        chip) and ui.js's sv(); before app.js, which registers the route. -->
-  <script src="assets/dashboard.js?v=47"></script>
-  <script src="assets/autonomous.js?v=47"></script>
-  <script src="assets/app.js?v=47"></script>
-  <script src="assets/story.js?v=47"></script>
+  <script src="assets/dashboard.js?v=49"></script>
+  <script src="assets/autonomous.js?v=49"></script>
+  <script src="assets/app.js?v=49"></script>
+  <script src="assets/story.js?v=49"></script>
 </body>
 </html>

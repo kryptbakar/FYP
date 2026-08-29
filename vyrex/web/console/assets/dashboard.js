@@ -225,7 +225,7 @@ async function viewCommandDeck(root) {
   const j = (p, f) => (p && p.catch ? p.catch(() => f) : Promise.resolve(f));
   const [ranking, stats, comp, incidents, chain, assets, invs, orch, agent,
          model, cov, recent, dets, clusters, dstats, ddec, decoys, attrib,
-         actions, vitals, ready, audit, rules] = await Promise.all([
+         actions, vitals, ready, audit, rules, trends] = await Promise.all([
     j(API.ranking(), []), j(API.stats(), {}), j(API.compSummary(), {}),
     j(API.incidents(), []), j(API.chain(), {}), j(API.assets(), []),
     j(API.investigations(50), []), j(API.orchestratorStatus(), {}),
@@ -234,12 +234,13 @@ async function viewCommandDeck(root) {
     j(API.defenseStats(), {}), j(API.defenseDecisions(60), []), j(API.decoys(), []),
     j(API.attribution(), {}), j(API.actions(), []), j(API.nodeVitals(), {}),
     j(API.ready(), {}), j(API.accessAudit(30), []), j(API.ruleStats(), {}),
+    j(API.postureTrends(), []),
   ]);
   root.innerHTML = '';
 
   const d = { ranking, stats, comp, incidents, chain, assets, invs, orch, agent,
               model, cov, recent, dets, clusters, dstats, ddec, decoys, attrib,
-              actions, vitals, ready, audit, rules };
+              actions, vitals, ready, audit, rules, trends };
 
   // ---- derive, once, from real rows -----------------------------------
   const byTool = {};
@@ -524,6 +525,7 @@ function deckBoard(d, deck) {
     place(defensePanel(d), 'defense'),
     place(compliancePanel(d), 'compliance'),
     // --- the rotating pool: everything that cannot hold a permanent cell ---
+    place(trendPanel(d), 'trend', true),
     place(orchPanel(d), 'orch', true),
     place(vitalsPanel(d), 'vitals', true),
     place(attribPanel(d), 'attrib', true),
@@ -900,6 +902,40 @@ function modelPanel(d) {
       + 'it now ranks differently from production scoring (rank agreement 0.81, down '
       + 'from 0.97). Retraining would only deepen that circularity, not resolve it — '
       + 'only analyst labels can say which ranking is right. A re-ranker, not an oracle.'));
+}
+
+/* ---- posture trend ---------------------------------------------------
+   The one genuine longitudinal series in the system. It was dead until
+   2026-08-30: `/posture/trends` only snapshotted when the table was EMPTY, and a
+   single all-zero row written before anything was scored satisfied that forever,
+   so the chart was a flat zero line that read as "posture never changed" rather
+   than "posture was never measured". It now snapshots any day that is missing,
+   so the series grows by one real point per day from here. */
+function trendPanel(d) {
+  const rows = (d.trends || []).filter(r => r && r.snap_date);
+  if (rows.length < 2) {
+    return card('Posture trend', null, 'dk-w4',
+      chEmpty(rows.length ? 'one day recorded — the series grows daily' : 'no snapshots yet'));
+  }
+  const cols = rows.map(r => {
+    const dt = new Date(r.snap_date + 'T00:00:00Z');
+    const crit = +r.critical || 0, high = +r.high || 0;
+    const rest = Math.max(0, (+r.open_findings || 0) - crit - high);
+    return {
+      label: `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`,
+      parts: [{ cls: 'critical', value: crit }, { cls: 'high', value: high },
+              { cls: 'low', value: rest }],
+    };
+  });
+  const last = rows[rows.length - 1], first = rows[0];
+  const delta = (+last.open_findings || 0) - (+first.open_findings || 0);
+  return card('Posture trend', rows.length + ' days recorded', 'dk-w4',
+    chColumns(cols, { h: 40, aria: 'open findings per day, by band' }),
+    h('div', { class: 'dk-kv' },
+      kv('open findings', `${last.open_findings} (${delta >= 0 ? '+' : ''}${delta})`),
+      kv('critical / high', `${last.critical} / ${last.high}`),
+      kv('mean risk', last.avg_risk == null ? '—' : Number(last.avg_risk).toFixed(1)),
+      kv('CIS pass rate', last.compliance_pct == null ? '—' : Number(last.compliance_pct) + '%')));
 }
 
 /* ---- estate ---------------------------------------------------------- */

@@ -6,7 +6,7 @@ techniques we actually see and which tools cover them*, and a *trend* line that 
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Query
@@ -106,14 +106,25 @@ async def snapshot() -> dict:
 
 @router.get("/posture/trends", summary="Posture trend over time (daily snapshots)")
 async def trends(days: Annotated[int, Query(ge=1, le=365)] = 90) -> list[dict]:
+    sel = ("SELECT snap_date, open_findings, kev, critical, high, exploit_available, "
+           "avg_risk, compliance_pct FROM posture_snapshots")
     rows = await db.fetch(
-        "SELECT snap_date, open_findings, kev, critical, high, exploit_available, avg_risk, compliance_pct "
-        "FROM posture_snapshots WHERE snap_date >= current_date - %(d)s ORDER BY snap_date",
-        {"d": days})
-    if not rows:
-        # No history yet: take today's snapshot so the chart has at least one real point.
+        f"{sel} WHERE snap_date >= current_date - %(d)s ORDER BY snap_date", {"d": days})
+
+    # Snapshot today if today is missing — NOT merely when the table is empty.
+    #
+    # The empty-table version left this feature silently dead. A single all-zero row
+    # written on 2026-08-20 (correctly: nothing was scored yet) satisfied `if not rows`
+    # forever after, so no snapshot was taken for the next ten days and the trend was a
+    # flat line at zero that looked like "posture never changed" rather than "posture was
+    # never measured". Nothing else in the stack calls /posture/snapshot on a schedule,
+    # so this endpoint is the only thing that can keep the series alive.
+    #
+    # A GET with a write is deliberate and was already the pattern here: the insert is
+    # idempotent per day (ON CONFLICT on snap_date), so concurrent readers converge on one
+    # row and re-reads are free.
+    if not any(r["snap_date"] == date.today() for r in rows):
         await _take_snapshot()
         rows = await db.fetch(
-            "SELECT snap_date, open_findings, kev, critical, high, exploit_available, avg_risk, compliance_pct "
-            "FROM posture_snapshots ORDER BY snap_date")
+            f"{sel} WHERE snap_date >= current_date - %(d)s ORDER BY snap_date", {"d": days})
     return rows

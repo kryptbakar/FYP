@@ -79,10 +79,14 @@ function chColumns(cols, o = {}) {
     class: 'ch-svg', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'none',
     role: 'img', 'aria-label': o.aria || 'timeline',
   }, bars);
-  const ticks = o.ticks !== false ? h('div', { class: 'ch-ticks' },
-    h('span', {}, cols[0].label),
-    h('span', {}, cols[Math.floor(cols.length / 2)].label),
-    h('span', {}, cols[cols.length - 1].label)) : null;
+  // First / middle / last, de-duplicated. With two columns the middle IS the last,
+  // so a naive three-tick row prints the same date twice ("8/20 | 8/29 | 8/29") —
+  // which reads as a rendering fault rather than as a short series.
+  const tickIdx = [...new Set([0, Math.floor((cols.length - 1) / 2), cols.length - 1])];
+  const ticks = o.ticks !== false
+    ? h('div', { class: 'ch-ticks' + (tickIdx.length < 3 ? ' is-sparse' : '') },
+        tickIdx.map(i => h('span', {}, cols[i].label)))
+    : null;
   return h('div', { class: 'ch-cols' }, svg, ticks);
 }
 
