@@ -37,6 +37,9 @@ jobs:
           pytest pytest-asyncio
       # -p no:cacheprovider: the runner's checkout is not always writable by the test
       # user, and a cache-write warning in a security project's CI is noise nobody reads.
+      # eval/tests pins the evaluation arithmetic. It belongs in CI precisely because
+      # nothing labels cases yet, so the decision-quality path never runs on real data —
+      # a metric that silently returns a plausible wrong number is the worst failure here.
       - name: Run tests
         run: >
           python -m pytest -q -p no:cacheprovider
@@ -45,6 +48,7 @@ jobs:
           services/enrichment/tests
           services/feed-sync/tests
           services/investigation-orchestrator/tests
+          eval/tests
 
   ml-evaluation:
     name: risk-engine evaluation (baselines + fusion)

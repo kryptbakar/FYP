@@ -186,7 +186,8 @@ The evaluation is complete when:
 | Advisor adjudication | **Not secured** — blocks the κ statistic. Ask now; it cannot be retrofitted |
 | Corpus | 54 findings (29 HIGH, 13 MEDIUM, 6 CRITICAL, 6 LOW); needs 60–80 stratified |
 | Labels collected | 0 — `eval/labels/` is empty and its schema is fixed |
-| Grounding metrics | **Measurable now** — `make model-benchmark` |
+| Scoring harness | ✅ `eval/score_labels.py` — §3 metrics implemented and unit-pinned; refuses to compute accuracy without labels |
+| Grounding metrics | **Measurable now** — `make model-benchmark`, and `score_labels.py` reports them with zero labels |
 | Model choice | llama3.2:3b abstains 12/12; qwen3:4b unusable at 3.2 tok/s; qwen2.5:3b under test |
 
 The freeze is only meaningful if it is checkable, so it is: the rubric was committed with an
