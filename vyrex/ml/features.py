@@ -27,6 +27,13 @@ _ATTACK_GRADE = {
     "T1547": 0.6, "T1543": 0.6,                          # persistence
     "T1068": 0.8, "T1548": 0.7,                          # privilege escalation
     "T1562": 0.8, "T1070": 0.7,                          # defense evasion
+    # Lateral movement. T1021 was MISSING while services/intel-enricher/attack.py could
+    # already assign it, so any finding the enricher tagged as Remote Services fell through
+    # to the 0.5 default and scored as if its ATT&CK context were unknown — two components
+    # disagreeing about the same vocabulary. Graded above initial access (0.7) because the
+    # attacker is already inside and expanding, below active C2 (0.9) because movement is
+    # not yet control. test_attack_grade_covers_enricher.py stops this recurring.
+    "T1021": 0.75, "T1550": 0.8,                         # lateral movement
     "T1071": 0.9, "T1571": 0.9, "T1090": 0.85,           # command & control
     "T1041": 1.0, "T1048": 0.95,                         # exfiltration
     "T1486": 1.0, "T1490": 0.95,                         # impact
