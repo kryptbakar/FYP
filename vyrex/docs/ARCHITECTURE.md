@@ -16,17 +16,26 @@
   are recorded in [DECISIONS.md](DECISIONS.md).
 - **Linux-first.** Windows agent parity is out of scope for the MVP.
 
-## 2. The four layers
+## 2. The five layers
 
 ```
                           ┌──────────────────────────────────────────────┐
                           │              PRESENTATION LAYER               │
                           │   Grafana (metrics/trends/heatmaps)           │
                           │   Next.js + Tailwind console (triage, cases,  │
-                          │   XAI finding detail, analyst feedback)       │
+                          │   XAI finding detail, analyst feedback,       │
+                          │   Investigations: graph + cited verdict)      │
                           └───────────────▲──────────────▲───────────────┘
                                           │ REST/SSE     │ dashboards
                           ┌───────────────┴──────────────┴───────────────┐
+                          │            INVESTIGATION LAYER (§5b)          │
+                          │  outbox ─► LangGraph worker (own DB role,     │
+                          │  no grant on response tables)                 │
+                          │  5 deterministic specialists ‖ 1 LLM node     │
+                          │  ─► citation validator ─► steps + evidence    │
+                          └───────────────────────▲──────────────────────┘
+                                                  │ reads findings/assets (SELECT only)
+                          ┌───────────────────────┴──────────────────────┐
                           │                 DATA LAYER                    │
                           │  PostgreSQL    TimescaleDB     OpenSearch     │
                           │  (state)       (telemetry)     (log search)   │
@@ -158,6 +167,62 @@ independent tools corroborate. The cluster's tool list + threat-intel + ATT&CK c
 written to `findings.consensus` and surfaced in the console — this multi-tool dedup +
 consensus front end is SOC Central's core original contribution. See [../ml/FUSION.md](../ml/FUSION.md).
 
+## 5b. Investigation layer (the agent-orchestration track)
+
+Scoring answers *"which finding matters most?"*. This layer answers *"what is actually
+going on with it, and can I check your working?"* It replaces the previous single-pass
+`/agent/*` call, which fired one prompt, parsed the reply in a bare `try/except`, and
+persisted the whole run as one JSON blob with no per-step trace and no resumability.
+
+`services/investigation-orchestrator` is a **LangGraph** worker driven by a transactional
+outbox. The shape:
+
+```
+finding ──▶ load_subject ──▶ router ──┬─▶ asset_context      ┐
+                                      ├─▶ attack_context     │  all deterministic SQL,
+                                      ├─▶ intel_context      │  run in PARALLEL
+                                      ├─▶ fusion_context     │
+                                      └─▶ historical_context ┘
+                                                │
+                                        synthesize (the ONLY LLM node)
+                                                │
+                                      citation validator (deterministic)
+                                                │
+                             steps + evidence + report ──▶ API ──▶ console
+```
+
+Four properties, each enforced rather than intended:
+
+1. **Every claim cites stored evidence.** Citation ids are checked against an allow-list of
+   records the graph actually created, so an invented reference is dropped as unresolved
+   rather than believed. A verdict other than `INSUFFICIENT_EVIDENCE` with **no** cited
+   claim fails contract validation outright.
+2. **The model does not set its own confidence.** The output schema has no confidence
+   field and rejects extras; confidence is derived from how many evidence branches
+   actually succeeded.
+3. **Skipped ≠ failed.** Each node persists its own status and reason, so "found nothing"
+   and "crashed" stay distinguishable — they are identical in a single-blob agent, and an
+   analyst has to be able to tell them apart. One branch raising degrades the run; it
+   never takes the investigation down.
+4. **It cannot act.** The orchestrator connects as a dedicated `vyrex_orchestrator` role
+   with **no grant** on `response_actions`, `users`, `sessions` or audit tables. The
+   containment boundary is a database privilege, not a code path nobody happened to write.
+
+Durability comes from the outbox plus a Postgres checkpointer: a worker killed mid-graph
+resumes from its last checkpoint instead of re-running completed nodes — including a
+completed LLM call. **Deliberately no NATS here:** once the outbox existed, the table
+already provided durability, ordering, retry counting and a dead-letter state, and
+`FOR UPDATE SKIP LOCKED` gave the same competing-consumer semantics with one fewer
+delivery guarantee to reason about. `repository.claim_next_job` is the only seam that
+changes if a broker is ever wanted.
+
+**Honest framing for the viva:** this is *one deterministic router + five specialist
+retrieval nodes + one citation-bound LLM synthesis step*, not "five AI agents". Everything
+feeding the model is code you can read and test, which is what makes *"the model decided"*
+never the explanation for a verdict. Full design, measured behaviour and the model
+benchmark: [AGENT-ORCHESTRATION.md](AGENT-ORCHESTRATION.md). The LLM trust boundary and a
+demonstrated prompt injection: [THREAT-MODEL.md §3.1](THREAT-MODEL.md).
+
 ## 6. Cross-cutting concerns
 - **Security:** OIDC/SSO + RBAC via **Keycloak + oauth2-proxy** (Phase 8 / `deploy/identity`),
   mutual TLS (dev PKI now, Vault PKI in K3s), **Ed25519-signed** active-response channel
@@ -200,7 +265,27 @@ All planned phases are built, verified end-to-end, and on `main`:
 - ✅ **8 — Production:** air-gapped K3s Helm chart, HA data plane, Vault, Keycloak OIDC/RBAC,
   Velero DR, ArgoCD GitOps, signed-agent release (lint/render-validated; no live cluster).
 
+### Agent-orchestration track (§5b) — status
+
+- ✅ **Durable orchestration:** outbox → LangGraph worker, resume-after-crash verified by
+  SIGKILL mid-synthesis, duplicate requests collapse to one active run.
+- ✅ **Evidence layer:** five parallel deterministic specialists; branch isolation proven by
+  a real failure that degraded the run instead of ending it.
+- ✅ **Console workspace:** execution graph in the shape it ran, clickable citations that
+  scroll to the cited record, and an explicit callout when a verdict cites nothing.
+- ✅ **Security:** least-privilege DB role (no grant on response/identity/audit tables),
+  untrusted-evidence containment in the prompt, both pinned by tests.
+- 🔶 **Evaluation:** corpus frozen at 63 findings meeting all 14 stratification targets,
+  rubric pre-registered — but **zero cases labelled** and advisor adjudication not secured.
+  No accuracy claim is made until both exist.
+- ⚠️ **Known ceiling, measured not assumed:** no locally-runnable model satisfies the
+  citation contract on this hardware. `llama3.2:3b` and `qwen2.5:3b` each abstained 12/12
+  and cited 0/12 on the same findings; `qwen3:4b` never finished in 900 s. The pipeline is
+  correct and the constraint is inference capacity — see
+  [AGENT-ORCHESTRATION.md §7](AGENT-ORCHESTRATION.md).
+
 Live demo: `make up` → console `:3001`, Grafana `:3000`, API docs `:8000/docs`.
+Investigations: `--profile agentic` (see AGENT-ORCHESTRATION.md).
 
 ## 9. Default ports (MVP)
 | Service | Port | Notes |
