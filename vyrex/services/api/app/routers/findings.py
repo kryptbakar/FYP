@@ -18,7 +18,14 @@ router = APIRouter(tags=["assessment"])
 @router.get("/assets", summary="List monitored assets")
 async def list_assets() -> list[dict]:
     return await db.fetch(
-        "SELECT host_id, hostname, os, ip, criticality, first_seen, last_seen "
+        # Business context is part of an asset now, not an extra. internet_exposed and
+        # criticality are ranks 3 and 4 in the labelling rubric's signal precedence, so a
+        # consumer that cannot see them cannot reproduce a triage decision - the console's
+        # estate table and the command deck both reported "0 internet-facing" while two
+        # assets were in fact exposed.
+        "SELECT host_id, hostname, os, ip, criticality, criticality_rationale, "
+        "       owner_team, environment, business_service, data_sensitivity, "
+        "       internet_exposed, first_seen, last_seen "
         "FROM assets ORDER BY last_seen DESC NULLS LAST"
     )
 
@@ -28,7 +35,14 @@ async def get_asset(host_id: str) -> dict:
     """The host hub: asset metadata plus a rollup of its findings (by severity) and
     compliance posture, so the console can render a single host page."""
     asset = await db.fetch_one(
-        "SELECT host_id, hostname, os, ip, criticality, first_seen, last_seen "
+        # Business context is part of an asset now, not an extra. internet_exposed and
+        # criticality are ranks 3 and 4 in the labelling rubric's signal precedence, so a
+        # consumer that cannot see them cannot reproduce a triage decision - the console's
+        # estate table and the command deck both reported "0 internet-facing" while two
+        # assets were in fact exposed.
+        "SELECT host_id, hostname, os, ip, criticality, criticality_rationale, "
+        "       owner_team, environment, business_service, data_sensitivity, "
+        "       internet_exposed, first_seen, last_seen "
         "FROM assets WHERE host_id = %(id)s",
         {"id": host_id},
     )

@@ -1389,6 +1389,88 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
 
 @media (prefers-reduced-motion: reduce) { .sf-dot { display: none; } }
 
+/* =====================================================================
+   COMMAND DECK — the isometric platform map and its subsystem grid.
+
+   Depth comes from GEOMETRY (stacked planes, occlusion, pillar height), never from
+   gradients or glows — D-049 forbids both, and an instrument should not look like a
+   screensaver. Every colour is a :root token so a re-theme still lands.
+   ===================================================================== */
+.dk-title { font-size: var(--t-lg); font-weight: 600; letter-spacing: -.01em; }
+.dk-stage { margin-top: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--bg); padding: var(--s-2); overflow-x: auto; }
+.dk-svg { display: block; width: 100%; min-width: 860px; height: auto; }
+
+/* --- the stacked ground planes --------------------------------------- */
+.dk-plane { fill: var(--hover); stroke: var(--line-strong); stroke-width: 1; }
+.dk-plane.is-hot { stroke: var(--accent); fill: var(--accent-soft); }
+
+/* --- pillars standing on each plane; height encodes share ------------- */
+.dk-pillar { stroke: var(--accent); stroke-width: 1.6; opacity: .75; }
+.dk-pillar.is-off { stroke: var(--line-strong); opacity: .5; }
+.dk-cap { fill: var(--accent-text); }
+.dk-cap.is-off { fill: var(--faint); }
+
+/* --- risers: the data path between tiers ------------------------------ */
+.dk-riser { stroke: var(--line-strong); stroke-width: 1.2; }
+.dk-riser.is-live { stroke: var(--success); opacity: .55; stroke-width: 1.6; }
+.dk-riser.is-idle { stroke: var(--line); stroke-dasharray: 3 5; }
+.dk-flow { fill: var(--success); }
+
+/* --- labels ----------------------------------------------------------- */
+.dk-lname { fill: var(--text-2); font-family: var(--mono); font-size: 9.5px;
+  letter-spacing: .12em; text-anchor: end; }
+.dk-lsub { fill: var(--faint); font-size: 8.5px; text-anchor: end; }
+.dk-lval { fill: var(--text); font-family: var(--mono); font-size: 15px; font-weight: 600; }
+.dk-lnote { fill: var(--faint); font-family: var(--mono); font-size: 8.5px; }
+.dk-item { fill: var(--text-2); font-family: var(--mono); font-size: 8.5px; text-anchor: middle; }
+
+/* --- counter rail ----------------------------------------------------- */
+.dk-rail { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 1px; background: var(--line); border: 1px solid var(--line);
+  border-radius: var(--r-md); overflow: hidden; margin-top: 14px; }
+.dk-stat { background: var(--surface); padding: var(--s-3) var(--s-3) var(--s-2); }
+.dk-sv { font-family: var(--mono); font-size: var(--t-xl); font-weight: 600; color: var(--text);
+  line-height: 1.05; }
+.dk-sv.is-warn { color: var(--warning); }
+.dk-sv.is-run { color: var(--accent-text); }
+.dk-sl { font-size: var(--t-3xs); color: var(--text-2); text-transform: uppercase;
+  letter-spacing: .07em; margin-top: 4px; }
+.dk-ss { font-size: var(--t-3xs); color: var(--faint); font-family: var(--mono); margin-top: 2px; }
+
+/* --- subsystem grid --------------------------------------------------- */
+.dk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 14px; margin-top: 14px; }
+.dk-card { min-width: 0; }
+.dk-wide { grid-column: 1 / -1; }
+.dk-note { font-size: var(--t-3xs); line-height: 1.5; margin-top: var(--s-3); }
+
+.dk-kv { display: flex; flex-direction: column; gap: 6px; margin-top: var(--s-3); }
+.dk-kv-row { display: flex; justify-content: space-between; gap: var(--s-3);
+  font-size: var(--t-2xs); border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+.dk-k { color: var(--muted); }
+.dk-v { color: var(--text); font-family: var(--mono); text-align: right; }
+
+.dk-bars { display: flex; flex-direction: column; gap: 7px; margin-top: var(--s-3); }
+.dk-bar-row { display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-3xs); }
+.dk-bar-l { width: 58px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.dk-bar-t { flex: 1; height: 7px; background: var(--hover); border-radius: 2px; overflow: hidden; }
+.dk-bar-f { display: block; height: 100%; background: var(--neutral-3); }
+.dk-bar-f.is-critical { background: var(--critical); }
+.dk-bar-f.is-high { background: var(--risk-bar); }
+.dk-bar-f.is-medium { background: var(--warning); }
+.dk-bar-f.is-low { background: var(--success); }
+.dk-bar-n { width: 30px; text-align: right; font-family: var(--mono); color: var(--text-2); }
+
+.dk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-3); }
+.dk-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px;
+  border: 1px solid var(--line); border-radius: var(--r-sm); font-size: var(--t-3xs);
+  font-family: var(--mono); }
+.dk-chip b { color: var(--text-2); font-weight: 500; }
+.dk-chip i { color: var(--accent-text); font-style: normal; }
+
+@media (prefers-reduced-motion: reduce) { .dk-flow { display: none; } }
+
 /* --- orchestrator health strip ---------------------------------------- */
 .ing-strip { display: flex; flex-wrap: wrap; gap: var(--s-5); margin-top: var(--s-3);
   padding-top: var(--s-3); border-top: 1px solid var(--line); }

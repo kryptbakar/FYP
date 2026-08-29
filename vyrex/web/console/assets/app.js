@@ -19,6 +19,7 @@ try { if (localStorage.getItem('vyrex_theme') === 'light') document.body.classLi
 
 const ROUTES = {
   overview:   { title: 'Overview', crumb: 'Security posture at a glance', icon: 'overview', key: '1', sec: 'Monitor', view: viewOverview },
+  command:    { title: 'Command deck', crumb: 'The whole platform, live', icon: 'dash', key: '', sec: 'Monitor', view: viewCommandDeck },
   triage:     { title: 'Triage', crumb: 'Ranked decisions', icon: 'triage', key: '2', sec: 'Monitor', view: viewTriage },
   hunt:       { title: 'Hunt', crumb: 'Search raw telemetry', icon: 'hunt', key: '3', sec: 'Monitor', view: viewHunt },
   coverage:   { title: 'Coverage', crumb: 'ATT&CK coverage & posture trend', icon: 'matrix', key: '', sec: 'Monitor', view: viewCoverage },
@@ -57,14 +58,18 @@ const ROUTES = {
    the rail. Route keys are unchanged, so deep-links + ⌘K still resolve. */
 const HUBS = {
   home:        { title: 'Home',        icon: 'overview', key: '1', children: ['overview'] },
-  triage:      { title: 'Triage',      icon: 'triage',   key: '2', children: ['triage'] },
-  investigate: { title: 'Investigate', icon: 'hunt',     key: '3', children: ['cases', 'assets', 'hunt', 'intel', 'livehunt', 'coverage'] },
-  automate:    { title: 'Automate',    icon: 'model',    key: '4', children: ['agent', 'defense', 'automation', 'playbooks', 'alerting'] },
-  assurance:   { title: 'Assurance',   icon: 'shield',   key: '5', children: ['compliance', 'trust', 'reports', 'model'] },
-  operations:  { title: 'Operations',  icon: 'manager',  key: '6', children: ['fusion', 'manager', 'detections', 'dashboards'] },
+  // Its own destination rather than a child of Home: Home answers "what needs my
+  // attention now", the deck answers "what IS this system, and is all of it working".
+  // Different questions deserve different doors.
+  deck:        { title: 'Dashboard',   icon: 'dash',     key: '2', children: ['command'] },
+  triage:      { title: 'Triage',      icon: 'triage',   key: '3', children: ['triage'] },
+  investigate: { title: 'Investigate', icon: 'hunt',     key: '4', children: ['cases', 'assets', 'hunt', 'intel', 'livehunt', 'coverage'] },
+  automate:    { title: 'Automate',    icon: 'model',    key: '5', children: ['agent', 'defense', 'automation', 'playbooks', 'alerting'] },
+  assurance:   { title: 'Assurance',   icon: 'shield',   key: '6', children: ['compliance', 'trust', 'reports', 'model'] },
+  operations:  { title: 'Operations',  icon: 'manager',  key: '7', children: ['fusion', 'manager', 'detections', 'dashboards'] },
   settings:    { title: 'Settings',    icon: 'gear',     key: '',  children: ['settings'] },
 };
-const PRIMARY = ['home', 'triage', 'investigate', 'automate', 'assurance', 'operations'];
+const PRIMARY = ['home', 'deck', 'triage', 'investigate', 'automate', 'assurance', 'operations'];
 const TOOLSET = ['vitals', 'news', 'loganalyzer', 'phishing', 'cvelookup', 'irplaybook', 'portscan', 'assistant'];
 const ROUTE_HUB = {};
 for (const [hk, hub] of Object.entries(HUBS)) for (const c of hub.children) ROUTE_HUB[c] = hk;
