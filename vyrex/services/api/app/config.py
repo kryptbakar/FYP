@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     # Health probe only - must stay short so /agent/status cannot hang the console.
     ollama_probe_timeout_s: int = 4
 
+    # Admission control for POST /investigations (app/ratelimit.py). The endpoint answers
+    # in milliseconds but commits ~2 minutes of serial inference, so the cost is invisible
+    # at the edge and one loop over the finding list buys hours of queue.
+    investigation_rate_limit: int = 10        # accepted new requests per requester...
+    investigation_rate_window_s: int = 60     # ...per this window; 0 disables
+    investigation_max_queue: int = 25         # refuse when the outbox is this deep; 0 disables
+
     # Password for the least-privilege `vyrex_orchestrator` DB role (schema.py). Blank
     # keeps the orchestrator on the shared `soc` superuser, which is how it shipped before
     # 2026-08-28 - set it in .env and the role is created and enforced at API startup.

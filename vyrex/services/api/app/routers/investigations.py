@@ -29,7 +29,8 @@ import psycopg
 from fastapi import APIRouter, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from .. import db
+from .. import db, ratelimit
+from ..config import settings
 
 router = APIRouter(tags=["investigations"])
 
@@ -93,6 +94,25 @@ async def create_investigation(
         raise HTTPException(status_code=404, detail=f"{body.subject_type} {body.subject_id} not found")
 
     existing = await _active_for(body.subject_type, body.subject_id)
+    if existing is None:
+        # Admission control, only on genuinely NEW work. A caller polling an in-flight
+        # subject gets the existing run below without spending any allowance — otherwise
+        # the idempotent path would punish the well-behaved client.
+        #
+        # This endpoint returns in milliseconds but commits the orchestrator to ~2 minutes
+        # of serial inference, so the cost is invisible at the edge. See app/ratelimit.py.
+        depth = await db.fetch_one(
+            "SELECT count(*) AS n FROM investigation_outbox WHERE status <> 'sent'")
+        try:
+            ratelimit.check_queue_depth(int((depth or {}).get("n", 0)),
+                                        settings.investigation_max_queue)
+            ratelimit.check_window(x_analyst or "anonymous",
+                                   settings.investigation_rate_limit,
+                                   settings.investigation_rate_window_s)
+        except ratelimit.RateLimited as e:
+            raise HTTPException(status_code=429, detail=e.detail,
+                                headers={"Retry-After": str(e.retry_after)}) from e
+
     if existing:
         response.status_code = 200
         return {"investigation_id": existing["investigation_id"], "status": existing["status"],
