@@ -53,9 +53,42 @@ web/console/
     ui.js             primitives: severity (shape+label), SHAP waterfall, consensus pips,
                       counterfactuals, provenance, two-person approval gate, ATT&CK names
     views.js          the five views + the finding-detail (hero) drawer
+    charts.js         hand-built inline-SVG chart primitives (bars, stacked columns,
+                      donut, ATT&CK heatmap, radial gauge, scatter, sparkline).
+                      No charting library: D-044 keeps the console dependency-free,
+                      and colour lives only in CSS tokens so a re-theme needs no JS.
+    dashboard.js      the Command Deck wall board (isometric platform map + live
+                      threat feed + 16 analytical panels + single-screen wall mode)
     app.js            router, keyboard nav, boot
 ```
 
+## The Command Deck (Dashboard)
+
+The wall board — the screen that hangs in the operations room, and the one shown at the
+expo. Deliberately separate from Home: Home is a workspace, the Deck is a *display*.
+
+**Wall mode** (button in the header, `Esc` to exit) strips the console chrome and fits the
+entire board on **one screen with no scrolling** — verified at 1366×768, 1600×900,
+1920×1080 and 2560×1440. Ten panels hold permanent cells; the remaining eight share one
+cell and cycle every 9 s, so the board still shows everything without a scrollbar (D-060).
+
+| Panel | Reads | Notes |
+|---|---|---|
+| Platform map | all of the below | Isometric, 7 tiers, estate → governance. Pillar height encodes each tool's real share. The riser into GOVERNANCE deliberately never flows: containment needs two humans. |
+| Live threat feed | `GET /detections/recent` (6 s poll) | Prepends only unseen ids and flashes once. If the network is quiet the feed sits still — the honest behaviour, and the thing a fake dashboard always gets wrong. |
+| Detection timeline | `GET /detections/recent` | Buckets real `observed_at` and picks hour-vs-day from the data's span. **Not** `/posture/trends`, which holds one all-zero snapshot (D-059). |
+| ATT&CK coverage | `GET /attack/coverage` | Kill-chain columns; cells shaded in five discrete steps with the count printed, so it survives a colour-vision check. Outlined = corroborated by >1 tool. |
+| Sensor grid | `GET /detections`, `GET /detection-rules/stats` | Per source tool: volume, KEV hits, top risk, domains. |
+| Cross-tool fusion | `GET /fusion/clusters` | Independent tools converging on one observable. |
+| Risk distribution | `GET /risk/ranking` | |
+| Composite vs ML | `GET /risk/ranking` | Scatter against the agreement diagonal — answers "does the ML model do anything, or just reproduce the formula?" |
+| Autonomous defense | `GET /defense/stats`, `/defense/decisions`, `/defense/decoys` | Verdict mix, MTTC, decoy state. |
+| Compliance posture | `GET /compliance/summary` | |
+| *rotating cell* | orchestrator · appliance vitals · attribution · top CVEs · response actions · trust & audit · risk model · estate | One at a time, 9 s each. |
+
+Every figure is live. Where there is no data a panel says so rather than drawing a
+plausible zero — the first question anyone competent asks at an expo is "is that real?",
+and the answer has to survive them unplugging something.
 ## The five views
 | View | Purpose | Key `/api` contracts |
 |------|---------|----------------------|

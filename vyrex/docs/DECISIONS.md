@@ -6,6 +6,57 @@ alternatives considered**.
 
 ---
 
+## D-061 — Identity is a FastAPI dependency, and a test asserts it is never a query param
+**Context:** every router does `from __future__ import annotations`, so
+`who: Annotated[str, Depends(current_actor)] = "anonymous"` is stored as a *string* and
+only evaluated when FastAPI builds the route. Five routers never imported `Depends`, that
+evaluation raised `NameError`, and FastAPI silently fell back to treating `who` as an
+ordinary **query parameter** — so `POST /findings/1/triage?who=ceo` wrote "ceo" into the
+audit trail on six routes. Nothing failed loudly: the app booted, the routes worked, and
+the ten existing identity tests passed, because they tested `actor()` in isolation and
+never the wiring. The only visible symptom was `GET /openapi.json` returning 500.
+**Decision:** fix the imports, and add two tests that assert the *property* rather than the
+implementation — no route in any router may expose `who`/`who_src`/`actor` as a query
+parameter, and the OpenAPI schema must still generate. Both were confirmed to FAIL with the
+bug reintroduced while the original ten kept passing.
+**Why the schema test earns its place:** it is the cheap canary. Any annotation that stops
+resolving breaks schema generation first, and that is a one-line assertion.
+**Alternative rejected:** dropping `from __future__ import annotations`. It is used
+repo-wide for a reason and removing it to dodge one class of typo trades a real ergonomic
+for an illusion of safety — the next router to omit an import would fail the same way.
+
+## D-060 — The wall board is ONE screen, and eight panels rotate through one cell
+**Context:** the Dashboard is meant to hang on an operations-room wall (and to run at the
+FYP expo), where nobody scrolls. Sixteen panels do not fit legibly on one viewport.
+**Decision:** wall mode is a fixed 12×3 grid exactly one viewport tall, ten panels hold
+permanent cells, and the remaining eight share one cell and cycle every 9s. Verified to fit
+with zero scrolling and zero clipping at 1366×768, 1600×900, 1920×1080 and 2560×1440.
+**Why rotation rather than dropping panels:** the board still shows everything the backend
+produces, across time rather than across space, and a changing board holds attention at an
+expo better than a static one.
+**Why not scale-to-fit (`transform: scale()` on a fixed canvas):** it is the usual kiosk
+trick and it works, but it resamples text. A SOC board is read at distance, so crisp
+glyphs matter more than pixel-exact layout; a CSS grid with `vh`-scaled type keeps text
+native at every resolution.
+**Two traps, both hit:** hiding `.rail` removes it as a grid *item* but leaves its 232px
+*track*, so the board rendered 200px wide with the screen empty beside it — the template
+has to collapse too. And grid rows must be `minmax(0, 1fr)`: the default `auto` minimum
+lets a child's content force a track taller than its share, which is exactly how a
+"fixed" grid silently starts scrolling again.
+
+## D-059 — Charts are hand-built inline SVG, and no chart may invent data
+**Context:** a SOC wall board is mostly charts, and the obvious move is a charting library.
+**Decision:** hand-build the primitives (`web/console/assets/charts.js`). D-044 makes the
+console dependency-free; one CDN `<script>` would end the air-gap claim, which is the
+project's central thesis. Colour lives only in CSS tokens, so the light/dark flip needs no
+JS and a re-theme cannot miss a chart.
+**The rule that matters more than the rendering:** empty input renders an explicit empty
+state, never a plausible-looking zero line. `/posture/trends` holds a single all-zero
+snapshot, so a trend line drawn from it would be a flat line implying "nothing is
+changing" — worse than no chart. The detection timeline buckets real `observed_at`
+timestamps instead, and picks hour-vs-day bucketing from the data's own span.
+**Why this is defensible in a viva:** the first question anyone competent asks at an expo
+is "is that live?", and the answer has to survive them unplugging something.
 ## D-058 — The orchestrator is a single-writer service, and the manifest says so
 **Context:** `claim_next_job` marks the outbox row `sent` *before* the graph runs, so a
 worker that dies mid-investigation strands the run — outbox delivered, investigation

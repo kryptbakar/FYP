@@ -179,6 +179,56 @@ and logs that setup was skipped. Resume works; the privilege is not granted.
 
 ---
 
+## 3.3 Spoofed attribution — a repudiation hole that every unit test passed over
+
+**Found 2026-08-29 while building the Dashboard; fixed in the same commit.**
+
+Six `POST` routes — `/findings/{id}/triage`, `/incidents/correlate`, `/incidents`,
+`/hunts`, `/detection-rules`, `/playbooks/{id}/run` — accepted the acting identity as an
+ordinary **query parameter**. `POST /findings/1/triage?who=ceo` recorded "ceo" as the
+analyst who accepted the risk.
+
+**STRIDE:** Repudiation, and Spoofing of an audit subject. It is not privilege
+escalation — the middleware still enforced authorisation, so the caller needed a valid
+session to reach the route at all. The damage is to attribution: these records feed the
+two-person approval story, the compliance evidence chain, and the analyst labels the ML
+layer retrains on. An audit trail a caller can forge is not an audit trail.
+
+**Root cause, which is the interesting part.** Every router uses
+`from __future__ import annotations`, so
+
+```python
+who: Annotated[str, Depends(current_actor)] = "anonymous"
+```
+
+is stored as the *string* `"Annotated[str, Depends(current_actor)]"` and only evaluated
+when FastAPI builds the route. Five routers never imported `Depends`; that evaluation
+raised `NameError`; FastAPI caught it, left the annotation as an unresolved forward
+reference, and fell back to treating `who` as a query parameter with default
+`"anonymous"`. **Nothing failed loudly** — the app booted, the routes worked, and the ten
+existing identity tests passed. The single visible symptom was `GET /openapi.json`
+returning 500, because Pydantic cannot build a schema for an unresolved reference.
+
+**Why the tests missed it.** They exercised `actor()` in isolation and proved the
+*function* was correct. It always was. The defect was in the **wiring** — whether the
+function was reached at all — and no test asserted that.
+
+**Fix, and the property now under test.** The imports are corrected, and two tests assert
+the property rather than the implementation (D-061):
+
+1. No route in **any** router may expose `who` / `who_src` / `actor` as a query
+   parameter. Asserted over every route rather than the handful known to take an actor,
+   because the failure is silent and any new route can reintroduce it.
+2. The OpenAPI schema must still generate — the cheap canary that would have caught this
+   on day one.
+
+Both were confirmed to **fail** with the bug deliberately reintroduced, while the original
+ten kept passing. A check nobody has watched fail is not yet known to work.
+
+**Generalised lesson for the write-up:** `from __future__ import annotations` converts a
+class of import errors from load-time crashes into silent runtime behaviour changes. Any
+framework that resolves annotations lazily and *degrades* on failure — rather than
+raising — can turn a missing import into a security property quietly switching off.
 ## 3. STRIDE by component
 
 ### TB1 — Agent → ingest-edge
