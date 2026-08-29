@@ -1825,8 +1825,32 @@ body.wallmode .dk-stage { flex: 1; min-height: 0; margin-top: 6px; overflow: hid
 body.wallmode .dk-svg { min-width: 0; width: 100%; height: 100%; }
 body.wallmode .dk-feed { max-height: none; }
 body.wallmode .dk-feed-list { flex: 1; min-height: 0; overflow: hidden; }
-body.wallmode .dk-sensors { overflow: hidden; }
-body.wallmode .dk-fusion { overflow: hidden; }
+/* The sensor grid must show EVERY tool — "5 tools" in the caption above two
+   visible tiles is a straight contradiction, and it is the panel that answers
+   "what is each tool contributing". Narrower tiles let all five fit across,
+   and on a short screen the per-tool meta line goes rather than a tool. */
+body.wallmode .dk-sensors { overflow: hidden; gap: 6px;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+body.wallmode .dk-sensor { padding: 5px 6px; }
+body.wallmode .dk-sn-bar { margin: 4px 0; }
+@media (max-height: 900px) {
+  body.wallmode .dk-sn-meta { display: none; }
+}
+/* Fusion rows are the densest content on the board. Compact them for the wall,
+   then drop whole rows — never half a row — as the screen gets shorter. The
+   panel caption always states the TRUE total ("4 corroborated observables"), so
+   showing fewer understates nothing; a row sliced through the middle would just
+   look broken. */
+body.wallmode .dk-fusion { overflow: hidden; gap: 4px; }
+body.wallmode .dk-fusion-row { padding: 4px 6px; gap: 8px; }
+body.wallmode .dk-fz { width: clamp(64px, 7vw, 150px); }
+body.wallmode .dk-fu-m { margin-top: 2px; }
+@media (max-height: 1000px) {
+  body.wallmode .dk-fusion-row:nth-child(n+4) { display: none; }
+}
+@media (max-height: 820px) {
+  body.wallmode .dk-fusion-row:nth-child(n+3) { display: none; }
+}
 body.wallmode .ch-cols, body.wallmode .ch-scatter-wrap,
 body.wallmode .ch-donut-wrap, body.wallmode .ch-gauge-wrap,
 body.wallmode .ch-bars, body.wallmode .ch-heat { flex: 1; min-height: 0; }
@@ -1846,15 +1870,21 @@ body.wallmode .ch-axes { flex: none; }
 /* Gauges are the densest thing on the board; at 768p two of them plus the core
    strip plus a key/value list cannot all fit, so the gauges give up size first. */
 body.wallmode .ch-gauge { width: clamp(62px, 9vh, 118px); height: clamp(62px, 9vh, 118px); }
-body.wallmode .ch-donut { width: clamp(64px, 9.5vh, 108px); height: clamp(64px, 9.5vh, 108px); }
+body.wallmode .ch-donut { width: clamp(52px, 8vh, 108px); height: clamp(52px, 8vh, 108px); }
+body.wallmode .ch-donut-wrap { gap: 8px; margin-top: 4px; align-items: center; overflow: hidden; }
+body.wallmode .ch-legend { gap: 2px; }
 body.wallmode .dk-vitals { gap: 6px; }
 body.wallmode .dk-core-row { height: clamp(18px, 3vh, 34px); }
 /* On a short screen (a 768p laptop panel) the vitals tile still cannot hold two
    gauges, the per-core strip AND a three-row detail list. The list goes: the
    gauges already state memory and disk as percentages, so nothing is lost that
    the panel was not saying twice. */
-@media (max-height: 820px) {
-  body.wallmode [data-dk="vitals"] .dk-kv { display: none; }
+@media (max-height: 1000px) {
+  /* On a short screen these two panels cannot hold their chart AND a detail
+     list. The list goes: both panels already state the same figures as a gauge
+     or a donut, and "mean time to contain" is also a KPI-rail cell. */
+  body.wallmode [data-dk="vitals"] .dk-kv,
+  body.wallmode [data-dk="defense"] .dk-kv { display: none; }
 }
 body.wallmode .dk-kv { overflow: hidden; }
 body.wallmode .dk-audit { overflow: hidden; }
