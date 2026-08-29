@@ -71,6 +71,24 @@ if docker ps --format '{{.Names}}' | grep -qx 'vyrex-ollama'; then
   WANT="${WANT:-llama3.2:3b}"
   if docker exec vyrex-ollama ollama list 2>/dev/null | grep -q "${WANT%%:*}"; then
     echo "    LLM present offline: $WANT"
+    # Presence is not identity. A tag can point at different weights on the staging host
+    # than it did when the bundle was built, so match the DIGEST recorded at build time —
+    # otherwise "which exact weights produced this verdict?" is unanswerable after a
+    # sneakernet transfer, which is precisely when it is hardest to reconstruct.
+    WANT_DIGEST="$(sed -n 's/^ollama_digest=//p' "$HERE/MANIFEST.txt" 2>/dev/null || true)"
+    HAVE_DIGEST="$(docker exec vyrex-ollama ollama list 2>/dev/null \
+                   | awk -v m="$WANT" '$1==m {print $2; exit}')"
+    if [ -n "$WANT_DIGEST" ] && [ "$WANT_DIGEST" != "$HAVE_DIGEST" ]; then
+      echo "    WARNING: model digest mismatch." >&2
+      echo "      bundle recorded: $WANT_DIGEST" >&2
+      echo "      installed here : ${HAVE_DIGEST:-<none>}" >&2
+      echo "    These are not the same weights. Verdicts will not be reproducible against" >&2
+      echo "    the benchmark numbers in docs/AGENT-ORCHESTRATION.md." >&2
+    elif [ -n "$WANT_DIGEST" ]; then
+      echo "    digest verified: $HAVE_DIGEST"
+    fi
+    [ -s "$HERE/MODEL-LICENSE.txt" ] && \
+      echo "    licence shipped with the weights: MODEL-LICENSE.txt"
   else
     echo "    WARNING: '$WANT' is not in the local Ollama store. The AI analyst will fail," >&2
     echo "    and it CANNOT be fetched from inside the gap. Re-bundle with the model volume." >&2

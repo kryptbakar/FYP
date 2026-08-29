@@ -102,6 +102,35 @@ if [ ! -f "$OUT/volumes/vyrex_ollamadata.tar.gz" ]; then
   exit 1
 fi
 
+echo "==> capturing model provenance"
+# The weights cross the gap as an opaque tarball. Without this, the far side can verify
+# the ARCHIVE (SHA256SUMS) but knows nothing about the MODEL inside it — not which build,
+# not what quantisation, not under what licence it may be run. For a security product the
+# answer to "which exact weights produced this verdict?" has to survive the sneakernet.
+MODEL="${OLLAMA_MODEL:-llama3.2:3b}"
+if docker ps --format '{{.Names}}' | grep -qx 'vyrex-ollama'; then
+  {
+    echo "model=$MODEL"
+    # `ollama list` prints the content digest; it is the only stable identity for the
+    # weights, since the tag can be re-pointed upstream at any time.
+    echo "digest=$(docker exec vyrex-ollama ollama list 2>/dev/null \
+                   | awk -v m="$MODEL" '$1==m {print $2; exit}')"
+    docker exec vyrex-ollama ollama show "$MODEL" 2>/dev/null \
+      | sed -n 's/^ *\(architecture\|parameters\|quantization\|context length\) */\1=/p' \
+      | tr -s ' '
+  } > "$OUT/MODEL-MANIFEST.txt"
+  # Licence text travels with the weights. Llama 3.2 and Qwen ship community licences with
+  # attribution and use conditions; shipping the model without them is a compliance gap,
+  # and on the far side there is no internet to go and look them up.
+  docker exec vyrex-ollama ollama show "$MODEL" --license > "$OUT/MODEL-LICENSE.txt" 2>/dev/null || true
+  [ -s "$OUT/MODEL-LICENSE.txt" ] || echo "(no licence text reported by ollama for $MODEL)" > "$OUT/MODEL-LICENSE.txt"
+  echo "    $(sed -n 's/^digest=//p' "$OUT/MODEL-MANIFEST.txt") $MODEL"
+else
+  echo "!! vyrex-ollama is not running, so the model digest and licence cannot be" >&2
+  echo "   captured. The bundle would ship weights with no provenance." >&2
+  exit 1
+fi
+
 echo "==> copying run config"
 mkdir -p "$OUT/config"
 cp "${COMPOSE_FILES[@]}" Makefile .env.example "$OUT/config/" 2>/dev/null || true
@@ -114,8 +143,10 @@ echo "==> writing manifest + checksums"
   echo "git_commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
   echo "images=${#IMAGES[@]}"
   # Record which LLM travelled with this bundle — the far side has no way to look it up.
-  echo "ollama_model=${OLLAMA_MODEL:-llama3.2:3b}"
+  echo "ollama_model=$MODEL"
+  echo "ollama_digest=$(sed -n 's/^digest=//p' "$OUT/MODEL-MANIFEST.txt")"
   echo "ollama_volume_bytes=$(stat -c %s "$OUT/volumes/vyrex_ollamadata.tar.gz" 2>/dev/null || echo 0)"
+  echo "ollama_volume_sha256=$(sha256sum "$OUT/volumes/vyrex_ollamadata.tar.gz" | cut -d' ' -f1)"
 } > "$OUT/MANIFEST.txt"
 ( cd "$OUT" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
 
