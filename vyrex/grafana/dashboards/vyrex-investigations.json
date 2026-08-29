@@ -1,0 +1,143 @@
+{
+  "uid": "vyrex-investigations",
+  "title": "VYREX — Investigation orchestrator",
+  "tags": ["vyrex", "orchestrator", "agentic"],
+  "timezone": "utc",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "description": "Health and behaviour of the LangGraph investigation orchestrator. Reads Postgres directly rather than Prometheus: the orchestrator is a poll loop with no HTTP surface, so adding a /metrics endpoint would mean adding a web server to a service that deliberately has none. The state that matters is already durable in the orchestration tables.",
+  "time": { "from": "now-24h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Queue depth (unclaimed)",
+      "description": "Outbox rows still pending. Sustained non-zero with a running orchestrator means it is stuck, not busy — investigations are serial by design (ORCH_CONCURRENCY=1), so a small backlog is normal.",
+      "gridPos": { "h": 5, "w": 5, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 3 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT count(*) AS \"pending\" FROM investigation_outbox WHERE status <> 'sent';",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Oldest pending (minutes)",
+      "description": "Age of the oldest unclaimed job. More diagnostic than queue depth: a depth of 1 that never clears is a wedged worker.",
+      "gridPos": { "h": 5, "w": 5, "x": 5, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(created_at))) / 60, 0) AS \"oldest_min\" FROM investigation_outbox WHERE status <> 'sent';",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "piechart",
+      "title": "Run outcomes",
+      "description": "'partial' is not a failure: it means the graph finished with at least one branch skipped or failed, which is the designed degraded path. 'failed' is the one to alert on.",
+      "gridPos": { "h": 5, "w": 7, "x": 10, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT status AS \"metric\", count(*) AS \"value\" FROM investigations GROUP BY status ORDER BY 2 DESC;",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "stat",
+      "title": "Verdicts carrying ≥1 citation",
+      "description": "THE grounding metric, and the Phase 2 exit gate. A non-abstaining verdict with no cited claim is rejected by the contract, so this counts verdicts that actually committed AND grounded. Measured at 0 for llama3.2:3b and qwen2.5:3b across 12 findings each — see docs/AGENT-ORCHESTRATION.md §7.",
+      "gridPos": { "h": 5, "w": 7, "x": 17, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT count(*) FILTER (WHERE jsonb_array_length(COALESCE(rationale_claims, '[]'::jsonb)) > 0) AS \"cited\", count(*) AS \"total\" FROM triage_reports;",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "timeseries",
+      "title": "Synthesis latency (LLM step, seconds)",
+      "description": "The dominant cost. Everything else in the graph is deterministic SQL measured in milliseconds.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "points", "pointSize": 7 } } },
+      "targets": [{
+        "format": "time_series",
+        "rawSql": "SELECT finished_at AS \"time\", duration_ms / 1000.0 AS \"synthesis_s\" FROM investigation_steps WHERE node = 'synthesize' AND duration_ms IS NOT NULL AND $__timeFilter(finished_at) ORDER BY 1;",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "barchart",
+      "title": "Node duration (median ms, log scale)",
+      "description": "Log scale on purpose: synthesis is ~1000x the specialists, so a linear axis renders every deterministic node as a flat line at zero and hides the one thing this panel is for — showing that only one node is slow, and it is the only one that calls a model.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "scaleDistribution": { "type": "log", "log": 10 } }
+        }
+      },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT node, percentile_cont(0.5) WITHIN GROUP (ORDER BY duration_ms) AS \"p50_ms\" FROM investigation_steps WHERE duration_ms IS NOT NULL GROUP BY node ORDER BY 2 DESC;",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "type": "table",
+      "title": "Branch health — succeeded / skipped / failed per node",
+      "description": "Skipped and failed are DIFFERENT facts and are kept apart deliberately: 'found nothing' and 'crashed' look identical in a single-blob agent, and an analyst has to be able to tell them apart. A node that starts failing is usually a missing DB grant — see tests/test_db_grants.py.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT node, count(*) FILTER (WHERE status = 'succeeded') AS \"ok\", count(*) FILTER (WHERE status = 'skipped') AS \"skipped\", count(*) FILTER (WHERE status = 'failed') AS \"failed\", max(reason) FILTER (WHERE status = 'failed') AS \"last failure reason\" FROM investigation_steps GROUP BY node ORDER BY 4 DESC, 1;",
+        "refId": "A"
+      }]
+    },
+    {
+      "type": "table",
+      "title": "Recent verdicts",
+      "description": "model_name is shown because it is the first thing to check before comparing two runs: a fake-llm run and a real one are not comparable, and forgetting that produced a wrong conclusion once already.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "postgres", "uid": "soc-postgres" },
+      "targets": [{
+        "format": "table",
+        "rawSql": "SELECT i.created_at AS \"when\", i.subject_id AS \"finding\", i.model_name AS \"model\", r.recommended_disposition AS \"verdict\", r.confidence, jsonb_array_length(COALESCE(r.rationale_claims, '[]'::jsonb)) AS \"claims\", (SELECT count(*) FROM investigation_evidence e WHERE e.investigation_id = i.investigation_id) AS \"evidence\" FROM investigations i LEFT JOIN triage_reports r USING (investigation_id) ORDER BY i.created_at DESC LIMIT 25;",
+        "refId": "A"
+      }]
+    }
+  ]
+}
