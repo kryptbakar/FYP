@@ -56,8 +56,12 @@ jobs:
     # `PermissionError: [Errno 13] Permission denied: '/models'`. It passed locally because
     # containers run as root - the classic "works in Docker, fails on the runner" split.
     # This job had been red since 2026-07-13 for that one reason.
+    # NOTE: `github.workspace`, not `runner.temp`. The `runner` context is NOT available in
+    # a job-level `env:` - no runner is assigned when that block is evaluated - and using
+    # it there is a workflow VALIDATION error, so the whole run fails to start with zero
+    # jobs and the run name falls back to the raw file path. Cost me one push to learn.
     env:
-      MODEL_DIR: ${{ runner.temp }}/models
+      MODEL_DIR: ${{ github.workspace }}/.model-cache
     defaults:
       run:
         working-directory: vyrex
