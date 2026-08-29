@@ -1,4 +1,15 @@
-# Console route smoke test
+# Console browser checks
+
+Two harnesses, both needing a real browser and a running stack:
+
+| Script | Asks |
+|---|---|
+| console-routes.js | does every route still render? |
+| wall-fit.js | does the Command Deck wall board fit on ONE screen, with nothing clipped? |
+
+---
+
+## Console route smoke test
 
 Loads the console in a real browser, signs in, visits every route, and reports any that
 threw a JS error or rendered nothing.
@@ -44,3 +55,34 @@ Each of these made it report something confidently wrong, which is worse than no
 
 `portscan` and the other Toolkit routes are left out of the default list on purpose — they
 do real work (an actual TCP scan) and block the run.
+
+---
+
+## Wall-fit check (`wall-fit.js`)
+
+The Command Deck's wall mode promises the whole board on one screen with no scrolling.
+That promise is easy to break with a one-line CSS edit and impossible to eyeball across
+every display size, so it is asserted at 1366×768, 1600×900, 1920×1080 and 2560×1440.
+
+```bash
+docker run --rm --add-host=host.docker.internal:host-gateway \
+  -e NODE_PATH=/usr/src/app/node_modules \
+  -v "$PWD/tools/smoke:/work" -w /work \
+  zenika/alpine-chrome:with-puppeteer node wall-fit.js
+```
+
+Exit 0 = every size fits with nothing clipped. Exit 1 = at least one scrolls or clips.
+
+### The trap this one hit
+
+**Panel-level overflow is not enough.** The first version asserted only that each panel
+had no overflow of its own. It passed while the sensor grid displayed **2 of 5 tools**:
+the clipping happened inside a child with `overflow: hidden`, so the panel honestly
+reported no overflow while silently dropping content. The check now walks every
+descendant, *and* compares what a caption claims against what renders — "5 tools" printed
+above two visible tiles is a contradiction no geometry assertion would have caught.
+
+Two exemptions, deliberate and commented in the source: the **live feed** is a stream and
+is supposed to hold more rows than fit, and a **`-webkit-line-clamp`** element always
+reports `scrollHeight > clientHeight` because that is how clamping works — and it renders
+an ellipsis, so nothing is hidden from the reader.
