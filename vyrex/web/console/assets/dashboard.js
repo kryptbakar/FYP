@@ -81,7 +81,22 @@ function deckMap(d) {
   // governance on top. Inverted, the picture claims data flows down into sensors.
   const zOf = (i) => i * DZ;
 
-  const planes = [], nodes = [], links = [], flows = [], defs = [];
+  const planes = [], nodes = [], links = [], flows = [], defs = [], deco = [];
+
+  // --- ground grid under the bottom plane ------------------------------
+  // Pure decoration, and the one place it earns its keep: an isometric scene
+  // with nothing on the floor reads as shapes hanging in a void. A grid on the
+  // ground plane gives the eye a horizon to sit the stack on.
+  const GRID_N = 8;
+  for (let g = 0; g <= GRID_N; g++) {
+    const t = (g / GRID_N) * SIZE;
+    deco.push(sv('line', { class: 'dk-grid-l',
+      x1: iso(t, 0, 0, CX, CY)[0], y1: iso(t, 0, 0, CX, CY)[1],
+      x2: iso(t, SIZE, 0, CX, CY)[0], y2: iso(t, SIZE, 0, CX, CY)[1] }));
+    deco.push(sv('line', { class: 'dk-grid-l',
+      x1: iso(0, t, 0, CX, CY)[0], y1: iso(0, t, 0, CX, CY)[1],
+      x2: iso(SIZE, t, 0, CX, CY)[0], y2: iso(SIZE, t, 0, CX, CY)[1] }));
+  }
 
   DECK_LAYERS.forEach((L, i) => {
     const z = zOf(i);
@@ -118,6 +133,15 @@ function deckMap(d) {
         class: 'dk-pillar' + (it.on === false ? ' is-off' : ''),
         x1: base[0], y1: base[1], x2: top[0], y2: top[1],
       }));
+      // A halo ring behind each live node, pulsing on its own offset so the
+      // scene never beats in unison — synchronised pulses read as a screensaver,
+      // staggered ones read as independent things reporting.
+      if (it.on !== false) {
+        nodes.push(sv('circle', {
+          class: 'dk-halo', cx: top[0], cy: top[1], r: 3.4,
+          style: `--d:${((i * 0.37 + k * 0.53) % 2.4).toFixed(2)}s`,
+        }));
+      }
       nodes.push(sv('circle', {
         class: 'dk-cap' + (it.on === false ? ' is-off' : ''),
         cx: top[0], cy: top[1], r: 3.4,
@@ -138,7 +162,7 @@ function deckMap(d) {
         class: 'dk-riser' + (v.flowing ? ' is-live' : ' is-idle'), d: dpath, fill: 'none',
       }));
       if (v.flowing) {
-        for (let k = 0; k < 2; k++) {
+        for (let k = 0; k < 3; k++) {
           // Default direction is path start -> end, i.e. this tier up to the
           // next, which is the way data actually moves. No keyPoints reversal:
           // that made dots fall downward, quietly asserting the opposite of
@@ -146,11 +170,29 @@ function deckMap(d) {
           flows.push(sv('circle', { class: 'dk-flow', r: 2.8 },
             sv('animateMotion', {
               dur: '2.8s', repeatCount: 'indefinite',
-              begin: (i * 0.26 + k * 1.4).toFixed(2) + 's',
+              begin: (i * 0.26 + k * 0.93).toFixed(2) + 's',
+            }, sv('mpath', { 'xlink:href': '#' + id }))));
+          // A faint trailing dot just behind each leader. Two speeds in one
+          // channel is what stops a line of evenly-spaced dots looking like a
+          // marquee border.
+          flows.push(sv('circle', { class: 'dk-flow is-trail', r: 1.5 },
+            sv('animateMotion', {
+              dur: '2.8s', repeatCount: 'indefinite',
+              begin: (i * 0.26 + k * 0.93 + 0.16).toFixed(2) + 's',
             }, sv('mpath', { 'xlink:href': '#' + id }))));
         }
       }
     }
+  });
+
+  // A scan plane that rises through the whole stack, wall mode only. It is the
+  // single most "this thing is alive" cue in the scene, and it is honest: it
+  // sweeps the layers in the same order the data actually travels. Driven by a
+  // CSS transform over --maxz rather than SMIL so it can be disabled by
+  // prefers-reduced-motion like everything else.
+  const scan = sv('polygon', {
+    class: 'dk-scan', points: isoPlane(SIZE, 0, CX, CY),
+    style: `--maxz:${MAXZ}px`,
   });
 
   const svg = sv('svg', {
@@ -158,9 +200,11 @@ function deckMap(d) {
     role: 'img', 'aria-label': d.aria,
   },
     sv('defs', null, ...defs),
-    // Painter's order: planes first so pillars and risers occlude correctly.
-    // Getting this wrong is what makes isometric scenes look flat.
+    // Painter's order: grid and planes first so pillars and risers occlude
+    // correctly. Getting this wrong is what makes isometric scenes look flat.
+    sv('g', { class: 'dk-deco' }, deco),
     sv('g', { class: 'dk-planes' }, planes),
+    sv('g', { class: 'dk-scanwrap' }, scan),
     sv('g', { class: 'dk-links' }, links),
     sv('g', { class: 'dk-flows' }, flows),
     sv('g', { class: 'dk-nodes' }, nodes));
@@ -273,8 +317,23 @@ async function viewCommandDeck(root) {
   }));
 
   root.append(deckBoard(d, deck));
+  root.append(hudFrame());
 
   startDeckPolling(root);
+}
+
+/* The wall-mode HUD: four corner brackets, an edge rule, and a scan line that
+   crosses the screen. Entirely decorative and `aria-hidden`, positioned fixed
+   and `pointer-events: none`, so it cannot affect layout, hit-testing or the
+   single-screen fit — which is why it is safe to add after that guarantee was
+   measured. Rendered always, revealed only by `body.wallmode`. */
+function hudFrame() {
+  return h('div', { class: 'dk-hud', 'aria-hidden': 'true' },
+    h('i', { class: 'dk-hud-c tl' }), h('i', { class: 'dk-hud-c tr' }),
+    h('i', { class: 'dk-hud-c bl' }), h('i', { class: 'dk-hud-c br' }),
+    h('i', { class: 'dk-hud-scan' }),
+    h('div', { class: 'dk-hud-tag' }, 'VYREX // COMMAND DECK'),
+    h('div', { class: 'dk-hud-tag is-r' }, 'AIR-GAPPED · NO EGRESS'));
 }
 
 /* ---- header: identity, clock, health, wall mode ---------------------- */
@@ -300,19 +359,66 @@ function deckHeader(d) {
 
 /* Wall mode strips the console chrome so the board fills an operations screen.
    Escape exits — a kiosk you cannot get out of without a keyboard shortcut
-   nobody remembers is a support call waiting to happen. */
+   nobody remembers is a support call waiting to happen.
+
+   Entering it also plays a short boot sequence. That is deliberate theatre for
+   the expo, and it is confined to wall mode on purpose: the analyst workspace
+   someone stares at for six hours stays flat and calm (D-049), while the display
+   read at four metres for ten seconds gets to be cinematic (D-062). */
 function toggleWallMode() {
   const on = document.body.classList.toggle('wallmode');
-  if (on && !DECK.escHooked) {
+  if (!on) { document.body.classList.remove('dk-boot'); return; }
+
+  // Stagger index per panel, so the board assembles rather than appearing.
+  // Set here rather than in CSS because nth-child cannot express "reading
+  // order across a grid with spans". The KPI rail needs it too — without it
+  // every cell fell back to --i:0 and the whole rail appeared in one beat,
+  // which loses the left-to-right sweep the count-up is timed against.
+  document.querySelectorAll('.dk-board > .dk-card')
+    .forEach((c, i) => c.style.setProperty('--i', i));
+  document.querySelectorAll('.dk-rail .dk-stat')
+    .forEach((c, i) => c.style.setProperty('--i', i));
+
+  document.body.classList.remove('dk-boot');
+  void document.body.offsetWidth;          // restart the animation on re-entry
+  document.body.classList.add('dk-boot');
+  setTimeout(() => document.body.classList.remove('dk-boot'), 2600);
+  dkCountUp();
+
+  if (!DECK.escHooked) {
     DECK.escHooked = true;
     document.addEventListener('keydown', function esc(e) {
       if (e.key === 'Escape') {
-        document.body.classList.remove('wallmode');
+        document.body.classList.remove('wallmode', 'dk-boot');
         document.removeEventListener('keydown', esc);
         DECK.escHooked = false;
       }
     });
   }
+}
+
+/* Count the KPI rail up on entry. Only the leading number is animated and the
+   suffix is preserved, so "167ms" and "30%" still read correctly and a
+   non-numeric value like "2-person" is left alone rather than becoming NaN. */
+function dkCountUp() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  document.querySelectorAll('.dk-rail .dk-sv').forEach((el, idx) => {
+    const raw = el.textContent.trim();
+    const m = raw.match(/^(\d+(?:\.\d+)?)(.*)$/);
+    if (!m) return;
+    const target = parseFloat(m[1]), suffix = m[2], dec = (m[1].split('.')[1] || '').length;
+    const dur = 900, start = performance.now() + idx * 60;
+    const step = (now) => {
+      const t = Math.min(1, Math.max(0, (now - start) / dur));
+      // easeOutCubic: fast then settling, which reads as a value locking on
+      // rather than a linear ramp that looks like a progress bar.
+      const v = target * (1 - Math.pow(1 - t, 3));
+      el.textContent = v.toFixed(dec) + suffix;
+      if (t < 1) requestAnimationFrame(step);
+      else el.textContent = raw;      // always land on the exact original
+    };
+    requestAnimationFrame(step);
+  });
 }
 
 /* ---- the counter rail ------------------------------------------------ */

@@ -6,6 +6,35 @@ alternatives considered**.
 
 ---
 
+## D-062 — Wall mode is cinematic; the workspace stays flat. D-049 is scoped, not revoked
+**Context:** D-049 locks the console to flat surfaces, no gradients, no glows, colour only
+where it carries meaning. That is the right call for a screen an analyst stares at for six
+hours. It is the wrong call for a display read at four metres for ten seconds by someone
+walking past at an expo, which is what the Command Deck's wall mode is for.
+**Decision:** scope the decoration to `body.wallmode` and nothing else. Wall mode gets an
+ambient grid, HUD corner brackets, a scan plane that rises through the isometric stack, node
+halos, a room-wide scan pass, a staggered boot assembly and a KPI count-up. The analyst
+workspace — every other route, and the Deck itself outside wall mode — is untouched and
+still obeys D-049 exactly.
+**Why not just relax D-049 everywhere:** the two surfaces have opposite briefs. Glow and
+motion that make a wall display legible across a room make a triage queue tiring to work in,
+and the queue is where the actual work happens.
+**Three rules that keep it from becoming a screensaver:**
+1. **Decoration never contributes layout.** Every layer is `position: fixed` or a
+   pseudo-element with `pointer-events: none`. This was learned the hard way twice: an
+   `inline-block` title tick grew a caption's line box by 5px, and letter-spacing pushed a
+   subtitle onto a second line — each alone was enough to overflow a cell at 1366×768 and
+   break the single-screen guarantee (D-060). A caption row that can wrap is a latent height
+   bomb in a fixed grid; it is now pinned to one line with an ellipsis.
+2. **No filters on moving elements.** A CSS filter on an animated element forces a full
+   repaint every frame, and this board is expected to run for days on a modest host. Glows
+   are applied only to static text; the flow dots and scan planes get their presence from
+   size and opacity instead.
+3. **Everything stops under `prefers-reduced-motion`.** Not just dimmed — every animation is
+   explicitly cancelled, and the static state still reads correctly.
+**Still true, and it is the point:** none of this invents data. The scan plane sweeps the
+tiers in the order data actually travels, node halos pulse only on nodes that are live, and
+the riser into GOVERNANCE still never flows.
 ## D-061 — Identity is a FastAPI dependency, and a test asserts it is never a query param
 **Context:** every router does `from __future__ import annotations`, so
 `who: Annotated[str, Depends(current_actor)] = "anonymous"` is stored as a *string* and

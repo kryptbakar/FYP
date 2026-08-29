@@ -86,6 +86,29 @@ cell and cycle every 9 s, so the board still shows everything without a scrollba
 | Compliance posture | `GET /compliance/summary` | |
 | *rotating cell* | orchestrator · appliance vitals · attribution · top CVEs · response actions · trust & audit · risk model · estate | One at a time, 9 s each. |
 
+### What wall mode adds visually (and why only there)
+
+Wall mode is the expo/operations-room register: an ambient grid, HUD corner brackets on
+every panel, a scan plane that rises through the isometric stack, halos pulsing on live
+nodes, a room-wide scan pass, a staggered boot assembly and a KPI count-up on entry.
+
+All of it is scoped to `body.wallmode`. D-049 (flat, no glows) still governs every other
+route and the Deck outside wall mode, because a triage queue someone works in for six hours
+and a display read at four metres for ten seconds have opposite briefs (D-062).
+
+Three constraints keep it from becoming a screensaver:
+
+- **Decoration never contributes layout** — every layer is `position: fixed` or a
+  `pointer-events: none` pseudo-element, so the single-screen guarantee still holds.
+  Verify with `tools/smoke/wall-fit.js` after any change here; an `inline-block` title tick
+  and a wrapping caption each broke it once.
+- **No CSS filters on moving elements** — glow is applied to static text only. The board is
+  expected to run for days.
+- **`prefers-reduced-motion` cancels every animation**, and the static state still reads.
+
+And it still invents nothing: the scan sweeps the tiers in the order data actually travels,
+halos pulse only on nodes that are live, and the riser into GOVERNANCE never flows.
+
 Every figure is live. Where there is no data a panel says so rather than drawing a
 plausible zero — the first question anyone competent asks at an expo is "is that real?",
 and the answer has to survive them unplugging something.

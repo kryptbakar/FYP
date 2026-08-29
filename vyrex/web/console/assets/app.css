@@ -1894,3 +1894,249 @@ body.wallmode .tbl { font-size: var(--t-3xs); }
   .dk-feed-row.is-new { animation: none; }
   .dk-live-dot.is-pulse { animation: none; }
 }
+/* =====================================================================
+   WALL-MODE DECORATION — the "operations room" register.
+
+   Scoped ENTIRELY to `body.wallmode`. D-049 keeps the analyst workspace flat
+   and quiet because that is the surface someone stares at for six hours; a
+   display read at four metres for ten seconds has the opposite brief, and the
+   two do not have to share a look (D-062). Nothing here exists outside wall
+   mode, so the daily console is untouched.
+
+   Every decorative layer is `position: fixed` or a pseudo-element with
+   `pointer-events: none`, so none of it participates in layout — the
+   single-screen fit measured by tools/smoke/wall-fit.js still holds.
+
+   All animation is transform/opacity only (compositor-friendly, no layout
+   thrash on a screen that runs for days) and all of it stops under
+   prefers-reduced-motion.
+   ===================================================================== */
+
+/* --- ambient ground: grid + vignette ---------------------------------- */
+body.wallmode .app::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 39px, var(--line) 39px 40px),
+    repeating-linear-gradient(90deg, transparent 0 39px, var(--line) 39px 40px);
+  opacity: .5;
+  /* Fade the grid out toward the centre so it frames the data instead of
+     competing with it — a full-strength grid behind a table is unreadable. */
+  -webkit-mask-image: radial-gradient(ellipse at center, transparent 35%, #000 100%);
+          mask-image: radial-gradient(ellipse at center, transparent 35%, #000 100%);
+}
+body.wallmode .scroll { position: relative; z-index: 1; }
+
+/* --- the HUD frame ----------------------------------------------------- */
+.dk-hud { display: none; }
+body.wallmode .dk-hud {
+  display: block; position: fixed; inset: 0; pointer-events: none; z-index: 40;
+}
+body.wallmode .dk-hud-c {
+  position: absolute; width: 34px; height: 34px; border: 1px solid var(--accent);
+  opacity: .85;
+}
+body.wallmode .dk-hud-c.tl { top: 6px;    left: 6px;  border-right: 0; border-bottom: 0; }
+body.wallmode .dk-hud-c.tr { top: 6px;    right: 6px; border-left: 0;  border-bottom: 0; }
+body.wallmode .dk-hud-c.bl { bottom: 6px; left: 6px;  border-right: 0; border-top: 0; }
+body.wallmode .dk-hud-c.br { bottom: 6px; right: 6px; border-left: 0;  border-top: 0; }
+body.wallmode .dk-hud-tag {
+  position: absolute; bottom: 9px; left: 40px; font-family: var(--mono);
+  font-size: 9px; letter-spacing: .34em; color: var(--faint); opacity: .8;
+  text-transform: uppercase;
+}
+body.wallmode .dk-hud-tag.is-r { left: auto; right: 40px; letter-spacing: .28em; }
+
+/* The room-wide scan. One slow pass; it is ambience, not a progress bar. */
+/* A soft brightness sweep, with NO hard edge. It previously carried a
+   `border-bottom: 1px solid var(--accent)`, which put a crisp red rule across
+   the board every few seconds — it cut through glyphs and read as a stray
+   divider or a rendering artefact rather than as ambience. A tall, slow,
+   edgeless band is the version that actually looks like a room being scanned. */
+body.wallmode .dk-hud-scan {
+  position: absolute; left: 0; right: 0; height: 260px; top: -260px;
+  background: linear-gradient(to bottom,
+    transparent, color-mix(in srgb, var(--accent) 12%, transparent) 65%, transparent);
+  opacity: .75; animation: dkroomscan 13s linear infinite;
+}
+@keyframes dkroomscan {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(calc(100vh + 260px)); }
+}
+
+/* --- panel chrome: HUD corner brackets --------------------------------- */
+body.wallmode .dk-board > .dk-card {
+  position: relative; border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+/* Two pseudo-elements, four brackets: each draws an L at one corner and is
+   mirrored to the opposite one with a second box-shadow-free trick — simplest
+   is one element per diagonal pair using border sides. */
+body.wallmode .dk-board > .dk-card::before,
+body.wallmode .dk-board > .dk-card::after {
+  content: ''; position: absolute; width: 15px; height: 15px;
+  border: 1px solid var(--accent); opacity: .8; pointer-events: none;
+}
+body.wallmode .dk-board > .dk-card::before {
+  top: -1px; left: -1px; border-right: 0; border-bottom: 0;
+}
+body.wallmode .dk-board > .dk-card::after {
+  bottom: -1px; right: -1px; border-left: 0; border-top: 0;
+}
+/* A tick before every panel title — small, and it is what makes a grid of
+   boxes read as instrumentation rather than as cards. */
+/* Absolutely positioned, NOT inline-block: as an inline-block it grew the
+   caption's line box by ~5px, which was enough to push the compliance panel
+   past its cell at 1366x768. Decoration must never contribute layout on a
+   surface whose whole promise is "it fits". */
+body.wallmode .dk-card > .dk-cap-row .sec-label,
+body.wallmode .dk-card > .dk-cap-row .dk-title { position: relative; padding-left: 10px; }
+body.wallmode .dk-card > .dk-cap-row .sec-label::before,
+body.wallmode .dk-card > .dk-cap-row .dk-title::before {
+  content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 3px; height: 9px; background: var(--accent);
+}
+body.wallmode .sec-label, body.wallmode .dk-hd-title { letter-spacing: .06em; }
+/* A caption row that can wrap is a latent height bomb in a fixed grid: the
+   letter-spacing above was enough to push "CIS benchmarks" onto a second line,
+   which grew the compliance caption to 41px and overflowed its cell at 768p.
+   Pin it to one line and let the subtitle truncate — an ellipsis is honest and,
+   unlike a wrap, it cannot change the panel's height. */
+body.wallmode .dk-card > .dk-cap-row { flex-wrap: nowrap; align-items: baseline; }
+body.wallmode .dk-card > .dk-cap-row .sec-label,
+body.wallmode .dk-card > .dk-cap-row .dk-title { flex: none; white-space: nowrap; }
+body.wallmode .dk-card > .dk-cap-row .dk-sub {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* --- the boot sequence ------------------------------------------------- */
+/* Panels assemble in reading order instead of appearing all at once. --i is
+   set in JS: nth-child cannot express reading order across a grid with spans. */
+body.wallmode.dk-boot .dk-board > .dk-card {
+  animation: dkassemble .52s cubic-bezier(.2,.8,.25,1) backwards;
+  animation-delay: calc(var(--i, 0) * 45ms + 260ms);
+}
+@keyframes dkassemble {
+  from { opacity: 0; transform: translateY(10px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+body.wallmode.dk-boot .dk-rail .dk-stat {
+  animation: dkassemble .4s ease-out backwards;
+  animation-delay: calc(var(--i, 0) * 30ms + 120ms);
+}
+/* The opening line: a rule that splits from the centre across the screen. */
+body.wallmode.dk-boot .dk-hud::before {
+  content: ''; position: absolute; top: 50%; left: 50%; height: 1px; width: 0;
+  background: var(--accent); transform: translateX(-50%);
+  animation: dksplit .85s cubic-bezier(.6,0,.2,1) forwards;
+}
+@keyframes dksplit {
+  0%   { width: 0; opacity: 0; }
+  25%  { opacity: 1; }
+  70%  { width: 100vw; opacity: .9; }
+  100% { width: 100vw; opacity: 0; }
+}
+
+/* --- the isometric scene ----------------------------------------------- */
+.dk-grid-l { stroke: var(--line); stroke-width: .5; }
+body.wallmode .dk-grid-l { stroke: var(--accent); opacity: .3; }
+.dk-scan { display: none; }
+body.wallmode .dk-scan {
+  display: block; fill: var(--accent); opacity: .14;
+  stroke: var(--accent-text); stroke-width: 1.4;
+  animation: dkstackscan 6s cubic-bezier(.5,0,.5,1) infinite;
+}
+/* Rises from the ground plane to the top tier: the same direction, and the
+   same order, the data actually travels. */
+@keyframes dkstackscan {
+  0%,  8%  { transform: translateY(0);                opacity: 0; }
+  16%      { opacity: .30; }
+  84%      { opacity: .30; }
+  100%     { transform: translateY(calc(-1 * var(--maxz))); opacity: 0; }
+}
+.dk-halo { display: none; }
+body.wallmode .dk-halo {
+  display: block; fill: none; stroke: var(--accent-text); stroke-width: 1.3;
+  transform-box: fill-box; transform-origin: center;
+  animation: dkhalo 2.4s ease-out infinite; animation-delay: var(--d, 0s);
+}
+@keyframes dkhalo {
+  0%   { transform: scale(1);   opacity: .95; }
+  70%  { transform: scale(3.2); opacity: 0; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+body.wallmode .dk-flow.is-trail { fill: var(--success); opacity: .4; }
+body.wallmode .dk-plane { fill: color-mix(in srgb, var(--accent) 9%, transparent); stroke: var(--accent); stroke-opacity: .45; }
+body.wallmode .dk-plane.is-hot { fill: var(--accent-soft); }
+body.wallmode .dk-stage { border-color: var(--line-strong); }
+
+/* --- live feed: each new row announces itself ------------------------- */
+body.wallmode .dk-feed-row { border-left-width: 3px; }
+body.wallmode .dk-feed-row.is-new { animation: dkflashwall 1.8s ease-out 1; }
+@keyframes dkflashwall {
+  0%   { background: var(--accent-soft); transform: translateX(-8px); opacity: .4; }
+  40%  { opacity: 1; }
+  100% { background: transparent; transform: none; }
+}
+/* A steady heartbeat on the feed's live dot, so "the board is running" is
+   visible even on a quiet network where nothing new arrives for an hour. */
+body.wallmode .dk-live-dot { animation: dkbeat 2s ease-in-out infinite; }
+@keyframes dkbeat {
+  0%, 100% { opacity: .35; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.35); }
+}
+
+/* --- KPI rail: the numbers are the hero -------------------------------- */
+body.wallmode .dk-sv { font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+body.wallmode .dk-stat { position: relative; }
+body.wallmode .dk-stat::after {
+  content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
+  background: var(--accent); opacity: .22;
+}
+body.wallmode .dk-sv.is-warn ~ .dk-sl { color: var(--warning); }
+
+/* --- honour the accessibility setting, completely ---------------------- */
+@media (prefers-reduced-motion: reduce) {
+  body.wallmode .dk-hud-scan,
+  body.wallmode .dk-scan,
+  body.wallmode .dk-halo,
+  body.wallmode .dk-live-dot,
+  body.wallmode.dk-boot .dk-board > .dk-card,
+  body.wallmode.dk-boot .dk-rail .dk-stat,
+  body.wallmode.dk-boot .dk-hud::before,
+  body.wallmode .dk-feed-row.is-new { animation: none; }
+  body.wallmode .dk-hud-scan { display: none; }
+  /* The scan plane still marks the ground truthfully when it cannot move. */
+  body.wallmode .dk-scan { opacity: .06; transform: none; }
+  body.wallmode .dk-halo { opacity: .35; transform: none; }
+}
+/* --- wall-mode intensity: the parts that must read from four metres ----
+   Glows are applied ONLY to static elements. A CSS filter on a moving element
+   forces a full repaint every frame, and this board is expected to run for days
+   on a modest host — the flow dots and scan planes stay filter-free and get
+   their presence from size and opacity instead. */
+body.wallmode .dk-sv {
+  text-shadow: 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+body.wallmode .dk-hd-title {
+  text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+body.wallmode .dk-rail {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 40%, transparent);
+}
+/* The scene's structure — pillars, risers, node caps — carries the "machine"
+   read, so it is brightened rather than the labels, which must stay legible. */
+body.wallmode .dk-pillar { stroke-width: 2; opacity: .95; }
+body.wallmode .dk-cap { r: 4; }
+body.wallmode .dk-riser.is-live { opacity: .85; stroke-width: 2; }
+body.wallmode .dk-flow { r: 3.4; }
+body.wallmode .dk-lval {
+  fill: var(--accent-text);
+  text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+body.wallmode .dk-lname { fill: var(--text); letter-spacing: .18em; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Glow is not motion, so it stays; only the animation is removed elsewhere. */
+  body.wallmode .dk-scan { animation: none; }
+}
