@@ -6,6 +6,44 @@ alternatives considered**.
 
 ---
 
+## D-058 — The orchestrator is a single-writer service, and the manifest says so
+**Context:** `claim_next_job` marks the outbox row `sent` *before* the graph runs, so a
+worker that dies mid-investigation strands the run — outbox delivered, investigation
+running, nothing to redeliver. `resume_orphans()` re-drives those at startup, which is
+correct **only** for a single instance: a second replica starting up would seize
+investigations the first is still working on and re-run them, including the LLM call.
+**Decision:** `replicas: 1`, hard-coded in the Helm template rather than exposed as a
+value, with `strategy: Recreate` so a rolling update cannot briefly run two. The reason is
+written in the manifest where an operator will actually meet it, not only in the code.
+**Why not fix it properly:** scaling needs a worker-id + heartbeat lease on
+`investigations`, so "abandoned" means "lease expired" rather than "not mine". That is real
+work for no current benefit — throughput is a few investigations an hour and the LLM is the
+bottleneck, not the worker count. **Also decided:** its DB credentials come from a separate
+`soc-db-orchestrator` secret, so the one service that reads untrusted evidence into a model
+cannot read the superuser password merely by sharing a secret with everything else. **No
+probes**, deliberately: there is no HTTP surface, and an exec probe that cannot distinguish
+"waiting for work" from "wedged" would restart a healthy idle worker every quiet period —
+`GET /orchestrator/status` is where the alert belongs.
+
+## D-057 — The production air-gap NetworkPolicy selected a label no pod carried
+**Context:** `networkpolicy.yaml` (D-042, "the production air-gap primitive") default-denies
+egress for pods matching `app.kubernetes.io/part-of: vyrex`. That label existed only in the
+chart's `soc.labels` helper, which is stamped on the **Deployment object**. A NetworkPolicy
+selects **pods**. Rendering the chart and counting: **9 pod templates, 0 carrying
+`part-of`** — the policy matched nothing, and every workload had unrestricted egress in the
+production target while the chart, AIRGAP.md and this log all called it sealed.
+**Decision:** a separate `soc.podLabels` helper (selector + `part-of`) used only in pod
+template metadata. **Why not just add it to `soc.selector`:** that helper feeds
+`spec.selector.matchLabels`, which Kubernetes treats as **immutable** — changing it forces
+every existing Deployment to be deleted and recreated. After the fix, 9/9 pods carry the
+label and 0/5 selector blocks changed, so upgrades apply in place. **Why it is now a CI
+check:** this was the *third* air-gap defect in one day where the enforcement looked right
+but selected the wrong thing — services missing from the overlay (D-055),
+`networks: [default]` unioning rather than replacing (D-054), and object labels standing in
+for pod labels here. Each time the system worked and nothing failed. The generalisable
+lesson, and the reason `check-coverage.py` is verified in both directions: **a security
+property nobody has watched fail is not yet known to hold.**
+
 ## D-056 — Two independent 3B models abstain identically; the ceiling is capacity, not the prompt
 **Context:** `llama3.2:3b` abstained on 12/12 findings and cited nothing on 12/12. That is
 consistent with two very different explanations — a model quirk, or a prompt the author
