@@ -22,6 +22,7 @@ from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from .. import db
+from ..auth_guard import current_actor
 
 router = APIRouter(tags=["triage"])
 
@@ -38,7 +39,7 @@ class TriageIn(BaseModel):
 
 @router.post("/findings/{finding_id}/triage", summary="Set finding lifecycle state / accept risk")
 async def triage(finding_id: int, t: TriageIn,
-                 x_analyst: Annotated[str | None, Header()] = None) -> dict:
+                 who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     if t.status not in VALID_STATES:
         raise HTTPException(400, f"invalid status; allowed: {sorted(VALID_STATES)}")
     if t.status == "risk_accepted" and not t.risk_accepted_until:
@@ -49,7 +50,7 @@ async def triage(finding_id: int, t: TriageIn,
                risk_accepted_until=%(rau)s
            WHERE id=%(id)s
            RETURNING id, triage_status, risk_accepted_until, triaged_by, triaged_at""",
-        {"s": t.status, "n": t.note, "by": x_analyst or "analyst",
+        {"s": t.status, "n": t.note, "by": who or "analyst",
          "rau": t.risk_accepted_until, "id": finding_id},
     )
     if not row:
@@ -78,7 +79,7 @@ class CorrelateIn(BaseModel):
 
 @router.post("/incidents/correlate", summary="Correlate high-risk findings into auto-incidents")
 async def correlate(c: CorrelateIn,
-                    x_analyst: Annotated[str | None, Header()] = None) -> dict:
+                    who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     """Group open high-risk findings by (asset + ATT&CK technique + time bucket) and roll each
     group into one incident (idempotent via a unique correlation_uid). Returns what it created
     or matched — the SIEM-style 'alerts became a case' step, automated."""
@@ -117,9 +118,9 @@ async def correlate(c: CorrelateIn,
                VALUES (%(t)s,%(d)s,%(sev)s,'open',%(by)s,%(uid)s,true, now() + interval '24 hours')
                ON CONFLICT (correlation_uid) WHERE correlation_uid IS NOT NULL DO NOTHING
                RETURNING id""",
-            {"t": title, "d": f"Auto-correlated by {x_analyst or 'soc-auto'}: "
+            {"t": title, "d": f"Auto-correlated by {who or 'soc-auto'}: "
                               + ", ".join(m["title"][:60] for m in members[:5]),
-             "sev": (top.get("severity") or "high").lower(), "by": x_analyst or "soc-auto", "uid": uid},
+             "sev": (top.get("severity") or "high").lower(), "by": who or "soc-auto", "uid": uid},
         )
         if not inc:
             matched.append(uid)

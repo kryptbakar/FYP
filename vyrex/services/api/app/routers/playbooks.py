@@ -16,6 +16,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import audit, db
+from ..auth_guard import current_actor
 from ..config import settings
 
 router = APIRouter(tags=["soar"])
@@ -51,11 +52,11 @@ async def _finding(fid: int) -> dict | None:
 
 @router.post("/playbooks/{playbook_id}/run", summary="Run a playbook (records an audited run)")
 async def run_playbook(playbook_id: str, r: RunIn,
-                       x_analyst: Annotated[str | None, Header()] = None) -> dict:
+                       who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     pb = await db.fetch_one("SELECT * FROM playbooks WHERE id=%(id)s", {"id": playbook_id})
     if not pb:
         raise HTTPException(404, "playbook not found")
-    actor = x_analyst or "soc-auto"
+    actor = who or "soc-auto"
     finding = await _finding(r.finding_id) if r.finding_id else None
     trigger_ref = (f"finding:{r.finding_id}" if r.finding_id
                    else f"incident:{r.incident_id}" if r.incident_id else "manual")

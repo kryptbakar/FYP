@@ -11,10 +11,11 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import Depends, APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import db
+from ..auth_guard import current_actor
 
 router = APIRouter(tags=["reports"])
 
@@ -97,7 +98,7 @@ class ReportIn(BaseModel):
 
 
 @router.post("/reports", summary="Generate a report (posture | compliance | executive)")
-async def generate(r: ReportIn, x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def generate(r: ReportIn, who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     if r.type not in REPORT_TYPES:
         raise HTTPException(400, f"unknown type; allowed: {sorted(REPORT_TYPES)}")
     content = (await _posture_content() if r.type == "posture"
@@ -109,7 +110,7 @@ async def generate(r: ReportIn, x_analyst: Annotated[str | None, Header()] = Non
     row = await db.execute(
         "INSERT INTO reports (type, title, content, generated_by) VALUES (%(t)s,%(ti)s,%(c)s,%(by)s) "
         "RETURNING id, type, title, created_at",
-        {"t": r.type, "ti": title, "c": json.dumps(content, default=_jsonable), "by": x_analyst or "analyst"},
+        {"t": r.type, "ti": title, "c": json.dumps(content, default=_jsonable), "by": who or "analyst"},
     )
     return {**(row or {}), "content": content}
 

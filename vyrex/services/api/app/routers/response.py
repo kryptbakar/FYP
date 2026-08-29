@@ -17,10 +17,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import Depends, APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import audit, db, signing
+from ..auth_guard import current_actor
 from ..config import settings
 
 router = APIRouter(tags=["response"])
@@ -54,10 +55,10 @@ def _require_agent(authorization: str | None) -> None:
 # ----------------------------------------------------- request / approve ----
 @router.post("/incidents/{incident_id}/actions", summary="Request a containment action")
 async def request_action(incident_id: int, a: ActionIn,
-                         x_analyst: Annotated[str | None, Header()] = None) -> dict:
+                         who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     if a.action_type not in DESTRUCTIVE:
         raise HTTPException(400, f"unknown action_type; allowed: {sorted(DESTRUCTIVE)}")
-    requester = x_analyst or "analyst"
+    requester = who or "analyst"
     row = await db.execute(
         """INSERT INTO response_actions (incident_id, agent_id, action_type, params, requested_by, nonce)
            VALUES (%(i)s,%(ag)s,%(t)s,%(p)s,%(by)s,%(n)s)

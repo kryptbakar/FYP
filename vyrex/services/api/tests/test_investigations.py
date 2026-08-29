@@ -74,24 +74,10 @@ def cleanup():
         _run(db.execute("DELETE FROM investigations WHERE investigation_id=%s", (inv,)))
 
 
-class _FakeRequest:
-    """Stand-in for the Starlette Request these handlers now take.
-
-    The handler needs it to resolve the AUTHENTICATED principal (auth_guard.actor). With
-    no state.principal set, actor() falls back to the x-analyst header - the dev/demo
-    path, which is exactly what these tests exercise.
-    """
-
-    class _S:
-        principal = None
-    state = _S()
-
-
 def _create(finding_id: int, cleanup: list) -> tuple[dict, Response]:
     resp = Response()
     out = _run(create_investigation(
-        InvestigationIn(subject_type="finding", subject_id=finding_id),
-        _FakeRequest(), resp, "pytest"))
+        InvestigationIn(subject_type="finding", subject_id=finding_id), resp, "pytest"))
     if out.get("investigation_id") not in cleanup:
         cleanup.append(out["investigation_id"])
     return out, resp
@@ -173,7 +159,7 @@ def test_cancelling_a_finished_run_is_rejected(finding_id, cleanup):
 def test_review_requires_a_report(finding_id, cleanup):
     out, _ = _create(finding_id, cleanup)
     with pytest.raises(HTTPException) as e:
-        _run(review(out["investigation_id"], ReviewIn(action="accept"), _FakeRequest(), "pytest"))
+        _run(review(out["investigation_id"], ReviewIn(action="accept"), "pytest"))
     assert e.value.status_code == 409
 
 
@@ -181,8 +167,7 @@ def test_review_rejects_a_disposition_outside_the_taxonomy(finding_id, cleanup):
     out, _ = _create(finding_id, cleanup)
     with pytest.raises(HTTPException) as e:
         _run(review(out["investigation_id"],
-                    ReviewIn(action="override", disposition="PROBABLY_BAD"),
-                    _FakeRequest(), "pytest"))
+                    ReviewIn(action="override", disposition="PROBABLY_BAD"), "pytest"))
     assert e.value.status_code == 422
 
 

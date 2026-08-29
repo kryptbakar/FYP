@@ -22,7 +22,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Annotated
 
+from fastapi import Header, Request
 from fastapi.responses import JSONResponse
 
 from . import db
@@ -138,6 +140,34 @@ async def auth_guard_middleware(request, call_next):
     if not allowed:
         return _deny(status, reason)
     return await call_next(request)
+
+
+async def current_actor(request: Request,
+                        x_analyst: Annotated[str | None, Header()] = None) -> str:
+    """FastAPI dependency: the identity to record for this write.
+
+    Routes take `who: Annotated[str, Depends(current_actor)]` instead of reading the
+    `x-analyst` header themselves. Two reasons this is a dependency rather than a
+    `Request` parameter threaded through every handler:
+
+    * it is one uniform edit per route instead of a signature change that reorders
+      positional arguments — which silently broke callers the first time;
+    * handlers stay directly callable in tests by passing a plain string, so the test
+      suite does not need to fake a Request just to name an analyst.
+    """
+    who, _ = actor(request, x_analyst)
+    return who
+
+
+async def current_actor_source(request: Request,
+                               x_analyst: Annotated[str | None, Header()] = None) -> str:
+    """Companion to `current_actor`: HOW the identity was established.
+
+    Separate dependency rather than a tuple, so the common case — a route that only needs
+    the name — stays a plain string and handlers remain directly callable in tests.
+    """
+    _, src = actor(request, x_analyst)
+    return src
 
 
 def actor(request, x_analyst: str | None = None) -> tuple[str, str]:

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, Query
 from pydantic import BaseModel
 
 from .. import db
+from ..auth_guard import current_actor
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -33,7 +34,7 @@ class LinkIn(BaseModel):
 
 
 @router.post("", summary="Open an incident (optionally from findings)")
-async def create(inc: IncidentIn, x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def create(inc: IncidentIn, who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     hours = SLA_HOURS.get(inc.severity.lower(), 72)
     row = await db.execute(
         """
@@ -42,7 +43,7 @@ async def create(inc: IncidentIn, x_analyst: Annotated[str | None, Header()] = N
         RETURNING id, title, severity, status, assignee, sla_due, created_at
         """,
         {"t": inc.title, "d": inc.description, "sev": inc.severity, "asg": inc.assignee,
-         "by": x_analyst or "analyst", "h": hours},
+         "by": who or "analyst", "h": hours},
     )
     for fid in inc.finding_ids:
         await db.execute(

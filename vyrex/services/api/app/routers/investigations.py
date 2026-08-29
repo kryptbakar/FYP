@@ -26,11 +26,11 @@ import uuid
 from typing import Annotated, Literal
 
 import psycopg
-from fastapi import APIRouter, Header, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from .. import db, ratelimit
-from ..auth_guard import actor
+from ..auth_guard import current_actor, current_actor_source
 from ..config import settings
 
 router = APIRouter(tags=["investigations"])
@@ -77,9 +77,11 @@ async def _active_for(subject_type: str, subject_id: int) -> dict | None:
              summary="Request an investigation (returns immediately; poll for the result)")
 async def create_investigation(
     body: InvestigationIn,
-    request: Request,
     response: Response,
-    x_analyst: Annotated[str | None, Header()] = None,
+    # Resolved from the AUTHENTICATED principal; the x-analyst header is honoured only in
+    # the dev/demo path where no identity exists to contradict it. See auth_guard.actor.
+    who: Annotated[str, Depends(current_actor)] = "anonymous",
+    who_src: Annotated[str, Depends(current_actor_source)] = "none",
 ) -> dict:
     """202 Accepted, always fast. The graph runs out of band.
 
@@ -87,10 +89,6 @@ async def create_investigation(
     flight rather than starting a competing one — enforced by a partial unique index, so
     two concurrent callers cannot both win the race.
     """
-    # Attribute to the authenticated principal when there is one; the header is honoured
-    # only in the dev/demo path where no identity exists to contradict it.
-    who, who_src = actor(request, x_analyst)
-
     subject = await db.fetch_one(
         "SELECT id FROM findings WHERE id=%s" if body.subject_type == "finding"
         else "SELECT id FROM incidents WHERE id=%s",
@@ -209,7 +207,7 @@ async def get_report(investigation_id: str) -> dict:
 
 
 @router.post("/investigations/{investigation_id}/cancel", summary="Cancel a queued/running run")
-async def cancel(investigation_id: str, x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def cancel(investigation_id: str, who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     inv = await _get(investigation_id)
     if inv["status"] not in ACTIVE:
         raise HTTPException(status_code=409,
@@ -223,19 +221,19 @@ async def cancel(investigation_id: str, x_analyst: Annotated[str | None, Header(
 @router.post("/investigations/{investigation_id}/retry",
              summary="Re-run a finished investigation (creates a new one)")
 async def retry(investigation_id: str, response: Response,
-                x_analyst: Annotated[str | None, Header()] = None) -> dict:
+                who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     inv = await _get(investigation_id)
     if inv["status"] in ACTIVE:
         raise HTTPException(status_code=409, detail="that investigation is still in flight")
     return await create_investigation(
         InvestigationIn(subject_type=inv["subject_type"], subject_id=inv["subject_id"]),
-        response, x_analyst)
+        response, who)
 
 
 @router.post("/investigations/{investigation_id}/review",
              summary="Analyst accepts, rejects or overrides the verdict")
-async def review(investigation_id: str, body: ReviewIn, request: Request,
-                 x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def review(investigation_id: str, body: ReviewIn,
+                 who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     """Analyst judgement on a report.
 
     Deliberately recorded even when the analyst simply accepts: an accepted verdict is
@@ -246,7 +244,6 @@ async def review(investigation_id: str, body: ReviewIn, request: Request,
     a caller could set with a header would let anyone attribute a judgement to a
     colleague — and the resulting label would be worse than no label.
     """
-    who, _ = actor(request, x_analyst)
     await _get(investigation_id)
     if body.disposition and body.disposition not in DISPOSITIONS:
         raise HTTPException(status_code=422,

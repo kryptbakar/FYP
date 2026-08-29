@@ -16,6 +16,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import db
+from ..auth_guard import current_actor
 from ..config import settings
 
 router = APIRouter(tags=["hunt"])
@@ -37,14 +38,14 @@ class HuntIn(BaseModel):
 
 
 @router.post("/hunts", summary="Define & queue a live hunt across the fleet")
-async def create_hunt(h: HuntIn, x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def create_hunt(h: HuntIn, who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     if h.artifact not in ARTIFACTS:
         raise HTTPException(400, f"unknown artifact; allowed: {sorted(ARTIFACTS)}")
     return await db.execute(
         "INSERT INTO hunts (name, artifact, query, target, created_by) "
         "VALUES (%(n)s,%(a)s,%(q)s,%(t)s,%(by)s) "
         "RETURNING id, name, artifact, query, target, status, created_at",
-        {"n": h.name, "a": h.artifact, "q": h.query, "t": h.target, "by": x_analyst or "analyst"},
+        {"n": h.name, "a": h.artifact, "q": h.query, "t": h.target, "by": who or "analyst"},
     ) or {}
 
 

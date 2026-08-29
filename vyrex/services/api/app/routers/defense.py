@@ -28,10 +28,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import Depends, APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import audit, db, signing
+from ..auth_guard import current_actor
 
 router = APIRouter(tags=["defense"])
 
@@ -161,13 +162,13 @@ async def get_policy() -> dict:
 
 
 @router.put("/defense/policy", summary="Set the autonomy level")
-async def set_policy(p: PolicyIn, x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def set_policy(p: PolicyIn, who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     if p.level not in AUTO_BLAST:
         raise HTTPException(400, f"level must be one of {sorted(AUTO_BLAST)}")
     await db.execute(
         """INSERT INTO defense_policy (id, level, updated_by, updated_at) VALUES (1,%(l)s,%(by)s,now())
            ON CONFLICT (id) DO UPDATE SET level=%(l)s, updated_by=%(by)s, updated_at=now()""",
-        {"l": p.level, "by": x_analyst or "analyst"})
+        {"l": p.level, "by": who or "analyst"})
     return await _get_policy()
 
 

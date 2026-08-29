@@ -12,6 +12,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import db
+from ..auth_guard import current_actor
 
 router = APIRouter(tags=["detections"])
 
@@ -48,14 +49,14 @@ async def rule_stats() -> dict:
 
 
 @router.post("/detection-rules", summary="Author a detection rule")
-async def create_rule(r: RuleIn, x_analyst: Annotated[str | None, Header()] = None) -> dict:
+async def create_rule(r: RuleIn, who: Annotated[str, Depends(current_actor)] = "anonymous") -> dict:
     if r.source not in SOURCES:
         raise HTTPException(400, f"unknown source; allowed: {sorted(SOURCES)}")
     return await db.execute(
         "INSERT INTO detection_rules (name, source, technique, severity, logic, created_by) "
         "VALUES (%(n)s,%(s)s,%(t)s,%(sev)s,%(l)s,%(by)s) "
         "ON CONFLICT (name) DO NOTHING RETURNING id, name, source, technique, severity, enabled",
-        {"n": r.name, "s": r.source, "t": r.technique, "sev": r.severity, "l": r.logic, "by": x_analyst or "analyst"},
+        {"n": r.name, "s": r.source, "t": r.technique, "sev": r.severity, "l": r.logic, "by": who or "analyst"},
     ) or {"error": "a rule with that name already exists"}
 
 
