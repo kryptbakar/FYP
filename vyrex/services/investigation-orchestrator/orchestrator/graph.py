@@ -320,9 +320,19 @@ def build_graph(deps: dict[str, Any], checkpointer=None):
         asset = repo.load_asset(pg, host)
         if not asset:
             return [], f"asset {host} not in inventory"
+        # Business context is included deliberately. `internet_exposed` and `criticality`
+        # are ranks 3 and 4 in the labelling rubric's signal precedence, so a model asked
+        # to reach the same verdict as a human has to be able to SEE them — without the
+        # exposure field it was reasoning about reachability it had never been told.
+        # criticality_rationale travels too: the number alone is an assertion, while the
+        # sentence is the part a verdict can actually be argued against.
         out = [Evidence.create(f"{p}1", SourceType.ASSET, f"assets:{host}",
                                {k: str(v) for k, v in asset.items()
-                                if k in ("host_id", "hostname", "os", "ip", "criticality")})]
+                                if k in ("host_id", "hostname", "os", "ip", "criticality",
+                                         "internet_exposed", "environment",
+                                         "data_sensitivity", "business_service",
+                                         "owner_team", "criticality_rationale")
+                                and v is not None})]
         comp = repo.load_compliance(pg, host)
         if comp and comp.get("total"):
             out.append(Evidence.create(

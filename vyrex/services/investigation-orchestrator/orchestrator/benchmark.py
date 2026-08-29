@@ -70,10 +70,16 @@ def collect_evidence(pg, finding_id: int) -> list[Evidence]:
     if f.get("asset_id"):
         a = repo.load_asset(pg, f["asset_id"])
         if a:
+            # Mirrors graph.asset_context: exposure and criticality are ranks 3 and 4 in
+            # the rubric's precedence, so the benchmark must show the model the same
+            # business context the real graph does, or it is measuring a different task.
             out.append(Evidence.create(
                 "A1", SourceType.ASSET, f"assets:{a['host_id']}",
                 {k: str(v) for k, v in a.items()
-                 if k in ("host_id", "hostname", "os", "ip", "criticality")}))
+                 if k in ("host_id", "hostname", "os", "ip", "criticality",
+                          "internet_exposed", "environment", "data_sensitivity",
+                          "business_service", "owner_team", "criticality_rationale")
+                 and v is not None}))
         c = repo.load_compliance(pg, f["asset_id"])
         if c and c.get("total"):
             out.append(Evidence.create(
@@ -155,12 +161,40 @@ def run_case(llm, evidence: list[Evidence], subject_type: str = "finding") -> di
     return rec
 
 
-def benchmark(models: list[str], n_cases: int, repeats: int) -> dict:
+# Ablations. Each evidence record carries a citation prefix that identifies which
+# specialist produced it, so a branch can be removed by dropping its prefix — no graph
+# surgery, and the remaining evidence is byte-identical to a real run without that branch.
+# This is what answers "does this specialist earn its place?" (EVALUATION-PROTOCOL §4).
+ABLATIONS = {
+    "asset": "A",        # asset + compliance context
+    "attack": "X",       # ATT&CK / SHAP explanation
+    "intel": "T",        # threat intel
+    "fusion": "C",       # multi-tool corroboration
+    "historical": "H",   # prior triage of similar findings
+}
+
+
+def ablate(evidence: list, drop: str | None) -> list:
+    """Remove one specialist's evidence by citation prefix.
+
+    NOTE what this does and does not measure. It ablates the EVIDENCE, not the retrieval:
+    the specialist still ran, and its cost is unchanged. So it answers "does this evidence
+    change the verdict?" and not "is this branch worth its latency" — the latter is
+    already answered by B6 in BENCHMARKS.md, where every specialist costs tens of ms.
+    """
+    if not drop:
+        return evidence
+    prefix = ABLATIONS[drop]
+    return [e for e in evidence if not e.citation_id.startswith(prefix)]
+
+
+def benchmark(models: list[str], n_cases: int, repeats: int, drop: str | None = None) -> dict:
     pg = repo.connect(settings.postgres_dsn)
     case_ids = pick_cases(pg, n_cases)
     evidence = {cid: collect_evidence(pg, cid) for cid in case_ids}
-    evidence = {k: v for k, v in evidence.items() if v}
-    print(f"benchmark: {len(evidence)} case(s) x {len(models)} model(s) x {repeats} repeat(s)")
+    evidence = {k: ablate(v, drop) for k, v in evidence.items() if v}
+    label = f" [ablation: -{drop}]" if drop else ""
+    print(f"benchmark: {len(evidence)} case(s) x {len(models)} model(s) x {repeats} repeat(s){label}")
     print(f"evidence per case: {sorted({len(v) for v in evidence.values()})} records\n")
 
     results: dict[str, list[dict]] = {}
@@ -231,10 +265,12 @@ def main() -> None:
     ap.add_argument("--repeats", type=int, default=1,
                     help="runs per case; >=2 measures determinism")
     ap.add_argument("--out", default=None, help="write the markdown report here")
+    ap.add_argument("--drop", choices=sorted(ABLATIONS), default=None,
+                    help="ablation: withhold one specialist's evidence from synthesis")
     a = ap.parse_args()
 
     results = benchmark([m.strip() for m in a.models.split(",") if m.strip()],
-                        a.cases, a.repeats)
+                        a.cases, a.repeats, a.drop)
     report = summarise(results)
     print(report)
     if a.out:

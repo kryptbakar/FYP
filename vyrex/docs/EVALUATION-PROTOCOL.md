@@ -124,6 +124,24 @@ difference between "I built five nodes" and "I showed which of the five matter":
 
 That last row is the one an examiner will ask about. Answer it with data.
 
+**Implemented:** `make model-benchmark ... --drop {asset|attack|intel|fusion|historical}`.
+Each evidence record carries the citation prefix of the specialist that produced it, so an
+ablation is a filter rather than graph surgery, and the remaining set is byte-identical to
+a real run without that branch. Pinned by 8 tests, including one asserting that an unknown
+ablation name raises rather than silently producing a full-evidence run — which would look
+exactly like "this branch changes nothing".
+
+**And it cannot discriminate yet, for a reason that is not a bug.** Dropping asset context
+across 3 cases: 3/3 `INSUFFICIENT_EVIDENCE`, evidence 7 → 6 records. The baseline is
+*already* 100% abstention, so removing evidence cannot move a verdict that was never
+committed. **Ablations require a model that decides.** The mechanism is built, tested and
+ready; the measurement is blocked by the same ceiling as everything else in §3.4, and will
+produce signal the moment a model returns something other than abstention.
+
+What it *does* already show: ablation changes the evidence count as expected and the run
+still completes and stays schema-valid, so a missing branch degrades rather than breaks —
+which is the Phase 2 invariant, independently confirmed.
+
 ---
 
 ## 4b. Preliminary three-system comparison — label-free, and already awkward
