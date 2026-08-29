@@ -26,7 +26,46 @@ auditable SOC."* You land on **Overview**. Before clicking anything, point at th
 > "Top-left tells you the whole thesis: **air-gap sealed, evidence chain intact, multi-tool fusion,
 > explainable scoring.** Everything else proves these four claims."
 
-Then point at the **donut** and **7-day posture trend**: "real data, real trend — this isn't a mockup."
+Then point at the **donut**: "real data — this isn't a mockup."
+
+> ⚠️ **Do not say "7-day trend" unless it is.** The posture series only began accumulating
+> real daily points on 2026-08-30 (before that a bug meant it never snapshotted — see
+> D-063 area / `api+console: revive the posture trend`). Glance at the **Posture trend**
+> panel first and say what is actually there: *"this is N days of real history, one
+> snapshot a day."* Claiming a week of trend in front of a two-point chart is the kind of
+> thing an examiner notices and remembers.
+
+---
+
+## 1a. The wall board — your opener for anyone walking past
+
+Press **Dashboard** (nav key `2`), then **Wall mode**. Let the boot sequence play: the
+board assembles panel by panel and the counters spin up. **Say nothing for three seconds.**
+
+This is the screen that does the work when you are not talking to anyone — an expo visitor
+should be able to stand in front of it and understand the system without you.
+
+When they engage, give them the geometry, not a feature list:
+
+> "Read it bottom to top — that's the actual data path. Endpoints, then the sensors, then
+> ingest, correlation, scoring, the reasoning graph. Every number is live and every pillar's
+> height is that tool's real share."
+
+Then the one detail worth pointing at:
+
+> "See the riser into GOVERNANCE at the top? It never flows. Everything else animates
+> because data really moves through it. Containment needs two humans, so nothing crosses
+> that line on its own — that's the architecture drawn in geometry rather than written in a
+> policy doc."
+
+**If they are technical, this is the moment to invite the hard question.** Point at the
+**Cross-tool fusion** panel: three independent tools converging on one observable. Then at
+**Composite vs ML**: "those two scorers disagree, and we show it rather than hiding it."
+
+**Then leave wall mode (`Esc`) before the guided demo** — the decoration is deliberately
+scoped to the wall board, and the analyst workspace you are about to show is flat and calm
+on purpose. If someone asks why they look different, that contrast IS the answer: one is
+read at four metres for ten seconds, the other is worked in for six hours.
 
 ---
 
@@ -173,6 +212,38 @@ If asked "so how do you fix it?" — the honest answer is the one that scores:
 > **feedback-adaptive re-ranker** that learns real signal as analyst labels accumulate."
 
 *(Stating the limitation before they find it is what flips skepticism into trust. Do not hide it.)*
+
+**Q: Your scores all sit in the middle. Nothing is critical — is the scoring meaningful?**
+*(Ask yourself this before they do. It used to be true, and the answer is now one of the
+strongest things you have.)*
+> "It wasn't, and finding out why is one of my better results. Sixty-three findings, zero
+> critical, zero high — on a corpus containing an actively exploited CVSS-10 backdoor and a
+> Cobalt Strike C2 beacon that three independent tools agreed on. The tempting reading is
+> 'the lab is quiet'. The real cause was a defect in my own scoring: the ten weights only
+> sum to one if all ten questions can be asked of a single finding, and they never can. A
+> package vulnerability has CVSS, EPSS and KEV but cannot match a network IOC; an IP
+> indicator has threat-intel and consensus but has no CVE, so EPSS and KEV are meaningless
+> for it. Each type was being charged for the other's evidence, so both were capped below
+> the thresholds — the backdoor scored 54.7 against a ceiling of 65.
+>
+> The fix turns on one distinction: *'we looked and the answer is no'* is a real negative
+> and must keep costing the finding, but *'this question cannot be asked'* is undefined and
+> must consume no weight. Only the second is renormalised, and a test asserts the
+> evidenceable factors can never be excluded — otherwise it's just a knob for making my
+> numbers look better."
+
+**Follow-up they will ask: "How do you know the new ranking is right?"** — the answer that
+earns the marks is that you don't yet:
+> "I can't claim that yet. Agreement with the ML model improved on magnitude, which looked
+> like corroboration until I checked properly — rank agreement actually *fell*, 0.965 to
+> 0.808. And that old 0.965 was never evidence anyway: the model's training labels are
+> generated from the composite itself, so it was trained on the thing it appeared to
+> confirm. Only independently labelled cases can settle which ranking is better, which is
+> exactly what the evaluation protocol is for."
+
+*(This is the answer that separates a student who ran a tool from one who did research: you
+found a defect in your own work, quantified it, and refused to claim a validation you
+hadn't earned.)*
 
 **Q: Prove the air-gap — "no internet" is easy to claim.**
 > "Two layers. In Compose, every service sits on an `internal` Docker network with no host route, and
