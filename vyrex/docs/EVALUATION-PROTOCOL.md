@@ -126,6 +126,46 @@ That last row is the one an examiner will ask about. Answer it with data.
 
 ---
 
+## 4b. Preliminary three-system comparison — label-free, and already awkward
+
+`eval/compare_systems.py` compares A, B and C on measures needing **no labels**.
+Run 2026-08-29, `llama3.2:3b`:
+
+| System | Cases | ESCALATE | MONITOR | DISMISS | INSUFFICIENT | Cited |
+|---|---|---|---|---|---|---|
+| **A** composite score only | 63 | 0 | 61 | 2 | 0 | 0 |
+| **B** one-shot LLM | 15 | 6 | 5 | 4 | 0 | 0 |
+| **C** investigation graph | 10 | 0 | 0 | 0 | **10** | 0 |
+
+**Read this before drawing the obvious conclusion.** On the only axis measurable today —
+*does the system discriminate at all* — **B looks better than C**. B spreads across three
+classes; C abstains on everything. The sophisticated system is the one that says nothing.
+
+That is a real finding and it stays in the write-up. Three things must be said alongside
+it, none of which are excuses:
+
+1. **This measures discrimination, not correctness.** B's six escalations may be wrong; no
+   label exists to say. A system that guesses confidently outscores one that abstains on
+   *every* label-free metric, which is precisely why §2 forbids stopping here.
+2. **C's abstention is caused by the constraints that make it trustworthy.** B has no
+   schema, no citation requirement and no evidence store, so it cannot fail to produce a
+   verdict — there is nothing for it to fail *against*. C must cite collected evidence, and
+   a non-abstaining verdict citing nothing is rejected by contract. The abstention is the
+   constraint working, on a model that cannot satisfy it
+   ([AGENT-ORCHESTRATION.md](AGENT-ORCHESTRATION.md) §7). **The honest framing is a trade,
+   not a win:** B offers unverifiable answers, C offers verifiable silence.
+3. **A barely discriminates either**, for a duller reason: no finding in this corpus scores
+   ≥ 60, so the ESCALATE band is empty and 61 of 63 land in MONITOR. That independently
+   confirms the plan's warning that an automatic trigger at 60 would fire on nothing.
+
+**What would change the conclusion.** If, once labelled, B's confident verdicts prove
+frequently wrong while C's abstentions land on genuinely undecidable cases, C is the better
+system and the abstention-quality metric will show it. If B is largely right, the graph's
+contribution is grounding and auditability rather than accuracy — a narrower claim, and the
+one to make. Either way the comparison decides it, not the architecture's elegance.
+
+---
+
 ## 5. Threats to validity — stated, not buried
 
 | Threat | Mitigation | Residual |
