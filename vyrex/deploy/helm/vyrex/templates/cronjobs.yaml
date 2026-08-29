@@ -20,7 +20,7 @@ spec:
       template:
         metadata:
           labels:
-            {{- include "soc.selector" (dict "root" .root "component" .component) | nindent 12 }}
+            {{- include "soc.podLabels" (dict "root" .root "component" .component) | nindent 12 }}
             {{- if .egress }}
             vyrex/egress: allowed
             {{- end }}

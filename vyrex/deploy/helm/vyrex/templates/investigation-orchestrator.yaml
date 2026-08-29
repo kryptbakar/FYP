@@ -1,0 +1,79 @@
+{{- if .Values.orchestrator.enabled }}
+# =====================================================================
+# Investigation orchestrator — the LangGraph evidence-grounded triage worker.
+#
+# ⚠️ replicas is deliberately NOT configurable and is pinned to 1.
+#
+# `repository.claim_next_job` marks the outbox row `sent` before the graph runs, so a
+# worker that dies mid-investigation strands the run: the outbox says delivered, the
+# investigation says running, and nothing redelivers it. `resume_orphans()` re-drives those
+# at startup, which is correct ONLY while a single instance exists — with two replicas, one
+# starting up would seize investigations the other is actively working on and run them
+# twice, including the LLM call.
+#
+# Scaling out needs a worker-id + heartbeat lease on `investigations`, so that "abandoned"
+# means "lease expired" rather than "not mine". That is noted in the code and is not built.
+# Until it is, this is a single-writer service and the manifest says so where an operator
+# will actually see it. Throughput is a few investigations an hour; the LLM is the
+# bottleneck, not the worker count.
+#
+# It also holds an LLM generation in memory, so the memory limit is sized for the model
+# runtime's client, not for the model itself — Ollama is a separate workload.
+# =====================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "soc.fullname" . }}-investigation-orchestrator
+  labels: {{- include "soc.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    # Recreate, not RollingUpdate: the default would briefly run old and new pods together,
+    # which is exactly the two-instance case the resume logic cannot survive.
+    type: Recreate
+  selector:
+    matchLabels: {{- include "soc.selector" (dict "root" . "component" "investigation-orchestrator") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "soc.podLabels" (dict "root" . "component" "investigation-orchestrator") | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "soc.fullname" . }}
+      securityContext: {{- include "soc.podSecurity" . | nindent 8 }}
+      containers:
+        - name: investigation-orchestrator
+          image: {{ include "soc.image" (dict "root" . "name" .Values.orchestrator.image) }}
+          imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+          securityContext: {{- include "soc.containerSecurity" . | nindent 12 }}
+          envFrom:
+            - configMapRef: { name: {{ include "soc.fullname" . }}-config }
+            # soc-db-orchestrator carries the least-privilege `vyrex_orchestrator`
+            # credentials (services/api/app/schema.py). It is a SEPARATE secret from
+            # soc-db on purpose: this service reads untrusted evidence into a language
+            # model (docs/THREAT-MODEL.md §3.1), so it must not be able to read the
+            # superuser password just because it shares a secret with everything else.
+            - secretRef:
+                name: {{ .Values.orchestrator.dbSecret }}
+                optional: true
+            # Fallback only. If soc-db-orchestrator is absent the service starts on the
+            # shared role, which WORKS but loses the privilege separation - the same
+            # compose-side fallback, and equally worth removing in production.
+            - secretRef: { name: soc-db }
+          env:
+            - name: OLLAMA_URL
+              value: {{ .Values.orchestrator.ollamaUrl | quote }}
+            - name: OLLAMA_MODEL
+              value: {{ .Values.orchestrator.model | quote }}
+            - name: ORCH_LLM_TIMEOUT_S
+              value: {{ .Values.orchestrator.llmTimeoutSeconds | quote }}
+            - name: ORCH_POLL_INTERVAL_S
+              value: {{ .Values.orchestrator.pollIntervalSeconds | quote }}
+            - name: ORCH_CONCURRENCY
+              value: "1"
+          resources: {{- toYaml .Values.orchestrator.resources | nindent 12 }}
+          # No probes. There is no HTTP surface — it is a Postgres poll loop, so a
+          # liveness probe would need an exec, and an exec probe that cannot distinguish
+          # "waiting for work" from "wedged" is worse than none: it would restart a healthy
+          # idle worker on every quiet period. Progress is observable through
+          # GET /orchestrator/status (pending_outbox, oldest_pending), which is where an
+          # alert belongs.
+{{- end }}

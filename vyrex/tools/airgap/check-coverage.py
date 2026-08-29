@@ -69,9 +69,47 @@ def services_in(path: pathlib.Path) -> list[str]:
     return names
 
 
+# The Kubernetes half of the same property. networkpolicy.yaml default-denies egress for
+# pods matching `app.kubernetes.io/part-of: vyrex`, but that label lived only in
+# `soc.labels`, which lands on the Deployment OBJECT. A NetworkPolicy selects PODS, and
+# object labels are not pod labels — so the production air-gap primitive matched zero of
+# nine pod templates and every workload had unrestricted egress in K3s.
+#
+# Pod templates must therefore use `soc.podLabels` (selector + part-of), never
+# `soc.selector` alone. `matchLabels:` and a Service's `selector:` must keep using
+# `soc.selector`, because Deployment selectors are immutable once applied.
+HELM_TEMPLATES = "deploy/helm/vyrex/templates"
+POD_LABEL_BUG = re.compile(r'^\s*labels:\s*\{\{-?\s*include\s+"soc\.selector"')
+BARE_SELECTOR_BUG = re.compile(r'^\s*\{\{-?\s*include\s+"soc\.selector"')
+
+
+def helm_pod_label_failures(root: pathlib.Path) -> list[str]:
+    """Flag pod templates that would fall outside the NetworkPolicy's podSelector."""
+    tdir = root / HELM_TEMPLATES
+    if not tdir.is_dir():
+        print("  skip   helm templates (not present)")
+        return []
+
+    bad: list[str] = []
+    files = sorted(p for p in tdir.glob("*.yaml"))
+    for path in files:
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            # `labels:` (a pod template) — as opposed to `matchLabels:` / `selector:`
+            if POD_LABEL_BUG.match(line) or (
+                BARE_SELECTOR_BUG.match(line) and "matchLabels" not in line
+            ):
+                bad.append(f"{path.name}:{n} uses soc.selector for pod labels; "
+                           f"use soc.podLabels or the NetworkPolicy will not match it")
+
+    print(f"  {'helm pod labels':28s} {len(files):2d} template file(s), "
+          f"{'ok' if not bad else str(len(bad)) + ' UNSEALED'}")
+    return bad
+
+
 def main() -> int:
     root = pathlib.Path(__file__).resolve().parents[2]   # vyrex/
     failures: list[str] = []
+    failures += helm_pod_label_failures(root)
     checked = sealed = 0
 
     for stack_name, overlay_name in PAIRS:

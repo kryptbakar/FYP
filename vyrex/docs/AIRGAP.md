@@ -173,6 +173,53 @@ re-running before the viva so the claim is same-day.
 that are **running**. A stopped service is not evidence of anything, so a partially-started
 stack must not be read as a clean bill of health — the script prints this caveat itself.
 
+### 4.3 The same bug existed in Kubernetes, and was worse
+
+Compose was not the only place the air-gap was asserted rather than enforced. The K3s
+NetworkPolicy (D-042, "the production air-gap primitive") default-denies egress for pods
+matching:
+
+```yaml
+podSelector:
+  matchLabels:
+    app.kubernetes.io/part-of: vyrex
+```
+
+But `part-of` lived only in the chart's `soc.labels` helper, which is stamped on the
+**Deployment object**. A NetworkPolicy selects **pods**, and object labels are not pod
+labels. Rendering the chart and counting settles it:
+
+```
+pod templates: 9   carrying part-of: 0
+```
+
+**The default-deny-egress policy matched nothing.** Every workload had unrestricted egress
+in the production deployment target, while the chart, this document and the decision log
+all described it as air-gapped. The lab overlay was at least half-right; the production
+primitive was inert.
+
+The fix is a separate `soc.podLabels` helper (selector + `part-of`) used only in pod
+template metadata. It is deliberately *not* added to `soc.selector`, because that feeds
+`spec.selector.matchLabels`, which Kubernetes treats as **immutable** — changing it would
+force every existing Deployment to be deleted and recreated. After the fix:
+
+```
+pod templates: 9   carrying part-of: 9
+selector blocks: 5   containing part-of: 0   (matchLabels unchanged, upgrades in place)
+```
+
+Both halves are now enforced by `tools/airgap/check-coverage.py` in CI, which fails if a
+compose service is missing from a sealing overlay **or** if a Helm pod template uses
+`soc.selector` where it needs `soc.podLabels`. Verified in both directions — reverting one
+template to the buggy form produces `workers.yaml:12 uses soc.selector for pod labels`.
+
+> **The pattern is worth naming for the write-up.** Three times in one day the air-gap was
+> enforced in a place that looked right but selected the wrong thing: services absent from
+> the overlay, `networks: [default]` unioning instead of replacing, and object labels
+> standing in for pod labels. In each case the system worked, the docs were confident, and
+> nothing failed. The lesson is not "be careful" — it is that a security property nobody
+> has *watched fail* is not yet known to hold.
+
 > **Lab limitation (honest note).** `internal: true` blocks traffic in *both*
 > directions, so a service attached only to `socnet` also loses host **port
 > publishing** — the API/Grafana UI isn't reachable from the host while in sealed mode.

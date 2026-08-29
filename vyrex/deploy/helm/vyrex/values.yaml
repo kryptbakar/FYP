@@ -46,6 +46,29 @@ ingestEdge:
   port: 8443                         # mTLS telemetry listener
   resources: { requests: { cpu: 100m, memory: 128Mi }, limits: { cpu: "1", memory: 384Mi } }
 
+# ---- investigation orchestrator (LangGraph evidence-grounded triage) --------
+# NOTE there is no `replicas` key. It is pinned to 1 in the template, because a second
+# instance would seize and re-run investigations the first is still working on - including
+# the LLM call. Scaling needs a worker-lease first; see the template's header comment.
+orchestrator:
+  enabled: false                     # opt-in: it needs a reachable Ollama
+  image: vyrex-investigation-orchestrator
+  # Ollama runs as its own workload; in a sealed cluster it must resolve in-cluster and
+  # the default-deny egress NetworkPolicy keeps it there.
+  ollamaUrl: "http://ollama:11434"
+  model: "llama3.2:3b"
+  # Generous, because CPU-only synthesis is slow: 3B models measured at 45-110 s, and a 4B
+  # model never finished inside 900 s on the dev host (docs/AGENT-ORCHESTRATION.md §7).
+  llmTimeoutSeconds: 240
+  pollIntervalSeconds: 5
+  # Least-privilege DB credentials, kept in their OWN secret so this service cannot read
+  # the superuser password. Create it alongside soc-db; if absent the service falls back
+  # to soc-db and logs that it is on the shared role.
+  dbSecret: soc-db-orchestrator
+  # Holds one LLM response in memory and does deterministic SQL either side of it. The
+  # model itself lives in the Ollama pod, so this stays small.
+  resources: { requests: { cpu: 100m, memory: 192Mi }, limits: { cpu: "1", memory: 512Mi } }
+
 # ---- scheduled jobs -------------------------------------------------------
 jobs:
   # feed-sync is the AIR-GAPPED UPDATE CHANNEL: the only workload allowed egress,

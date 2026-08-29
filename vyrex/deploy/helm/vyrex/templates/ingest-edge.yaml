@@ -9,7 +9,7 @@ spec:
     matchLabels: {{- include "soc.selector" (dict "root" . "component" "ingest-edge") | nindent 6 }}
   template:
     metadata:
-      labels: {{- include "soc.selector" (dict "root" . "component" "ingest-edge") | nindent 8 }}
+      labels: {{- include "soc.podLabels" (dict "root" . "component" "ingest-edge") | nindent 8 }}
     spec:
       serviceAccountName: {{ include "soc.fullname" . }}
       securityContext: {{- include "soc.podSecurity" . | nindent 8 }}
