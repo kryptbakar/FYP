@@ -599,8 +599,14 @@ BEGIN
 
     -- Evidence sources: SELECT only. It must never be able to edit a finding it is
     -- reasoning about, or the evidence and the verdict stop being independent.
+    --
+    -- This list must match every table the specialists actually read (see
+    -- services/investigation-orchestrator/orchestrator/repository.py). compliance_results
+    -- was missed on the first pass and asset_context died with InsufficientPrivilege - the
+    -- run still completed, degraded, because branch isolation held, which is exactly how a
+    -- missing grant hides. If a specialist starts reading a new table, add it here.
     EXECUTE 'GRANT SELECT ON findings, assets, finding_explanations,
-                             incidents, incident_findings
+                             incidents, incident_findings, compliance_results
              TO vyrex_orchestrator';
 
     EXECUTE 'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO vyrex_orchestrator';
