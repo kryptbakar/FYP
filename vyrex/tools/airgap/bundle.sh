@@ -15,8 +15,18 @@
 # `agent triage` on the far side would try to `ollama pull` across a gap that has no
 # route — the model has to travel as a volume, it cannot be fetched on arrival.
 #
+# DISK REQUIREMENT — read before running, it is larger than it looks.
+# Budget roughly TWICE the payload in free space, not once. `docker save` and the volume
+# tar containers write through Docker's own data disk, so on any host where that disk
+# shares a volume with OUT_DIR you pay for the archive AND for the VHDX growing beneath
+# it. Measured 2026-08-29: a 16-image + 6 GB-model bundle consumed ~5.7 GB of archive and
+# grew the VHDX by 6.2 GB (56.2 -> 62.4 GB), exhausting a 16.6 GB volume and taking the
+# Docker daemon down with it. Build on a host with headroom, or point OUT_DIR at a
+# different physical volume from Docker's data.
+#
 # Usage (from repo root, on the staging host, after `make feeds-seed`/`mirror-sync`):
 #   bash tools/airgap/bundle.sh [OUT_DIR]      # default OUT_DIR=dist/vyrex-bundle
+#   PROFILES="feeds ml agentic" bash tools/airgap/bundle.sh   # core-only bundle
 #
 # Then: tar czf vyrex-bundle.tgz -C dist vyrex-bundle  and carry it inside.
 # =====================================================================
@@ -31,7 +41,14 @@ COMPOSE_FILES=(docker-compose.yml docker-compose.tools.yml docker-compose.n8n.ym
 # risk engine, feed-sync, intel-enricher and every sensor/scanner: an "offline installer"
 # that installs a SOC with no scoring and no agent. Adding a profile to a compose file
 # means adding it here too.
-PROFILES=(tools sensors scanners hostmon runtime intel agent feeds ml agentic)
+# Overridable, because "everything" is not the only valid deployment. A site running the
+# core SOC without the heavy intel stack should not be forced to build MISP and OpenCTI
+# images just to produce a bundle — and on a constrained staging host, being unable to
+# bundle at all is worse than bundling a smaller, honestly-described stack.
+#   PROFILES="feeds ml agentic" bash tools/airgap/bundle.sh
+# The profiles that are IN the bundle are recorded in MANIFEST.txt, so the far side can
+# see what it did and did not receive rather than discovering it by absence.
+read -r -a PROFILES <<< "${PROFILES:-tools sensors scanners hostmon runtime intel agent feeds ml agentic}"
 # Mirror volumes created by feeds-seed + mirror-sync (names match the compose mounts),
 # plus ollamadata — the pulled LLM weights, which cannot be re-fetched inside the gap.
 VOLUMES=(vyrex_nuclei_templates vyrex_trivy_cache vyrex_sigma_rules vyrex_suricata_rules vyrex_ollamadata)
@@ -79,13 +96,40 @@ if [ "${#notbuilt[@]}" -gt 0 ]; then
 fi
 
 echo "==> saving images (this is the big one)…"
-docker save "${IMAGES[@]}" -o "$OUT/images.tar"
+# Compressed, because this archive is physically carried across the gap and `docker save`
+# writes layer tarballs raw — 34 images measured at 9.1 GB uncompressed. `gzip -1` is
+# deliberate: the marginal ratio from higher levels is small on already-compressed layers
+# while the time cost is not, and a bundle nobody is willing to wait for gets skipped.
+# `set -euo pipefail` (line 23) makes a docker-save failure fail the pipeline rather than
+# leaving a truncated archive that only breaks on the far side.
+docker save "${IMAGES[@]}" | gzip -1 > "$OUT/images.tar.gz"
 
 echo "==> exporting mirror volumes"
 for v in "${VOLUMES[@]}"; do
   if docker volume inspect "$v" >/dev/null 2>&1; then
-    docker run --rm -v "$v":/v -v "$PWD/$OUT/volumes":/out alpine:3 \
-      tar czf "/out/$v.tar.gz" -C /v . && echo "    $v"
+    # tar over STDOUT rather than a host bind-mount for the output directory.
+    # Bind-mounting `$PWD/$OUT/volumes` works on Linux and fails on Docker Desktop for
+    # Windows: Git Bash rewrites the POSIX path on its way to docker.exe, and the mount
+    # silently lands somewhere else — observed writing to
+    # `G:/Final Year Project/tools/PortableGit/out/`, so every volume tar failed with
+    # "can't open". Worse, it failed QUIETLY enough that the run continued to the
+    # ollamadata check and reported a missing model, which is a true statement about a
+    # completely wrong cause. tools/airgap/mirror-sync.sh already avoids this the same
+    # way; this is the same quirk, so it gets the same fix.
+    # The container path lives INSIDE the `sh -c` string on purpose. Git Bash rewrites
+    # any absolute path passed as a standalone argv element on its way to docker.exe:
+    # `-C /v` arrived as `V:/` (single letters become drive specs) and `-C /vol` arrived
+    # as `G:/…/PortableGit/vol` (the MSYS root gets prepended). Quoted inside sh -c the
+    # path is just string data and reaches the container intact — which is portable,
+    # unlike an MSYS_NO_PATHCONV escape that would only help on Windows.
+    if docker run --rm -v "$v":/vol alpine:3 \
+         sh -c 'cd /vol && tar czf - .' > "$OUT/volumes/$v.tar.gz"; then
+      echo "    $v ($(du -h "$OUT/volumes/$v.tar.gz" | cut -f1))"
+    else
+      rm -f "$OUT/volumes/$v.tar.gz"   # never leave a truncated archive behind
+      echo "!! failed to export volume $v" >&2
+      exit 1
+    fi
   else
     echo "    (skip $v — not present; run feeds-seed / mirror-sync to include it)"
   fi
@@ -145,6 +189,9 @@ echo "==> writing manifest + checksums"
   # Record which LLM travelled with this bundle — the far side has no way to look it up.
   echo "ollama_model=$MODEL"
   echo "ollama_digest=$(sed -n 's/^digest=//p' "$OUT/MODEL-MANIFEST.txt")"
+  # Which profiles this bundle actually contains. Without it the far side cannot tell a
+  # deliberate core-only bundle from one that silently lost half its services.
+  echo "profiles=${PROFILES[*]}"
   echo "ollama_volume_bytes=$(stat -c %s "$OUT/volumes/vyrex_ollamadata.tar.gz" 2>/dev/null || echo 0)"
   echo "ollama_volume_sha256=$(sha256sum "$OUT/volumes/vyrex_ollamadata.tar.gz" | cut -d' ' -f1)"
 } > "$OUT/MANIFEST.txt"

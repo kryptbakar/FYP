@@ -26,7 +26,17 @@ echo "    integrity OK"
 [ -f MANIFEST.txt ] && cat MANIFEST.txt
 
 echo "==> 2. load images (offline)"
-docker load -i images.tar
+# Accept either form. Bundles built before the archive was compressed carry images.tar,
+# and an installer that only understood the new name would refuse a bundle that is
+# otherwise perfectly valid — on the far side of a gap, where it cannot be rebuilt.
+if [ -f images.tar.gz ]; then
+  gzip -dc images.tar.gz | docker load
+elif [ -f images.tar ]; then
+  docker load -i images.tar
+else
+  echo "!! no images.tar.gz or images.tar in this bundle" >&2
+  exit 1
+fi
 
 echo "==> 3. restore mirror volumes"
 if [ -d volumes ]; then
