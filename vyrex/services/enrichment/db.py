@@ -30,6 +30,23 @@ CREATE TABLE IF NOT EXISTS assets (
     last_seen   timestamptz
 );
 
+-- Business context. Added because the labelling rubric ranks REACHABILITY third and ASSET
+-- CRITICALITY fourth in its signal precedence (docs/LABELLING-RUBRIC.md §9) — and without
+-- these columns neither signal can discriminate between two cases. Every asset carried
+-- criticality 0.5 and there was no exposure field at all, so a labeller comparing a
+-- domain controller with a scratch VM had literally the same information about both.
+--
+-- `internet_exposed` is deliberately a nullable boolean, not a default of false: "we do
+-- not know whether this is reachable" and "we know it is not" are different facts, and
+-- collapsing them would silently downgrade every unassessed asset. NULL means unknown,
+-- and the rubric treats unknown reachability as a reason to abstain.
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS owner_team            text;
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS environment           text;   -- prod|staging|dev|lab
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS business_service      text;
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS data_sensitivity      text;   -- public|internal|confidential|restricted
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS internet_exposed      boolean;
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS criticality_rationale text;
+
 CREATE TABLE IF NOT EXISTS findings (
     id              bigserial PRIMARY KEY,
     asset_id        text REFERENCES assets(host_id),
