@@ -129,7 +129,33 @@ async def auth_guard_middleware(request, call_next):
         return _deny(401, "valid agent token required")
 
     principal = await resolve_principal(request)
+    # Stash it so handlers can attribute writes to the AUTHENTICATED identity. Without
+    # this the middleware proved who the caller was and then threw that away, leaving
+    # routes to trust a client-supplied `x-analyst` header — so an authenticated viewer
+    # could write `x-analyst: admin` into the audit trail. See actor() below.
+    request.state.principal = principal
     allowed, status, reason = authorize(principal, request.method, path)
     if not allowed:
         return _deny(status, reason)
     return await call_next(request)
+
+
+def actor(request, x_analyst: str | None = None) -> tuple[str, str]:
+    """Who to record for a write. Returns (name, source).
+
+    The authenticated principal ALWAYS wins. `x-analyst` is honoured only when no
+    principal exists — which is the dev/demo path where `auth_required` is false and
+    there is no identity to contradict it.
+
+    That ordering is the whole point. An audit trail an authenticated caller can forge by
+    setting a header is not an audit trail, and this endpoint's records feed the
+    two-person approval story. The source is returned so callers can persist it: "we know
+    this was alice" and "the client said alice" are different claims and should never be
+    stored as though they were the same one.
+    """
+    principal = getattr(getattr(request, "state", None), "principal", None)
+    if principal is not None:
+        return principal.user, f"authenticated:{principal.source}"
+    if x_analyst:
+        return x_analyst, "unauthenticated-header"
+    return "anonymous", "none"

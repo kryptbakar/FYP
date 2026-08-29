@@ -26,10 +26,11 @@ import uuid
 from typing import Annotated, Literal
 
 import psycopg
-from fastapi import APIRouter, Header, HTTPException, Response
+from fastapi import APIRouter, Header, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from .. import db, ratelimit
+from ..auth_guard import actor
 from ..config import settings
 
 router = APIRouter(tags=["investigations"])
@@ -76,6 +77,7 @@ async def _active_for(subject_type: str, subject_id: int) -> dict | None:
              summary="Request an investigation (returns immediately; poll for the result)")
 async def create_investigation(
     body: InvestigationIn,
+    request: Request,
     response: Response,
     x_analyst: Annotated[str | None, Header()] = None,
 ) -> dict:
@@ -85,6 +87,10 @@ async def create_investigation(
     flight rather than starting a competing one — enforced by a partial unique index, so
     two concurrent callers cannot both win the race.
     """
+    # Attribute to the authenticated principal when there is one; the header is honoured
+    # only in the dev/demo path where no identity exists to contradict it.
+    who, who_src = actor(request, x_analyst)
+
     subject = await db.fetch_one(
         "SELECT id FROM findings WHERE id=%s" if body.subject_type == "finding"
         else "SELECT id FROM incidents WHERE id=%s",
@@ -106,7 +112,10 @@ async def create_investigation(
         try:
             ratelimit.check_queue_depth(int((depth or {}).get("n", 0)),
                                         settings.investigation_max_queue)
-            ratelimit.check_window(x_analyst or "anonymous",
+            # Rate-limit the AUTHENTICATED identity. Keying on the client-supplied header
+            # would let one caller reset their own allowance by changing a string, which
+            # is not a rate limit at all.
+            ratelimit.check_window(who,
                                    settings.investigation_rate_limit,
                                    settings.investigation_rate_window_s)
         except ratelimit.RateLimited as e:
@@ -121,7 +130,7 @@ async def create_investigation(
     inv_id = str(uuid.uuid4())
     key = body.idempotency_key or f"manual:{body.subject_type}:{body.subject_id}:{inv_id}"
     payload = {"subject_type": body.subject_type, "subject_id": body.subject_id,
-               "trigger_type": "manual", "requested_by": x_analyst}
+               "trigger_type": "manual", "requested_by": who, "identity_source": who_src}
     try:
         async with db.transaction() as conn:
             await db.tx_execute(
@@ -130,7 +139,7 @@ async def create_investigation(
                      (investigation_id, subject_type, subject_id, trigger_type,
                       status, idempotency_key, requested_by)
                    VALUES (%s,%s,%s,'manual','queued',%s,%s)""",
-                (inv_id, body.subject_type, body.subject_id, key, x_analyst),
+                (inv_id, body.subject_type, body.subject_id, key, who),
             )
             # Same transaction: the orchestrator can never see a request whose
             # investigation row did not commit.
@@ -225,13 +234,19 @@ async def retry(investigation_id: str, response: Response,
 
 @router.post("/investigations/{investigation_id}/review",
              summary="Analyst accepts, rejects or overrides the verdict")
-async def review(investigation_id: str, body: ReviewIn,
+async def review(investigation_id: str, body: ReviewIn, request: Request,
                  x_analyst: Annotated[str | None, Header()] = None) -> dict:
     """Analyst judgement on a report.
 
     Deliberately recorded even when the analyst simply accepts: an accepted verdict is
     as much a label as a corrected one, and the evaluation needs both.
+
+    `reviewed_by` is the AUTHENTICATED principal. These rows are the closest thing the
+    project has to analyst ground truth and they feed the retraining loop, so an identity
+    a caller could set with a header would let anyone attribute a judgement to a
+    colleague — and the resulting label would be worse than no label.
     """
+    who, _ = actor(request, x_analyst)
     await _get(investigation_id)
     if body.disposition and body.disposition not in DISPOSITIONS:
         raise HTTPException(status_code=422,
@@ -242,7 +257,7 @@ async def review(investigation_id: str, body: ReviewIn,
                   analyst_disposition=%s, reviewed_by=%s, reviewed_at=now()
             WHERE investigation_id=%s
         RETURNING investigation_id, analyst_action, reviewed_by, reviewed_at""",
-        (body.action, body.note, body.severity, body.disposition, x_analyst, investigation_id))
+        (body.action, body.note, body.severity, body.disposition, who, investigation_id))
     if not row:
         raise HTTPException(status_code=409, detail="there is no report to review yet")
     return row
