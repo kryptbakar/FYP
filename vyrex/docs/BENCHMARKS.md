@@ -82,20 +82,72 @@ docs/PRODUCTION-DEPLOYMENT.md:
 
 ### B4 — resource footprint
 
-| Container | Idle CPU% / RSS | Under B1 CPU% / RSS |
-|---|---|---|
-| ingest-edge | _run me_ | |
-| nats | | |
-| workers | | |
-| timescaledb | | |
-| opensearch | | |
-| api | | |
+Measured 2026-08-29, full stack idle (14 containers, `--profile agentic`), 16 GB host with
+**5.788 GiB allocated to Docker**. `docker stats --no-stream`.
+
+| Container | Idle CPU% | Idle RSS | Under B1 |
+|---|---|---|---|
+| opensearch | 1.22% | **1.208 GiB** | _run me_ |
+| n8n | 0.31% | 484 MiB | |
+| ollama (no model resident) | 0.00% | 111 MiB | |
+| timescaledb | 0.01% | 89 MiB | |
+| investigation-orchestrator | 0.00% | 77 MiB | |
+| api | 0.20% | 69 MiB | |
+| grafana | 0.05% | 60 MiB | |
+| postgres | 0.00% | 58 MiB | |
+| enrichment | 0.00% | 39 MiB | |
+| workers | 0.09% | 32 MiB | |
+| mailpit | 0.00% | 23 MiB | |
+| ingest-edge | 3.26% | 7.9 MiB | |
+| nats | 0.08% | 6.5 MiB | |
+| console (nginx) | 0.00% | 6.7 MiB | |
+| **total** | | **≈ 2.3 GiB** | |
+
+Two things worth saying out loud. **OpenSearch alone is over half the idle footprint** —
+more than the other thirteen services combined. And `ollama` reads as 111 MiB only because
+no model is resident; loading `llama3.2:3b` adds ~2.2 GiB, which is why the heavy tools
+profile and the LLM cannot coexist in 5.788 GiB. That is not a tuning problem — it is the
+hardware constraint that shapes the entire agentic result below.
 
 ### B5 — risk-engine scoring
 
 | Findings in DB | Wall time | Findings/sec |
 |---|---|---|
-| _run me_ | | |
+| 63 | **3.7 s** (incl. container start) | ~17/s |
+
+Container start dominates at this size, so this is a *floor*, not a throughput measurement:
+scoring 63 findings is not the work — standing up Python and loading the XGBoost model is.
+Re-run at 10k+ findings before quoting a rate.
+
+### B6 — investigation orchestrator, per-node latency
+
+The measurement the architecture rests on. Taken from persisted `investigation_steps` rows
+— 13 real runs, `llama3.2:3b`, CPU-only.
+
+| Node | Runs | p50 (ms) | p95 (ms) |
+|---|---|---|---|
+| **synthesize** (the only LLM call) | 13 | **121 367** | 237 634 |
+| intel_context | 13 | 51 | 109 |
+| historical_context | 13 | 47 | 107 |
+| asset_context | 12 | 46 | 320 |
+| load_subject | 13 | 41 | 252 |
+| fusion_context | 13 | 40 | 194 |
+| attack_context | 13 | 23 | 196 |
+| validate | 13 | 12 | 78 |
+
+**Synthesis is roughly 2 600× the median specialist and 10 000× the citation validator.**
+Every deterministic node finishes in tens of milliseconds; the one node that consults a
+model takes two minutes. This is the strongest quantitative form of the design position:
+the evidence layer is essentially free, and the whole cost — and the whole risk — sits in a
+single replaceable node.
+
+It is also why the orchestrator runs serially (`ORCH_CONCURRENCY=1`), why
+`POST /investigations` needs admission control despite answering in milliseconds, and why
+the console polls instead of blocking.
+
+`asset_context` p95 (320 ms) is an outlier against its own 46 ms median: that is the run
+where a missing `compliance_results` grant made it fail. Kept in the table rather than
+excluded — it is a real measurement of a real failure, and the fix is pinned by a test.
 
 ## 5. Reporting in the thesis
 
