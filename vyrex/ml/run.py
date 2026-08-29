@@ -108,7 +108,10 @@ def do_score_once(pg, ctx, explainer, mver, policy=None) -> int:
             if con["n_tools"] > 1:
                 corroborated += 1
         fd = features.build(fr, ctx)
-        comp, components = scoring.composite(fd)
+        # Pass applicability so factors that cannot exist for this finding type
+        # (KEV/EPSS on a non-CVE, threat-intel on a package) consume no weight
+        # instead of scoring a silent zero. See features.applicability.
+        comp, components = scoring.composite(fd, features.applicability(fr))
         ml_score = None
         if explainer is not None:
             exp = explainer.explain(features.to_vector(fd))

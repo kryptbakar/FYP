@@ -896,8 +896,10 @@ function modelPanel(d) {
       kv('analyst labels', String(d.model.analyst_labels ?? 0)),
       ...top.map(([k, v]) => kv('weight · ' + k, Number(v).toFixed(2)))),
     h('div', { class: 'faint dk-note' },
-      'Bootstrapped on synthetic labels, so the ML score largely reproduces the '
-      + 'composite formula today. It is a re-ranker, not an independent oracle.'));
+      'Trained on synthetic labels derived from the PRE-renormalisation composite, so '
+      + 'it now ranks differently from production scoring (rank agreement 0.81, down '
+      + 'from 0.97). Retraining would only deepen that circularity, not resolve it — '
+      + 'only analyst labels can say which ranking is right. A re-ranker, not an oracle.'));
 }
 
 /* ---- estate ---------------------------------------------------------- */

@@ -6,6 +6,66 @@ alternatives considered**.
 
 ---
 
+## D-063 — Inapplicable ≠ zero: the composite renormalises over evidenceable weight
+**Context:** 63 findings, **0 critical and 0 high**, on a corpus containing an actively
+exploited CVSS-10 backdoor (CVE-2024-3094) and a Cobalt Strike C2 beacon corroborated by
+three independent tools. That is not a benign estate; it was a scoring defect, and it is
+also the reason Phase 0 recorded that "an automatic trigger at 60 or 80 fires on nothing".
+
+**Diagnosis, from the stored `risk_components`:**
+
+| finding | maxed factors | zeroed factors | score | ceiling |
+|---|---|---|---|---|
+| CVE-2024-3094 (KEV, CVSS 10, exposed) | cvss 18/18, kev 15/15, exposure 12/12 | epss, threat_intel, consensus | **54.7** | 65 |
+| Cobalt Strike C2 (3 tools, live IOC) | threat_intel 10/10, consensus 9/9 | kev, epss | **57.5** | 69 |
+
+Both sat at their structural ceiling. The ten weights sum to 1.0 only if all ten questions
+can be asked of one finding, and they never can — the factor sets are close to disjoint by
+finding type. A package vulnerability has CVSS/EPSS/KEV but cannot match a network IOC; an
+IP indicator has threat-intel and consensus but has no CVE, so EPSS and KEV are undefined
+for it. Each type was charged for the other's evidence, capping **both** below the bands.
+
+**Decision:** `features.applicability()` marks the factors that are UNDEFINED for a finding
+(`epss`/`kev` need a `cve_id`; `threat_intel` needs a network observable), and
+`scoring.composite()` renormalises over the weight actually in play. Components are scaled
+by the same divisor so the XAI waterfall still sums to the score, and an inapplicable factor
+is reported as `null` — rendering as "—", never as a confident `0.0`.
+
+**The distinction that carries the whole argument** — and the one an examiner should press:
+- *"We looked and the answer is no"* — one tool reported it, no IOC matched. **Real
+  negative. Stays 0 and must keep hurting**, pinned by
+  `test_a_real_negative_still_costs_the_finding`.
+- *"This question cannot be asked"* — an IP has no CVSS percentile and cannot be on a list
+  of CVEs. **Undefined. Consumes no weight**, because there is no evidence the finding could
+  ever produce to earn those points back.
+Only the second is renormalised. Without that line this is a score-inflation knob, so
+`test_evidence_bearing_factors_are_never_marked_inapplicable` asserts the six evidenceable
+factors can never appear in the map.
+
+**Measured effect (63 real findings, re-scored):** bands 0/0/19/42 → **1 critical, 8 high,
+40 medium, 14 low**; range 18.9–57.5 → 30.9–83.4; mean 37.0 → 50.1. Ranking became
+analytically defensible: live three-tool C2 (83.4) now sits above latent KEV CVEs (60.8),
+which is how a SOC actually triages. Nearly every score rose, because nearly every finding
+had at least one inapplicable factor — stated plainly because it is the obvious objection.
+
+**An honest negative result, recorded because it was nearly reported as the opposite.**
+Agreement with the XGBoost score looked like independent corroboration: mean divergence
+halved, 17.83 → 8.07. It is not. Reconstructing the exact pre-change scores from the null
+components (validated: reconstructed max = 57.5, matching the measurement taken before the
+change) shows **rank agreement with the ML model FELL, 0.965 → 0.808**. The magnitude
+convergence is mechanical — renormalising raises scores toward a model that was already
+higher. And the old 0.965 was never evidence: `ml/dataset.py:_label` literally starts from
+`composite(fd)`, so the model was trained on the thing it appeared to confirm. The new
+composite genuinely re-ranks; whether it re-ranks *better* cannot be settled by a model
+that is downstream of the old one. **Only analyst labels can decide it (Phase 4).**
+
+**Deliberately NOT retrained.** The synthetic label generator has no finding rows, so it
+cannot derive applicability without inventing a fictional type distribution — more fiction,
+no more truth — and refitting to the new composite would deepen the circularity rather than
+resolve it. The console's model card now states the divergence instead of hiding it.
+
+**Bands left at 80/60/40/20.** They are absolute and shared with severity language; moving
+them to fit the data would have been the dishonest version of this fix.
 ## D-062 — Wall mode is cinematic; the workspace stays flat. D-049 is scoped, not revoked
 **Context:** D-049 locks the console to flat surfaces, no gradients, no glows, colour only
 where it carries meaning. That is the right call for a screen an analyst stares at for six

@@ -31,16 +31,56 @@ WEIGHTS: dict[str, float] = {
 COMPOSITE_FACTORS = list(WEIGHTS.keys())
 
 
-def composite(features: dict[str, float]) -> tuple[float, dict[str, float]]:
-    """Return (score 0..100, per-factor contribution in points)."""
-    components: dict[str, float] = {}
+def composite(features: dict[str, float],
+              applicable: dict[str, bool] | None = None) -> tuple[float, dict[str, float | None]]:
+    """Return (score 0..100, per-factor contribution in points).
+
+    `applicable` marks factors that are UNDEFINED for this finding (see
+    `features.applicability`). Those consume no weight and are reported as None
+    rather than 0.0, and the remaining factors are renormalised over the weight
+    actually in play. Omit it and every factor is treated as applicable, which is
+    the pre-2026-08-29 behaviour and what the evaluation harnesses still use.
+
+    WHY RENORMALISE. The ten weights sum to 1.0 only if all ten questions can be
+    asked of the same finding, and in practice they never can: the factor sets are
+    close to disjoint by finding type. A package vulnerability has CVSS/EPSS/KEV but
+    cannot match a network IOC; an IP indicator has threat-intel and consensus but
+    has no CVE, so EPSS and KEV are meaningless for it. Charging each type for the
+    other's evidence caps BOTH below the band thresholds:
+
+        CVE-2024-3094  CVSS 10, on KEV, internet-facing  -> 54.7  ("medium")
+        Cobalt Strike C2, 3 tools agreeing, live IOC     -> 57.5  ("high")
+
+    Both were at their structural ceiling, so "0 critical, 0 high across 63
+    findings" was a property of the SCORING, not of the estate. It is also why an
+    automatic trigger at 60/80 could never fire.
+
+    Components are scaled by the same divisor, so they still sum to the score and
+    the XAI waterfall continues to add up.
+    """
+    applicable = applicable or {}
+    raw: dict[str, float | None] = {}
     total = 0.0
+    live_weight = 0.0
     for factor, w in WEIGHTS.items():
+        if applicable.get(factor, True) is False:
+            raw[factor] = None                      # renders as "—", never as 0.0
+            continue
         v = max(0.0, min(1.0, float(features.get(factor, 0.0))))
         contrib = 100.0 * w * v
-        components[factor] = round(contrib, 2)
+        raw[factor] = contrib
         total += contrib
-    return round(total, 2), components
+        live_weight += w
+
+    if live_weight <= 0:
+        # Every factor undefined. Not reachable today (exposure/age/criticality are
+        # always applicable) but returning 0/0 would be a crash, and a silent 0.0
+        # would look like a confident "no risk" rather than "nothing to say".
+        return 0.0, {k: None for k in WEIGHTS}
+
+    components = {k: (None if v is None else round(v / live_weight, 2))
+                  for k, v in raw.items()}
+    return round(min(100.0, total / live_weight), 2), components
 
 
 def band(score: float) -> str:

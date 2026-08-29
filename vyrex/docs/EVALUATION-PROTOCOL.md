@@ -172,9 +172,35 @@ it, none of which are excuses:
    constraint working, on a model that cannot satisfy it
    ([AGENT-ORCHESTRATION.md](AGENT-ORCHESTRATION.md) §7). **The honest framing is a trade,
    not a win:** B offers unverifiable answers, C offers verifiable silence.
-3. **A barely discriminates either**, for a duller reason: no finding in this corpus scores
-   ≥ 60, so the ESCALATE band is empty and 61 of 63 land in MONITOR. That independently
-   confirms the plan's warning that an automatic trigger at 60 would fire on nothing.
+3. **A now discriminates, and the reason it previously did not was a scoring defect.**
+   *Superseded 2026-08-29 — the earlier text is kept below because the correction is itself
+   a result.* This section originally read: *"no finding in this corpus scores ≥ 60, so the
+   ESCALATE band is empty and 61 of 63 land in MONITOR. That independently confirms the
+   plan's warning that an automatic trigger at 60 would fire on nothing."*
+
+   That was true of the numbers and wrong about the cause. The composite charged every
+   finding for evidence its *type* could never produce — EPSS and KEV on an IP indicator,
+   threat-intel on a package version — so both finding types were capped below the band
+   thresholds regardless of how bad they were (D-063). An actively exploited CVSS-10
+   backdoor scored 54.7; a three-tool Cobalt Strike C2 beacon scored 57.5. The estate was
+   not benign; the scale could not reach.
+
+   After renormalising over evidenceable weight and re-scoring the same 63 findings with
+   the same thresholds:
+
+   | System A | ESCALATE | MONITOR | DISMISS |
+   |---|---|---|---|
+   | before | 0 | 61 | 2 |
+   | after | **9** | 54 | 0 |
+
+   **The methodological point is the durable one:** a baseline that looks weak may be weak
+   because of a defect in the baseline rather than a property of the data, and "the trigger
+   would fire on nothing" is exactly the kind of finding that invites acceptance instead of
+   investigation. It was recorded as confirmation of a prediction for six days before anyone
+   asked *why* the ceiling was there.
+
+   A still cannot express INSUFFICIENT_EVIDENCE — a score always exists — so the abstention
+   row is unchanged, and A's escalations remain unlabelled and therefore unvalidated.
 
 **What would change the conclusion.** If, once labelled, B's confident verdicts prove
 frequently wrong while C's abstentions land on genuinely undecidable cases, C is the better

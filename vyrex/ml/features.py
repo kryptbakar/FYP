@@ -112,6 +112,43 @@ def build(finding: dict, ctx: "Context") -> dict[str, float]:
     }
 
 
+def applicability(finding: dict) -> dict[str, bool]:
+    """Which composite factors are DEFINED for this finding — not which have data.
+
+    The distinction is the whole point, and getting it wrong is what produced
+    "0 critical, 0 high" across 63 findings on a corpus containing an actively
+    exploited CVSS-10 backdoor and a three-tool Cobalt Strike C2 beacon.
+
+    `build()` above returns 0.0 for anything it cannot compute, which collapses two
+    very different statements into one number:
+
+      * "we looked and the answer is no"  — a real negative. One tool reported this
+        (consensus 0); no IOC matched (threat_intel 0). The finding genuinely earns
+        less risk, and 0 is correct.
+      * "this question cannot be asked"   — an IP indicator has no CVSS, no EPSS
+        percentile and cannot appear on the CISA KEV list, because KEV lists CVEs.
+        Scoring it 0 charges the finding for failing to be a different KIND of
+        finding, and there is no evidence it could ever produce to earn those
+        31 points back.
+
+    Only the second case belongs here. `composite()` renormalises over the weight
+    that is actually in play, so a finding is measured against the worst IT could
+    be rather than against the worst ANY finding could be.
+
+    Returns only the factors that may be False; `composite()` assumes True.
+    """
+    has_cve = bool(finding.get("cve_id"))
+    # MISP ships network observables — IPs, domains, URLs, file hashes. There is no
+    # IOC that can match "liblzma5 is version 5.6.0", so threat-intel corroboration
+    # is undefined for a package finding rather than absent from it.
+    can_match_ioc = bool(finding.get("observable_key")) or finding.get("domain") == "network"
+    return {
+        "epss": has_cve,          # EPSS is a per-CVE exploit-probability percentile
+        "kev": has_cve,           # the CISA KEV catalogue is a list of CVEs
+        "threat_intel": can_match_ioc,
+    }
+
+
 def to_vector(fd: dict[str, float]) -> list[float]:
     return [fd[f] for f in FEATURES]
 
