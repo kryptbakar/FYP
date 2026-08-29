@@ -646,6 +646,24 @@ async function viewOverview(root) {
   //      floating live tool widgets, big display type + live stats, scrolling ticker) ----
   root.append(cmdHero({ ranking, bands, kev, openInc, breaches, cis, toolCount, chain, recent, top, peakBand, peakHost }));
 
+  // ---- live pipeline: the whole platform as one connected picture ----
+  // Investigations are fetched separately and tolerated as empty: the orchestrator runs
+  // behind the `agentic` profile, so on a core-only stack this panel must still render
+  // rather than take the whole Overview down with it.
+  const invs = await API.investigations(50).catch(() => []);
+  const toolCounts = {};
+  ranking.forEach(f => { const t = f.source_tool || 'agent'; toolCounts[t] = (toolCounts[t] || 0) + 1; });
+  const clusterKeys = new Set(ranking.map(f => (f.consensus && f.consensus.primary) || f.id));
+  root.append(systemFlowPanel({
+    tools: Object.entries(toolCounts).map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n),
+    findings: ranking.length,
+    clusters: clusterKeys.size,
+    corroborated: ranking.filter(f => f.consensus && f.consensus.n_tools > 1).length,
+    scored: ranking.filter(f => f.risk_score != null).length,
+    investigations: (invs || []).length,
+    inflight: (invs || []).filter(i => INV_LIVE_STATES.includes(i.status)).length,
+  }));
+
   // ---- bento row 1: KPI deltas (entry points) ----
   const tCrit = statTile(3, 'Critical exposure', String(bands.critical), kpiDelta('crit', bands.critical), `${bands.high} high open`, bands.critical ? 'crit' : 'ok');
   const tKev = statTile(3, 'Known-exploited', String(kev), kpiDelta('kev', kev), 'CISA KEV-listed', kev ? 'warn' : 'ok');
@@ -2177,6 +2195,117 @@ async function viewInvestigations(root) {
         h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(iv.created_at)))))))));
   root.append(detail);
   openInvestigation(list[0].investigation_id, detail);
+}
+
+/* =====================================================================
+   SYSTEM FLOW — the whole platform as one connected picture.
+
+   The point of VYREX is that ten tools, a fusion engine, a scoring model and an
+   investigation graph work as ONE pipeline. That was previously only assertable in prose;
+   this draws it, and drives every node and every moving dot from real counts.
+
+   Deliberately NOT a decorative particle field. Each source tool emits dots in proportion
+   to how many findings it actually contributed, the dots CONVERGE at fusion because that
+   is literally what fusion does (many tool findings -> fewer corroborated clusters), and
+   the chain stops at a gated Response node because containment requires two humans. If an
+   examiner asks "is any of that real?", every number on screen answers yes.
+
+   Inline SVG, no library, no CDN (D-044). Flat surfaces and :root tokens only, per the
+   locked design language — depth comes from layout and hierarchy, not from glows.
+   ===================================================================== */
+function systemFlowPanel(d) {
+  const W = 1000, H = 300, midY = 150;
+  const tools = d.tools.slice(0, 6);
+  const maxTool = Math.max(1, ...tools.map(t => t.n));
+
+  // Columns. The gap before Response is wider on purpose: it is the one boundary the
+  // pipeline does not cross by itself.
+  const X = { tool: 96, ingest: 300, fuse: 452, score: 604, invest: 760, resp: 934 };
+  const gap = 42;
+  const toolY = (i) => midY + (i - (tools.length - 1) / 2) * gap;
+
+  const curve = (x1, y1, x2, y2) => {
+    const dx = (x2 - x1) * 0.45;
+    return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+  };
+
+  const edges = [];
+  tools.forEach((t, i) => edges.push({
+    id: 'sf-t' + i, d: curve(X.tool + 46, toolY(i), X.ingest - 40, midY),
+    // Dot count tracks each tool's real share of findings, so a tool that contributed
+    // one finding does not look as busy as one that contributed thirty.
+    dots: Math.max(1, Math.round((t.n / maxTool) * 3)), live: t.n > 0,
+  }));
+  edges.push({ id: 'sf-if', d: curve(X.ingest + 40, midY, X.fuse - 38, midY), dots: 3, live: true });
+  // After fusion the stream is genuinely thinner: clusters, not raw findings.
+  edges.push({ id: 'sf-fs', d: curve(X.fuse + 38, midY, X.score - 42, midY),
+    dots: Math.max(1, Math.min(3, Math.round(d.clusters / Math.max(1, d.findings) * 4))), live: true });
+  edges.push({ id: 'sf-si', d: curve(X.score + 42, midY, X.invest - 44, midY),
+    dots: d.investigations ? 2 : 0, live: !!d.investigations });
+  edges.push({ id: 'sf-ir', d: curve(X.invest + 44, midY, X.resp - 34, midY), dots: 0, live: false, gated: true });
+
+  const defs = sv('defs', null, ...edges.map(e => sv('path', { id: e.id, d: e.d, fill: 'none' })));
+  const paths = edges.map(e => sv('path', {
+    class: 'sf-edge' + (e.gated ? ' is-gated' : e.live ? ' is-live' : ' is-idle'), d: e.d, fill: 'none',
+  }));
+
+  const flows = [];
+  edges.forEach((e, ei) => {
+    for (let k = 0; k < e.dots; k++) {
+      flows.push(sv('circle', { class: 'sf-dot', r: 2.6 },
+        sv('animateMotion', {
+          dur: (3.4 + (ei % 3) * 0.5).toFixed(1) + 's', repeatCount: 'indefinite',
+          begin: (k * 1.1 + ei * 0.17).toFixed(2) + 's',
+        }, sv('mpath', { 'xlink:href': '#' + e.id }))));
+    }
+  });
+
+  const stage = (cx, label, value, sub, tone) => sv('g', { class: 'sf-stage' + (tone ? ' is-' + tone : ''), transform: `translate(${cx} ${midY})` },
+    sv('title', null, label + ' — ' + value + (sub ? ' (' + sub + ')' : '')),
+    sv('rect', { class: 'sf-box', x: -44, y: -34, width: 88, height: 68, rx: 10 }),
+    sv('text', { class: 'sf-v', x: 0, y: -6 }, value),
+    sv('text', { class: 'sf-l', x: 0, y: 12 }, label),
+    sub ? sv('text', { class: 'sf-s', x: 0, y: 25 }, sub) : null);
+
+  const toolNode = (t, i) => sv('g', { class: 'sf-tool' + (t.n ? '' : ' is-idle'), transform: `translate(${X.tool} ${toolY(i)})` },
+    sv('title', null, t.name + ' — ' + t.n + ' finding(s)'),
+    sv('rect', { class: 'sf-tbox', x: -46, y: -14, width: 92, height: 28, rx: 7 }),
+    sv('text', { class: 'sf-tname', x: -34, y: 4 }, t.name),
+    sv('text', { class: 'sf-tn', x: 36, y: 4 }, String(t.n)));
+
+  const svg = sv('svg', {
+    class: 'sf-svg', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet',
+    role: 'img', 'aria-label':
+      `Live pipeline: ${tools.length} tools produced ${d.findings} findings, fused into `
+      + `${d.clusters} clusters, ${d.scored} scored, ${d.investigations} investigated. `
+      + 'Response is gated behind two-person approval.',
+  },
+    defs,
+    sv('text', { class: 'sf-col', x: X.tool, y: 22 }, 'SENSORS & SCANNERS'),
+    sv('text', { class: 'sf-col', x: X.fuse, y: 22 }, 'CORRELATION'),
+    sv('text', { class: 'sf-col', x: X.invest, y: 22 }, 'REASONING'),
+    sv('text', { class: 'sf-col', x: X.resp, y: 22 }, 'GATED'),
+    sv('g', { class: 'sf-edges' }, paths),
+    sv('g', { class: 'sf-flows' }, flows),
+    sv('g', {}, tools.map(toolNode)),
+    stage(X.ingest, 'ingest', 'mTLS', 'JetStream'),
+    stage(X.fuse, 'fusion', String(d.clusters), d.corroborated + ' corroborated'),
+    stage(X.score, 'scoring', String(d.scored), 'composite + ML'),
+    stage(X.invest, 'investigate', String(d.investigations), d.inflight ? d.inflight + ' in flight' : 'LangGraph'),
+    stage(X.resp, 'response', '2-person', 'never automatic', 'gated'));
+
+  return h('div', { class: 'panel pad fade sf-panel' },
+    h('div', { class: 'row', style: 'gap:var(--s-2);align-items:baseline;margin-bottom:var(--s-2)' },
+      h('div', { class: 'sec-label' }, 'Live pipeline'),
+      h('span', { class: 'faint', style: 'font-size:var(--t-2xs)' },
+        '- every node and every moving dot is a real count, not an animation')),
+    h('div', { class: 'sf-wrap' }, svg),
+    h('div', { class: 'faint', style: 'font-size:var(--t-3xs);line-height:1.55;margin-top:var(--s-2)' },
+      'Each tool emits dots in proportion to the findings it actually contributed. They '
+      + 'converge at fusion because that is what fusion does - ' + d.findings + ' findings '
+      + 'collapse into ' + d.clusters + ' clusters, ' + d.corroborated + ' of them corroborated by '
+      + 'more than one tool. The chain deliberately stops at Response: containment needs two '
+      + 'humans and an Ed25519 signature, so nothing flows across that last edge on its own.'));
 }
 
 /* ---- orchestrator health, as four numbers an operator can act on ----

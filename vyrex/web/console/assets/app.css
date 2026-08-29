@@ -1350,6 +1350,45 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
 .inv-graph-fallback { margin-top: var(--s-3); }
 .inv-graph-fallback summary { list-style: revert; }
 
+/* =====================================================================
+   Live pipeline constellation (Overview). Same rules as the orchestration graph:
+   inline SVG, flat surfaces, :root tokens only, and motion that encodes real volume.
+   ===================================================================== */
+.sf-panel { margin-top: 14px; }
+.sf-wrap { border: 1px solid var(--line); border-radius: var(--r-md); background: var(--bg);
+  padding: var(--s-2); overflow-x: auto; }
+.sf-svg { display: block; width: 100%; min-width: 760px; height: auto; }
+
+.sf-col { fill: var(--faint); font-family: var(--mono); font-size: 8.5px;
+  letter-spacing: .16em; text-anchor: middle; }
+
+.sf-edge { stroke: var(--line-strong); stroke-width: 1.2; }
+.sf-edge.is-live { stroke: var(--accent); opacity: .5; stroke-width: 1.5; }
+.sf-edge.is-idle { stroke: var(--line); }
+/* The one edge the pipeline does not cross by itself. Dashed is the whole point. */
+.sf-edge.is-gated { stroke: var(--line-strong); stroke-dasharray: 3 6; }
+
+.sf-dot { fill: var(--accent-text); }
+
+/* --- source tools ----------------------------------------------------- */
+.sf-tbox { fill: var(--elevated); stroke: var(--line-strong); stroke-width: 1; }
+.sf-tname { fill: var(--text-2); font-family: var(--mono); font-size: 9.5px; }
+.sf-tn { fill: var(--accent-text); font-family: var(--mono); font-size: 10px; text-anchor: end;
+  font-weight: 600; }
+.sf-tool.is-idle .sf-tbox { stroke: var(--line); }
+.sf-tool.is-idle .sf-tname, .sf-tool.is-idle .sf-tn { fill: var(--faint); }
+
+/* --- pipeline stages -------------------------------------------------- */
+.sf-box { fill: var(--elevated); stroke: var(--line-strong); stroke-width: 1.2; }
+.sf-v { fill: var(--text); font-size: 15px; font-weight: 600; text-anchor: middle;
+  font-family: var(--mono); }
+.sf-l { fill: var(--text-2); font-size: 10.5px; text-anchor: middle; }
+.sf-s { fill: var(--faint); font-family: var(--mono); font-size: 8.5px; text-anchor: middle; }
+.sf-stage.is-gated .sf-box { stroke: var(--warning); stroke-dasharray: 5 4; }
+.sf-stage.is-gated .sf-v { fill: var(--warning); font-size: 12px; }
+
+@media (prefers-reduced-motion: reduce) { .sf-dot { display: none; } }
+
 /* --- orchestrator health strip ---------------------------------------- */
 .ing-strip { display: flex; flex-wrap: wrap; gap: var(--s-5); margin-top: var(--s-3);
   padding-top: var(--s-3); border-top: 1px solid var(--line); }
