@@ -66,6 +66,28 @@ web/console/
 | **Sensors & Fusion** | The honest analog of an "agent roster": the real **pipeline** (feed-sync → ingest-edge → JetStream → workers → scoring → fusion) + the integrated-tool grid with live status + envelope types. | derived from `GET /risk/ranking` (`source_tool` counts, consensus), `GET /stats/summary`, `GET /version` |
 
 ## Key components
+- **Orchestration graph** (Investigations) — the LangGraph run drawn in the shape it ran:
+  Subject → Router → five specialists fanned out inside a labelled *parallel · deterministic
+  SQL* band → Synthesis → Citations. Hand-built inline SVG (`sv()` in `ui.js`, an
+  SVG-namespace sibling of `h()`); **no graph library, no CDN**, because one external script
+  would end the air-gap claim.
+
+  The motion is bound to persisted state, not to loading: a flow dot rides an edge **only**
+  if that branch actually succeeded, skipped branches are dashed and inert, failed branches
+  turn red, and the single pulse marks the node executing now. *The picture cannot look
+  healthier than the run was* — which is the whole reason to draw an execution graph rather
+  than a spinner. `prefers-reduced-motion` removes the motion with no information lost,
+  since status is already carried by colour, stroke style, the node subtitle and the legend
+  counts. A collapsed text listing sits underneath for screen readers and copy/paste.
+
+  While a run is `queued`/`running` the view **polls every 3 s and stops at a terminal
+  state**, cleaned up through the router's `window._viewCleanup` hook so the interval cannot
+  outlive the view. Durations are humanised, so the model call reads `2m 1s` rather than
+  `121367 ms`.
+- **Orchestrator health strip** — in flight / queued / oldest wait / completed. Oldest-wait
+  is there because the worker is serial by design: a queue depth of 1 is normal, and a depth
+  of 1 that never drains is an outage. Depth alone cannot tell those apart, so only *queued
+  with nothing running for 5+ minutes* takes a warning colour.
 - **SHAP waterfall** — renders the model's TreeSHAP explanation on a fixed **0–100 x-domain**
   (ticks 0/25/50/75/100). Base marker → one step bar per factor (risk-raising extends right
   in amber/red, risk-lowering left in green, signed `+/−` labels) → final marker. Asserts

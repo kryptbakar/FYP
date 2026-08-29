@@ -63,6 +63,19 @@ Walk it in this order:
    in this graph talks to a model." That last sentence is the design position: everything
    feeding the LLM is code you can read and test, so *"the model decided"* is never the
    explanation for a verdict.
+
+   > **Start a live one before you say this.** The graph polls every 3 seconds while a run
+   > is in flight, so the deterministic branches turn teal one after another, the synthesis
+   > node sits in accent with a pulse while the model works, and *Citations* stays grey
+   > until it runs. It is the single most watchable thing in the demo, and it costs nothing
+   > to set up — click **Investigate** on a finding and keep talking.
+   >
+   > If asked whether the animation is real: **yes, and say why it has to be.** Dots travel
+   > only edges whose branch actually succeeded, skipped branches are dashed and inert, a
+   > failed branch turns red. The picture cannot look healthier than the run was — which is
+   > the whole reason to show an execution graph instead of a spinner. It is also
+   > hand-built inline SVG with no library, because one CDN script would end the air-gap
+   > claim.
 2. **A skipped branch vs a failed one.** Point at one. "These look the same in any
    single-blob agent. 'Found nothing' and 'crashed' are completely different facts, and an
    analyst has to be able to tell them apart."
