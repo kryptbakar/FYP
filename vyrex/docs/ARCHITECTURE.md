@@ -273,11 +273,23 @@ All planned phases are built, verified end-to-end, and on `main`:
   a real failure that degraded the run instead of ending it.
 - ✅ **Console workspace:** execution graph in the shape it ran, clickable citations that
   scroll to the cited record, and an explicit callout when a verdict cites nothing.
-- ✅ **Security:** least-privilege DB role (no grant on response/identity/audit tables),
-  untrusted-evidence containment in the prompt, both pinned by tests.
+- ✅ **Security & hardening:** least-privilege DB role (no grant on response/identity/audit
+  tables, pinned by a test that reads the queries and the grants and compares them);
+  untrusted-evidence containment in the synthesis prompt; a demonstrated prompt injection
+  with a control; admission control on `POST /investigations` (the endpoint answers in
+  milliseconds but commits ~2 minutes of serial inference); an Ollama circuit breaker so a
+  dead model costs one timeout per cooldown rather than one per investigation.
+- ✅ **Deployment & air-gap:** Helm chart with `replicas: 1` pinned and the reason in the
+  manifest; the K3s NetworkPolicy fixed to actually select pods; compose sealing split into
+  three paired overlays; both halves enforced by `tools/airgap/check-coverage.py` in CI; the
+  offline bundle carries model digest, quantisation and licence, and the installer verifies
+  the digest rather than mere presence.
+- ✅ **Observability:** Grafana dashboard driven from the orchestration tables (queue depth,
+  oldest wait, node latency on a log scale, branch health, cited-verdict count).
 - 🔶 **Evaluation:** corpus frozen at 63 findings meeting all 14 stratification targets,
-  rubric pre-registered — but **zero cases labelled** and advisor adjudication not secured.
-  No accuracy claim is made until both exist.
+  rubric pre-registered, and the scoring harness built and unit-pinned — but **zero cases
+  labelled** and advisor adjudication not secured. No accuracy claim is made until both
+  exist, and `eval/score_labels.py` refuses to compute one.
 - ⚠️ **Known ceiling, measured not assumed:** no locally-runnable model satisfies the
   citation contract on this hardware. `llama3.2:3b` and `qwen2.5:3b` each abstained 12/12
   and cited 0/12 on the same findings; `qwen3:4b` never finished in 900 s. The pipeline is
