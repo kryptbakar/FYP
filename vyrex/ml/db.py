@@ -26,6 +26,24 @@ ALTER TABLE findings ADD COLUMN IF NOT EXISTS model_version   text;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS previous_risk_score numeric;
 ALTER TABLE assets   ADD COLUMN IF NOT EXISTS criticality     numeric DEFAULT 0.5;
 
+-- Columns OWNED by other services but READ by load_findings(). Ensured here so that
+-- scoring does not depend on which service happened to start first.
+--
+-- Without this, `risk-engine train` on a fresh database dies with
+--   psycopg.errors.UndefinedColumn: column "attack" does not exist
+-- because `attack` and `threat_intel` are created by intel-enricher's migration, and
+-- intel-enricher lives behind the `intel` profile that a core-only install never runs.
+-- The risk engine is core; it must not require an optional service to have run first.
+-- That ordering dependency kept the compose end-to-end smoke red from 2026-07-13.
+--
+-- ADD COLUMN IF NOT EXISTS is idempotent and the types match the owning services, so
+-- whichever runs first wins and the other is a no-op. This does NOT claim ownership:
+-- intel-enricher still populates them, and an unenriched finding simply reads NULL,
+-- which the feature extractor already treats as "no intel", not as an error.
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS attack         text;    -- intel-enricher
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS threat_intel   jsonb;   -- intel-enricher
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS observable_key text;    -- enrichment
+
 CREATE TABLE IF NOT EXISTS finding_explanations (
     finding_id     bigint PRIMARY KEY REFERENCES findings(id) ON DELETE CASCADE,
     ml_risk_score  numeric,
