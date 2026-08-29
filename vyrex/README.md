@@ -23,22 +23,53 @@ for an **air-gapped / on-premises** government deployment (PITB).
   Clustering keys on the **observable** (which connection) rather than the rule that
   fired, so an agent egress rule, a MISP IOC hit and a Sigma detection about the same
   connection fuse into one issue at full consensus. See [ml/FUSION.md](ml/FUSION.md).
+- **Investigates** with an evidence-grounded **LangGraph** agent: five specialists run in
+  parallel (asset, ATT&CK, threat intel, multi-tool corroboration, history), all
+  deterministic SQL, and **exactly one node talks to a model**. Every factual claim must
+  cite a stored evidence record, the model is forbidden a confidence field, and a verdict
+  other than *insufficient evidence* is **rejected** if it cites nothing. Runs are durable
+  and resume after a crash. See [docs/AGENT-ORCHESTRATION.md](docs/AGENT-ORCHESTRATION.md).
 - **Responds** via an Ed25519-**signed** command channel with two-person approval and a
   hash-chained audit trail (containment only).
 - **Presents** it all in a real-time analyst **console** + Grafana dashboards.
 
-## Architecture (four layers)
+## Architecture (five layers)
 
 1. **Endpoint Agent** — lightweight Go agents (process/network, embedded osquery, FIM)
    over mutual TLS with a *signed* command channel for active response.
 2. **Ingestion & Assessment** — stateless Go edge-ingest → NATS JetStream → async Python
    enrichment/fusion workers → data stores. Tool output arrives via bridges/enrichers.
 3. **Data** — PostgreSQL (transactional), TimescaleDB (telemetry), OpenSearch (search).
-4. **Presentation** — analyst console (dependency-free SPA; Next.js/Tailwind is the
+4. **Investigation** — a durable LangGraph worker driven by a transactional outbox, with
+   its own least-privilege DB role that has **no grant on the response tables**, so
+   "the agent cannot contain anything" is enforced by Postgres rather than by convention.
+5. **Presentation** — analyst console (dependency-free SPA; Next.js/Tailwind is the
    production target) + Grafana (metrics/trends/heatmaps).
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for detail and
-[docs/DECISIONS.md](docs/DECISIONS.md) for the rationale behind 49 logged decisions.
+[docs/DECISIONS.md](docs/DECISIONS.md) for the rationale behind 58 logged decisions.
+
+## What the measurements actually say
+
+Numbers here are reported as measured, including the ones that are inconvenient. The
+full working is in [docs/AGENT-ORCHESTRATION.md](docs/AGENT-ORCHESTRATION.md) §7 and
+[docs/THREAT-MODEL.md](docs/THREAT-MODEL.md) §3.1.
+
+- **The orchestration works; the locally-runnable models do not commit.** `llama3.2:3b`
+  and `qwen2.5:3b` — different vendors, one non-thinking — were run on the *same twelve
+  findings*: both produced 12/12 schema-valid output, abstained 12/12, and cited 0/12.
+  `qwen3:4b` never finished a single response in 900 s at 3.2 tok/s. Two unrelated model
+  families failing identically is evidence of a **capacity ceiling at 3B on CPU**, not of
+  a bad prompt — which is why prompt tuning was declined rather than used to paper over it.
+- **Prompt injection can steer a recommendation, and cannot do anything else.** A poisoned
+  finding versus an identical clean twin flipped the verdict to `DISMISS`/`LOW`. The same
+  payload's other three demands all failed: the schema refused an uncited verdict, the
+  citation allow-list rejected the fabricated id, and the evidence stayed visible.
+  Reproduce with `python eval/injection_probe.py`.
+- **The air-gap was partly theatre until it was tested.** 21 of 35 compose services were
+  unsealed, and the production Kubernetes NetworkPolicy matched **0 of 9 pod templates**,
+  while the egress check reported *AIR-GAP ENFORCED* throughout. Both are fixed, both are
+  now CI-enforced, and both checks were verified by deliberately breaking them.
 
 ## Repository layout
 
@@ -57,13 +88,16 @@ vyrex/
     sensor-bridge/  # Suricata/Zeek/Falco → JetStream
     wazuh-bridge/   # Wazuh Manager API → findings
     intel-enricher/ # MISP IOC + OpenCTI ATT&CK + Sigma
+    investigation-orchestrator/   # LangGraph triage: 5 deterministic specialists + 1 LLM node
   agent/            # Go endpoint agent
   ml/               # composite score + XGBoost/SHAP + the AI Fusion Engine (FUSION.md)
+  eval/             # frozen corpus, blind-labelling artefacts, corpus audit, injection probe
   web/console/      # analyst console (SPA on nginx, proxies /api)
-  grafana/          # provisioned datasources + dashboard
+  grafana/          # provisioned datasources + dashboards
   deploy/           # air-gapped K3s: Helm chart, CNPG/OpenSearch, Vault, Keycloak, Velero, ArgoCD
+  tools/airgap/     # bundle/install for sneakernet + egress and sealing-coverage checks
   reference/        # cloned repos for STUDY ONLY (gitignored)
-  docs/             # ARCHITECTURE, DECISIONS, per-phase notes, AIRGAP
+  docs/             # ARCHITECTURE, DECISIONS, THREAT-MODEL, AIRGAP, per-phase notes
 ```
 
 ## Quick start
@@ -134,7 +168,22 @@ flagged, never vendored) are in [ATTRIBUTIONS.md](ATTRIBUTIONS.md).
 
 ## Status
 
-**Build complete.** Phases 0–6 (core), A–E (tool integration), F (AI Fusion Engine),
-G (console + dashboards), H (air-gap hardening), and 8 (air-gapped K3s deployment). See the
-per-phase notes in [docs/](docs/) and the status summary in
-[docs/ARCHITECTURE.md §8](docs/ARCHITECTURE.md).
+**Platform build complete.** Phases 0–6 (core), A–E (tool integration), F (AI Fusion
+Engine), G (console + dashboards), H (air-gap hardening), 8 (air-gapped K3s deployment).
+
+**Agent-orchestration track:** phases 0–3 complete — durable LangGraph investigations,
+five parallel deterministic specialists, citation-bound synthesis, and an Investigations
+workspace in the console with clickable citations and a per-node execution graph.
+
+**Evaluation (in progress, and the honest part):** the corpus is frozen and ready —
+63 findings meeting all 14 stratification targets (`python eval/corpus_audit.py`), with a
+pre-registered rubric committed *before* any label existed so git history proves the
+blinding held. What is **not** done: no case has been labelled yet, and advisor
+adjudication for an inter-rater statistic is not yet secured. Until both exist, no
+accuracy claim is made — only grounding and operational behaviour, which are measurable
+today and reported above.
+
+See the per-phase notes in [docs/](docs/), the status summary in
+[docs/ARCHITECTURE.md §8](docs/ARCHITECTURE.md), and
+[docs/EVALUATION-PROTOCOL.md](docs/EVALUATION-PROTOCOL.md) for what would have to be true
+before any accuracy number is quoted.
