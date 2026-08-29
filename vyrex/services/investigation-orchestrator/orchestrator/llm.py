@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Protocol
 
 import httpx
@@ -38,12 +39,67 @@ class LLMUnavailable(RuntimeError):
 
 
 class OllamaClient:
-    def __init__(self, url: str, model: str, timeout_s: int = 240) -> None:
+    """Ollama chat client with a circuit breaker.
+
+    The breaker exists because of the shape of the failure, not for its own sake. If
+    Ollama is down, every investigation spends the FULL timeout — 240 s by default —
+    discovering that, one after another, because the worker is serial. Ten queued
+    investigations become forty minutes of waiting to produce ten identical failures,
+    and the queue looks busy rather than broken the whole time.
+
+    After `breaker_threshold` consecutive unreachable-errors the breaker opens and calls
+    fail immediately for `breaker_cooldown_s`. One trial call is then allowed through; if
+    it succeeds the breaker closes.
+
+    Deliberately narrow: only failures to REACH the model trip it. A model that answers
+    with unparseable output is answering, and that path is handled by the single bounded
+    repair in `synthesize()` — tripping on it would disable the LLM over a bad generation.
+    """
+
+    def __init__(self, url: str, model: str, timeout_s: int = 240,
+                 breaker_threshold: int = 3, breaker_cooldown_s: int = 120) -> None:
         self.url = url.rstrip("/")
         self.name = model
         self.timeout_s = timeout_s
+        self.breaker_threshold = breaker_threshold
+        self.breaker_cooldown_s = breaker_cooldown_s
+        self._consecutive_failures = 0
+        self._opened_at: float | None = None
+
+    def _breaker_is_open(self) -> bool:
+        if self._opened_at is None:
+            return False
+        if time.monotonic() - self._opened_at >= self.breaker_cooldown_s:
+            # Half-open: let exactly one call through to test the water. It either closes
+            # the breaker or re-opens it, so a dead Ollama costs one timeout per cooldown
+            # rather than one per investigation.
+            self._opened_at = None
+            log.info("llm circuit breaker half-open; trying one call")
+            return False
+        return True
+
+    def _record_success(self) -> None:
+        if self._consecutive_failures:
+            log.info("llm reachable again; circuit breaker reset")
+        self._consecutive_failures = 0
+        self._opened_at = None
+
+    def _record_failure(self) -> None:
+        self._consecutive_failures += 1
+        if self._consecutive_failures >= self.breaker_threshold and self._opened_at is None:
+            self._opened_at = time.monotonic()
+            log.warning(
+                "llm unreachable %d times in a row; circuit breaker open for %ds - "
+                "investigations will abstain immediately instead of waiting %ds each",
+                self._consecutive_failures, self.breaker_cooldown_s, self.timeout_s,
+            )
 
     def complete(self, system: str, user: str) -> str:
+        if self._breaker_is_open():
+            raise LLMUnavailable(
+                f"circuit breaker open after {self._consecutive_failures} consecutive "
+                f"failures; not calling {self.url}"
+            )
         payload = {
             "model": self.name,
             "stream": False,
@@ -62,9 +118,12 @@ class OllamaClient:
             with httpx.Client(timeout=self.timeout_s) as c:
                 r = c.post(f"{self.url}/api/chat", json=payload)
                 r.raise_for_status()
-                return (r.json().get("message") or {}).get("content", "")
+                content = (r.json().get("message") or {}).get("content", "")
         except Exception as e:  # noqa: BLE001 - surfaced to the caller as a typed failure
+            self._record_failure()
             raise LLMUnavailable(f"{type(e).__name__}: {e}") from e
+        self._record_success()
+        return content
 
 
 class FakeLLM:
