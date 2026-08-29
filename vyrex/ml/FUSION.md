@@ -67,6 +67,24 @@ analyst can still see exactly what each tool said. Guarded by
 > separately and share no library. **Change one and you must change the other**, or they
 > stop agreeing and cross-tool clustering silently degrades to the old behaviour.
 
+> ⚠ **The grouping PRIORITY is duplicated too, and that one already bit us.** The read
+> endpoint `GET /fusion/clusters`
+> (`services/api/app/routers/insights.py::clusters`) reimplements
+> `cluster_key` in SQL and must stay in step with the Python above:
+>
+> ```sql
+> GROUP BY COALESCE(observable_key, dedup_key)   -- same priority as fusion.cluster_key
+> ```
+>
+> Phase 2 taught the *engine* the new key and left the *endpoint* grouping on `dedup_key`
+> alone. Because `dedup_key` identifies the rule that fired rather than the thing observed,
+> every group came back with one tool, the `HAVING count(DISTINCT source_tool) >= 2` filter
+> removed all of them, and the endpoint returned `[]` on live data containing a
+> **three-tool** cluster — the project's headline capability reporting nothing, silently,
+> for as long as nobody opened that view. Found 2026-08-29 while building the wall board;
+> fixed the same day. Three copies of one rule now; treat any change here as a change in
+> all three.
+
 The per-rule `dedup_key` recipes, still used whenever there is no observable:
 
 | Producer / domain        | `dedup_key` recipe                                  | Rationale |
