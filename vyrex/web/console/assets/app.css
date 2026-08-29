@@ -1350,6 +1350,18 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
 .inv-graph-fallback { margin-top: var(--s-3); }
 .inv-graph-fallback summary { list-style: revert; }
 
+/* --- orchestrator health strip ---------------------------------------- */
+.ing-strip { display: flex; flex-wrap: wrap; gap: var(--s-5); margin-top: var(--s-3);
+  padding-top: var(--s-3); border-top: 1px solid var(--line); }
+.ing-stat-v { font-size: var(--t-lg); font-weight: 560; color: var(--text); line-height: 1.1;
+  font-family: var(--mono); }
+.ing-stat-v.is-run  { color: var(--accent-text); }
+.ing-stat-v.is-warn { color: var(--warning); }
+.ing-stat-l { font-size: var(--t-3xs); color: var(--faint); letter-spacing: .06em;
+  text-transform: uppercase; margin-top: 2px; }
+.ing-strip-note { flex: 1 1 100%; font-size: var(--t-2xs); color: var(--warning);
+  font-family: var(--mono); }
+
 /* Motion is reinforcement, never the only channel: status is already carried by colour,
    stroke style, the node subtitle and the legend counts, so removing it costs nothing. */
 @media (prefers-reduced-motion: reduce) {

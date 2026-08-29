@@ -2149,6 +2149,7 @@ async function viewInvestigations(root) {
         chip(pending + ' queued', pending ? 'warn' : 'mono'),
         h('button', { class: 'btn', onclick: () => go('investigations') },
           h('span', {}, 'Refresh')))),
+    invOrchestratorStrip(status, list || []),
     !(list || []).length
       ? h('div', { class: 'callout', style: 'margin-top:var(--s-3)' },
           'No investigations yet. Open a finding in Triage and choose "Investigate", '
@@ -2172,27 +2173,85 @@ async function viewInvestigations(root) {
         h('td', {}, chip(iv.trigger_type || 'manual', 'mono')),
         h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, iv.model_name || '-'),
         h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' },
-          iv.duration_ms ? Math.round(iv.duration_ms / 1000) + 's' : '-'),
+          iv.duration_ms ? invDur(iv.duration_ms) : '-'),
         h('td', { class: 'mono', style: 'font-size:var(--t-2xs)' }, ago(iv.created_at)))))))));
   root.append(detail);
   openInvestigation(list[0].investigation_id, detail);
 }
 
+/* ---- orchestrator health, as four numbers an operator can act on ----
+   Queue depth alone cannot tell "busy" from "wedged" — the worker is serial by design,
+   so a depth of 1 is normal and a depth of 1 that never drains is an outage. Oldest-
+   pending is the number that separates them, which is why it is here and not just the
+   count the chip already shows. */
+function invOrchestratorStrip(status, list) {
+  const s = status || {};
+  const pending = s.pending_outbox || 0;
+  const oldestMin = s.oldest_pending
+    ? Math.max(0, Math.round((Date.now() - new Date(s.oldest_pending).getTime()) / 60000))
+    : null;
+  const cited = list.filter(iv => iv.status === 'completed').length;
+  const inflight = list.filter(iv => INV_LIVE_STATES.includes(iv.status)).length;
+
+  // A backlog that is merely waiting on a slow model is normal; one that has been waiting
+  // for many minutes with nothing running is not, so only that case gets a warning colour.
+  const stalled = pending > 0 && inflight === 0 && oldestMin != null && oldestMin >= 5;
+
+  const stat = (label, value, tone) => h('div', { class: 'ing-stat' },
+    h('div', { class: 'ing-stat-v' + (tone ? ' is-' + tone : '') }, value),
+    h('div', { class: 'ing-stat-l' }, label));
+
+  return h('div', { class: 'ing-strip' },
+    stat('in flight', String(inflight), inflight ? 'run' : null),
+    stat('queued', String(pending), stalled ? 'warn' : null),
+    stat('oldest wait', oldestMin == null ? '—' : oldestMin + 'm', stalled ? 'warn' : null),
+    stat('completed', String(cited), null),
+    stalled
+      ? h('div', { class: 'ing-strip-note' },
+          'Work is queued with nothing running. Check the orchestrator is up: '
+          + 'docker compose --profile agentic ps')
+      : null);
+}
+
+const INV_LIVE_STATES = ['queued', 'running'];
+
 async function openInvestigation(id, host) {
   host.innerHTML = '';
   host.append(loading('Loading investigation ' + id.slice(0, 8) + '...'));
-  const [iv, steps, evidence, report] = await Promise.all([
-    API.investigation(id).catch(() => null),
-    API.investigationSteps(id).catch(() => []),
-    API.investigationEvidence(id).catch(() => []),
-    API.investigationReport(id).catch(() => null),
-  ]);
-  host.innerHTML = '';
-  if (!iv) { host.append(h('div', { class: 'callout' }, 'Investigation not found.')); return; }
 
-  host.append(invGraphPanel(iv, steps || []));
-  host.append(invReportPanel(iv, report, evidence || []));
-  host.append(invEvidencePanel(evidence || []));
+  const paint = async () => {
+    const [iv, steps, evidence, report] = await Promise.all([
+      API.investigation(id).catch(() => null),
+      API.investigationSteps(id).catch(() => []),
+      API.investigationEvidence(id).catch(() => []),
+      API.investigationReport(id).catch(() => null),
+    ]);
+    host.innerHTML = '';
+    if (!iv) { host.append(h('div', { class: 'callout' }, 'Investigation not found.')); return null; }
+    host.append(invGraphPanel(iv, steps || []));
+    host.append(invReportPanel(iv, report, evidence || []));
+    host.append(invEvidencePanel(evidence || []));
+    return iv;
+  };
+
+  const iv = await paint();
+
+  // Poll only while the run is genuinely in flight. Synthesis alone takes ~2 minutes on
+  // CPU, so without this the graph is a static snapshot and the analyst has to guess when
+  // to hit Refresh. Polling STOPS the moment the run reaches a terminal state — an idle
+  // console must not sit there hitting the API forever.
+  if (iv && INV_LIVE_STATES.includes(iv.status)) {
+    const t = setInterval(async () => {
+      const cur = await paint().catch(() => null);
+      if (!cur || !INV_LIVE_STATES.includes(cur.status)) {
+        clearInterval(t);
+        if (cur) toast('Investigation ' + cur.status, cur.status !== 'failed');
+      }
+    }, 3000);
+    // The router calls this on navigation; without it the interval would outlive the view
+    // and keep re-rendering a host element that is no longer on the page.
+    window._viewCleanup = () => clearInterval(t);
+  }
 }
 
 /* ---- execution graph: what actually ran, in the shape it ran ---- */
