@@ -150,6 +150,10 @@ stack with no internet. See [docs/PRODUCTION-DEPLOYMENT.md](docs/PRODUCTION-DEPL
 
 | Doc | What it gives you |
 |---|---|
+| **[docs/REPRODUCE.md](docs/REPRODUCE.md)** | **Every number in this project → the command that regenerates it.** Start here to check any claim, including the unflattering ones |
+| [docs/AGENT-ORCHESTRATION.md](docs/AGENT-ORCHESTRATION.md) | The investigation graph: design, the three invariants, and the model benchmark |
+| [docs/EVALUATION-PROTOCOL.md](docs/EVALUATION-PROTOCOL.md) | What would have to be true before any accuracy number is quoted |
+| [docs/LABELLING-RUBRIC.md](docs/LABELLING-RUBRIC.md) | The pre-registered, frozen labelling rubric (`rubric-v1`) |
 | [docs/METHODOLOGY.md](docs/METHODOLOGY.md) | Design-science framing, FR/NFR requirements, Wazuh/Elastic/Splunk comparison |
 | [docs/VALIDATION-ATTACK-SIM.md](docs/VALIDATION-ATTACK-SIM.md) | Live Atomic Red Team runbook: detection latency + fusion lift + SHAP fidelity |
 | [docs/BENCHMARKS.md](docs/BENCHMARKS.md) | Throughput / latency / footprint protocol + result tables |
