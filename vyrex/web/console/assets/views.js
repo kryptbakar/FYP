@@ -2204,7 +2204,8 @@ function invGraphPanel(iv, steps) {
     return h('div', {
       class: 'panel pad',
       style: 'padding:var(--s-2) var(--s-3);min-width:150px;'
-        + 'border-left:3px solid var(--' + (st === 'failed' ? 'critical' : st === 'succeeded' ? 'ok' : 'line') + ');',
+        // `--ok` was never a token, so the succeeded border silently rendered as nothing.
+        + 'border-left:3px solid var(--' + (st === 'failed' ? 'critical' : st === 'succeeded' ? 'success' : 'line') + ');',
       title: s.reason || '',
     },
       h('div', { class: 'row', style: 'gap:6px' },
@@ -2233,14 +2234,152 @@ function invGraphPanel(iv, steps) {
             toast('Investigation cancelled', true); go('investigations');
           } }, 'Cancel')
         : null),
-    h('div', { class: 'row', style: 'gap:var(--s-2);align-items:stretch;flex-wrap:wrap' },
-      cell('load_subject'), arrow(), cell('route'), arrow(),
-      h('div', { class: 'stack', style: 'gap:5px' }, INV_SPECIALISTS.map(cell)),
-      arrow(), cell('synthesize'), arrow(), cell('validate')),
+    invGraphSvg(iv, by),
+    h('details', { class: 'inv-graph-fallback' },
+      h('summary', { class: 'faint', style: 'font-size:var(--t-3xs);cursor:pointer' },
+        'Node detail (text)'),
+      h('div', { class: 'row', style: 'gap:var(--s-2);align-items:stretch;flex-wrap:wrap;margin-top:var(--s-2)' },
+        cell('load_subject'), arrow(), cell('route'), arrow(),
+        h('div', { class: 'stack', style: 'gap:5px' }, INV_SPECIALISTS.map(cell)),
+        arrow(), cell('synthesize'), arrow(), cell('validate'))),
     h('div', { class: 'faint', style: 'font-size:var(--t-3xs);margin-top:var(--s-3);line-height:1.5' },
       'The five middle nodes are deterministic SQL and run in parallel; only "synthesize" '
       + 'consults the model. A branch that finds nothing is "skipped" with a reason - which is '
-      + 'a different thing from "failed", and both are recorded.'));
+      + 'a different thing from "failed", and both are recorded. '
+      + 'Every colour, edge and moving dot below is driven by a persisted step row: '
+      + 'a branch only animates if it actually succeeded.'));
+}
+
+/* ---- the orchestration graph, drawn in the shape it ran -----------------
+   Hand-built inline SVG: no graph library, no CDN, nothing fetched at runtime
+   (D-044 — the air-gap claim dies on a single external script).
+
+   The animation is deliberately NOT decorative. Flow dots ride only the edges whose
+   branch genuinely succeeded, skipped branches render dashed and inert, and a failed
+   branch turns red. So the picture cannot look healthier than the run actually was —
+   which is the whole point of showing an execution graph instead of a spinner.
+   Motion uses SVG <animateMotion>, so it costs no JS timer and stops with the tab. */
+const INV_NODE_LABEL = {
+  load_subject: 'Subject', route: 'Router', asset_context: 'Asset',
+  attack_context: 'ATT&CK', intel_context: 'Threat intel', fusion_context: 'Corroboration',
+  historical_context: 'History', synthesize: 'Synthesis', validate: 'Citations',
+};
+
+// Durations span four orders of magnitude here — a 5 ms SQL branch next to a 121367 ms
+// model call — and raw ms makes the interesting number the hardest one to read.
+function invDur(ms) {
+  if (ms == null) return null;
+  const n = +ms;
+  if (n < 1000) return n + ' ms';
+  if (n < 60000) return (n / 1000).toFixed(1) + ' s';
+  return Math.floor(n / 60000) + 'm ' + Math.round((n % 60000) / 1000) + 's';
+}
+
+function invGraphSvg(iv, by) {
+  const W = 960, H = 366;
+  const st = (n) => (by[n] || {}).status || 'queued';
+  const cls = (n) => 'ing-node is-' + st(n);
+
+  // Fixed layout: the graph shape is part of the design, not data-driven, so an
+  // investigation always looks like the same pipeline no matter which branches ran.
+  // midY sits below centre to leave headroom for the column labels, which were clipped
+  // against the top edge of the viewBox at the obvious value.
+  const midY = 190, gap = 62;
+  const P = {
+    load_subject: [78, midY], route: [232, midY], synthesize: [742, midY], validate: [886, midY],
+  };
+  INV_SPECIALISTS.forEach((n, i) => {
+    P[n] = [487, midY + (i - (INV_SPECIALISTS.length - 1) / 2) * gap];
+  });
+
+  const edge = (from, to, id) => {
+    const [x1, y1] = P[from], [x2, y2] = P[to];
+    const dx = (x2 - x1) * 0.45;
+    return { id, d: `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}` };
+  };
+
+  const edges = [
+    { ...edge('load_subject', 'route', 'e-ls'), branch: 'route' },
+    ...INV_SPECIALISTS.map((n, i) => ({ ...edge('route', n, 'e-in-' + i), branch: n })),
+    ...INV_SPECIALISTS.map((n, i) => ({ ...edge(n, 'synthesize', 'e-out-' + i), branch: n })),
+    { ...edge('synthesize', 'validate', 'e-v'), branch: 'validate' },
+  ];
+
+  const defs = sv('defs',
+    null,
+    ...edges.map(e => sv('path', { id: e.id, d: e.d, fill: 'none' })));
+
+  const paths = edges.map(e =>
+    sv('path', { class: 'ing-edge is-' + st(e.branch), d: e.d, fill: 'none' }));
+
+  // One travelling dot per succeeded edge. Staggered so five parallel branches read as
+  // parallel rather than as a single pulse.
+  const flows = edges
+    .filter(e => st(e.branch) === 'succeeded')
+    .map((e, i) => sv('circle', { class: 'ing-flow', r: 3 },
+      sv('animateMotion', { dur: '2.6s', repeatCount: 'indefinite', begin: (i * 0.22).toFixed(2) + 's' },
+        sv('mpath', { 'xlink:href': '#' + e.id }))));
+
+  const nodeEl = (n, w, hgt) => {
+    const [cx, cy] = P[n];
+    const s = by[n] || {};
+    const label = INV_NODE_LABEL[n] || n;
+    const g = sv('g', {
+      class: cls(n),
+      tabindex: '0',
+      role: 'img',
+      transform: `translate(${cx} ${cy})`,
+    },
+      sv('title', null,
+        `${n} — ${st(n)}`
+        + (s.duration_ms != null ? ` (${s.duration_ms} ms)` : '')
+        + (s.reason ? `\n${s.reason}` : '')),
+      sv('rect', { class: 'ing-box', x: -w / 2, y: -hgt / 2, width: w, height: hgt, rx: 9 }),
+      sv('text', { class: 'ing-label', x: 0, y: 1 }, label),
+      s.duration_ms != null
+        ? sv('text', { class: 'ing-sub', x: 0, y: 14 }, invDur(s.duration_ms))
+        : null,
+      // A running node gets an expanding halo; nothing else moves.
+      st(n) === 'running'
+        ? sv('rect', { class: 'ing-pulse', x: -w / 2, y: -hgt / 2, width: w, height: hgt, rx: 9 })
+        : null);
+    return g;
+  };
+
+  const svg = sv('svg', {
+    class: 'ing-svg', viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: 'xMidYMid meet',
+    role: 'group', 'aria-label': 'Investigation execution graph',
+  },
+    defs,
+    sv('g', { class: 'ing-edges' }, paths),
+    sv('g', { class: 'ing-flows' }, flows),
+    // The parallel band, drawn behind the specialist nodes so the fan-out reads at a glance.
+    sv('rect', {
+      class: 'ing-band', x: 388, y: midY - (gap * INV_SPECIALISTS.length) / 2 - 4,
+      width: 198, height: gap * INV_SPECIALISTS.length + 8, rx: 14,
+    }),
+    sv('text', { class: 'ing-band-label', x: 487, y: midY - (gap * INV_SPECIALISTS.length) / 2 - 16 },
+      'PARALLEL · DETERMINISTIC SQL'),
+    sv('text', { class: 'ing-band-label', x: 742, y: midY - (gap * INV_SPECIALISTS.length) / 2 - 16 },
+      'THE ONLY MODEL CALL'),
+    sv('g', { class: 'ing-nodes' },
+      nodeEl('load_subject', 104, 34),
+      nodeEl('route', 104, 34),
+      INV_SPECIALISTS.map(n => nodeEl(n, 158, 38)),
+      nodeEl('synthesize', 118, 40),
+      nodeEl('validate', 112, 34)));
+
+  return h('div', { class: 'ing-wrap' }, svg, invGraphLegend(by));
+}
+
+function invGraphLegend(by) {
+  const counts = { succeeded: 0, running: 0, skipped: 0, failed: 0, queued: 0 };
+  Object.values(by).forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
+  const item = (k, label) => h('span', { class: 'ing-key' },
+    h('i', { class: 'ing-dot is-' + k }), label + (counts[k] ? ' · ' + counts[k] : ''));
+  return h('div', { class: 'ing-legend' },
+    item('succeeded', 'succeeded'), item('running', 'running'),
+    item('skipped', 'skipped'), item('failed', 'failed'), item('queued', 'queued'));
 }
 
 /* ---- the verdict, with citations you can actually check ---- */

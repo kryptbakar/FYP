@@ -17,6 +17,25 @@ function h(tag, attrs, ...kids) {
   for (const kid of kids.flat()) { if (kid == null || kid === false) continue; e.append(kid.nodeType ? kid : document.createTextNode(kid)); }
   return e;
 }
+/* SVG sibling of h(). Needed because document.createElement('circle') yields an
+   HTMLUnknownElement that lays out as nothing — SVG requires createElementNS, and the
+   failure is silent, which is a miserable thing to debug. Same signature as h(). */
+function sv(tag, attrs, ...kids) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
+    // <mpath> binds its target through xlink:href; a plain setAttribute does not work.
+    else if (k === 'xlink:href') e.setAttributeNS('http://www.w3.org/1999/xlink', 'href', v);
+    else e.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid == null || kid === false) continue;
+    e.append(kid.nodeType ? kid : document.createTextNode(kid));
+  }
+  return e;
+}
+
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 

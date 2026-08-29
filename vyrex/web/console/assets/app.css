@@ -1281,3 +1281,78 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
   .bento .tile { margin-bottom: 10px; }
   @page { margin: 14mm; }
 }
+
+/* =====================================================================
+   Investigation orchestration graph — inline SVG, no library, no CDN (D-044).
+
+   Obeys the locked design language: FLAT surfaces (no gradients, no glows), and no
+   hex is hardcoded here — every colour comes from :root, so a re-theme still lands.
+   Node fills reuse the existing *-soft tokens rather than inventing tints.
+
+   Colour and motion are bound to PERSISTED step status, never to "it is loading":
+   a dot only travels an edge whose branch actually succeeded, so the picture cannot
+   look healthier than the run really was.
+   ===================================================================== */
+.ing-wrap { margin-top: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-md);
+  background: var(--surface); padding: var(--s-3) var(--s-2) var(--s-2); overflow-x: auto; }
+.ing-svg { display: block; width: 100%; min-width: 720px; height: auto; }
+
+/* --- the parallel band ------------------------------------------------ */
+.ing-band { fill: var(--hover); stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 5; }
+.ing-band-label { fill: var(--faint); font-family: var(--mono); font-size: 8.5px;
+  letter-spacing: .14em; text-anchor: middle; }
+
+/* --- edges ------------------------------------------------------------ */
+.ing-edge { stroke: var(--line-strong); stroke-width: 1.4; }
+.ing-edge.is-succeeded { stroke: var(--success); stroke-width: 1.8; opacity: .55; }
+.ing-edge.is-running   { stroke: var(--accent);  stroke-width: 2; }
+.ing-edge.is-failed    { stroke: var(--critical); stroke-width: 1.8; opacity: .7; }
+.ing-edge.is-skipped   { stroke: var(--line-strong); stroke-dasharray: 4 5; }
+.ing-edge.is-queued    { stroke: var(--line); }
+
+.ing-flow { fill: var(--success); }
+
+/* --- nodes ------------------------------------------------------------ */
+.ing-box { fill: var(--elevated); stroke: var(--line-strong); stroke-width: 1.2; }
+.ing-label { fill: var(--text); font-size: 12px; font-weight: 560; text-anchor: middle; }
+.ing-sub { fill: var(--faint); font-family: var(--mono); font-size: 9px; text-anchor: middle; }
+
+.ing-node.is-succeeded .ing-box { stroke: var(--success);  fill: var(--success-soft); }
+.ing-node.is-running   .ing-box { stroke: var(--accent);   fill: var(--accent-soft); }
+.ing-node.is-failed    .ing-box { stroke: var(--critical); fill: var(--critical-soft); }
+.ing-node.is-skipped   .ing-box { stroke: var(--line-strong); stroke-dasharray: 4 4; fill: none; }
+.ing-node.is-skipped   .ing-label { fill: var(--muted); }
+.ing-node.is-queued    .ing-label { fill: var(--muted); }
+.ing-node:focus { outline: none; }
+.ing-node:focus .ing-box, .ing-node:hover .ing-box { stroke-width: 2; }
+
+/* Halo on the node currently executing — the only thing that moves besides the flow
+   dots, so "what is running right now" is answerable at a glance. */
+.ing-pulse { fill: none; stroke: var(--accent); stroke-width: 1.4; transform-box: fill-box;
+  transform-origin: center; animation: ing-pulse 1.9s ease-out infinite; }
+@keyframes ing-pulse {
+  0%   { transform: scale(1);    opacity: .75; }
+  100% { transform: scale(1.22); opacity: 0; }
+}
+
+/* --- legend ----------------------------------------------------------- */
+.ing-legend { display: flex; flex-wrap: wrap; gap: var(--s-3); justify-content: center;
+  padding: var(--s-2) var(--s-2) 2px; }
+.ing-key { display: inline-flex; align-items: center; gap: 6px; font-size: var(--t-3xs);
+  color: var(--muted); font-family: var(--mono); letter-spacing: .04em; }
+.ing-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+  background: var(--faint); }
+.ing-dot.is-succeeded { background: var(--success); }
+.ing-dot.is-running   { background: var(--accent); }
+.ing-dot.is-failed    { background: var(--critical); }
+.ing-dot.is-skipped   { background: transparent; border: 1px dashed var(--line-strong); }
+
+.inv-graph-fallback { margin-top: var(--s-3); }
+.inv-graph-fallback summary { list-style: revert; }
+
+/* Motion is reinforcement, never the only channel: status is already carried by colour,
+   stroke style, the node subtitle and the legend counts, so removing it costs nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .ing-flow { display: none; }
+  .ing-pulse { animation: none; opacity: .45; }
+}
