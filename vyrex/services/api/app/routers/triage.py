@@ -18,7 +18,7 @@ import json
 from datetime import date, datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 
 from .. import db

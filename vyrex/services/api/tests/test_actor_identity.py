@@ -89,3 +89,70 @@ def test_role_does_not_change_attribution(role):
     quietly drop attribution for a role it happens to consider unprivileged."""
     who, _ = actor(_Req(_p("erin", role=role)), x_analyst="admin")
     assert who == "erin"
+
+
+# --------------------------------------------------------------------------- wiring ---
+# Everything above tests actor() in isolation, which is exactly why the bug below
+# survived: the function was always correct, the WIRING was not.
+#
+# Every router does `from __future__ import annotations`, so `Depends(current_actor)`
+# is stored as the *string* "Annotated[str, Depends(current_actor)]" and only evaluated
+# when FastAPI builds the route. In five routers `Depends` was never imported, so that
+# evaluation raised NameError, FastAPI silently fell back to treating `who` as an
+# ordinary query parameter with default "anonymous" — and
+# `POST /findings/1/triage?who=ceo` wrote "ceo" into the audit trail.
+#
+# Nothing failed loudly: the app booted, the routes worked, and the unit tests above all
+# passed. The only visible symptom was GET /openapi.json returning 500.
+
+def _all_routes():
+    import importlib
+    import pkgutil
+
+    import app.routers as pkg
+    for mod in pkgutil.iter_modules(pkg.__path__):
+        m = importlib.import_module(f"app.routers.{mod.name}")
+        router = getattr(m, "router", None)
+        if router is None:
+            continue
+        for route in router.routes:
+            if hasattr(route, "endpoint"):
+                yield mod.name, route
+
+
+IDENTITY_PARAMS = {"who", "who_src", "actor"}
+
+
+def test_identity_is_never_a_query_parameter():
+    """The actual security property: a caller must not be able to name themselves.
+
+    Asserted over every route in every router rather than the handful known to take an
+    actor, because the failure is silent and any new route can reintroduce it.
+    """
+    from fastapi.dependencies.utils import get_dependant
+
+    leaked = [
+        f"{sorted(r.methods - {'HEAD'})} {r.path} -> {sorted(bad)}"
+        for name, r in _all_routes()
+        if (bad := {p.name for p in get_dependant(path=r.path, call=r.endpoint).query_params}
+            & IDENTITY_PARAMS)
+    ]
+    assert not leaked, (
+        "identity is caller-supplied on these routes — `Depends` is probably missing "
+        "from the router's fastapi import:\n  " + "\n  ".join(leaked)
+    )
+
+
+def test_openapi_schema_can_be_generated():
+    """The canary that would have caught the above on day one.
+
+    An unresolved forward reference makes schema generation raise, so /openapi.json
+    500s while every other route keeps working — the docs are the only thing that
+    notices. Cheap to assert, and it fails the moment an annotation stops resolving.
+    """
+    from app.main import app as fastapi_app
+
+    fastapi_app.openapi_schema = None  # never trust a cached schema
+    spec = fastapi_app.openapi()
+    assert spec["openapi"].startswith("3.")
+    assert spec["paths"], "no paths in the generated schema"

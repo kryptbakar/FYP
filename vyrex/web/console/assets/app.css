@@ -1438,11 +1438,8 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
   letter-spacing: .07em; margin-top: 4px; }
 .dk-ss { font-size: var(--t-3xs); color: var(--faint); font-family: var(--mono); margin-top: 2px; }
 
-/* --- subsystem grid --------------------------------------------------- */
-.dk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
-  gap: 14px; margin-top: 14px; }
+/* --- subsystem cards -------------------------------------------------- */
 .dk-card { min-width: 0; }
-.dk-wide { grid-column: 1 / -1; }
 .dk-note { font-size: var(--t-3xs); line-height: 1.5; margin-top: var(--s-3); }
 
 .dk-kv { display: flex; flex-direction: column; gap: 6px; margin-top: var(--s-3); }
@@ -1450,24 +1447,6 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
   font-size: var(--t-2xs); border-bottom: 1px solid var(--line); padding-bottom: 5px; }
 .dk-k { color: var(--muted); }
 .dk-v { color: var(--text); font-family: var(--mono); text-align: right; }
-
-.dk-bars { display: flex; flex-direction: column; gap: 7px; margin-top: var(--s-3); }
-.dk-bar-row { display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-3xs); }
-.dk-bar-l { width: 58px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
-.dk-bar-t { flex: 1; height: 7px; background: var(--hover); border-radius: 2px; overflow: hidden; }
-.dk-bar-f { display: block; height: 100%; background: var(--neutral-3); }
-.dk-bar-f.is-critical { background: var(--critical); }
-.dk-bar-f.is-high { background: var(--risk-bar); }
-.dk-bar-f.is-medium { background: var(--warning); }
-.dk-bar-f.is-low { background: var(--success); }
-.dk-bar-n { width: 30px; text-align: right; font-family: var(--mono); color: var(--text-2); }
-
-.dk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--s-3); }
-.dk-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px;
-  border: 1px solid var(--line); border-radius: var(--r-sm); font-size: var(--t-3xs);
-  font-family: var(--mono); }
-.dk-chip b { color: var(--text-2); font-weight: 500; }
-.dk-chip i { color: var(--accent-text); font-style: normal; }
 
 @media (prefers-reduced-motion: reduce) { .dk-flow { display: none; } }
 
@@ -1488,4 +1467,400 @@ body.theme-light .chart-donut svg { filter: drop-shadow(0 8px 18px rgba(40,16,28
 @media (prefers-reduced-motion: reduce) {
   .ing-flow { display: none; }
   .ing-pulse { animation: none; opacity: .45; }
+}
+
+/* =====================================================================
+   THE WALL BOARD — charts, live feed, and the operations-screen mode.
+
+   Layout is a 12-column grid so panels can claim honest widths (a heatmap
+   needs room, a gauge does not) instead of all being forced equal by
+   auto-fit. Below 1200px every panel collapses to full width; the board is
+   designed for a large screen but must not break on a laptop.
+   ===================================================================== */
+.dk-board { display: grid; grid-template-columns: repeat(12, 1fr); gap: 14px;
+  margin-top: 14px; align-items: start; }
+.dk-w3 { grid-column: span 3; }
+.dk-w4 { grid-column: span 4; }
+.dk-w6 { grid-column: span 6; }
+.dk-w8 { grid-column: span 8; }
+.dk-w12 { grid-column: 1 / -1; }
+@media (max-width: 1500px) { .dk-w3 { grid-column: span 4; } }
+@media (max-width: 1200px) {
+  .dk-board { grid-template-columns: repeat(6, 1fr); }
+  .dk-w3, .dk-w4 { grid-column: span 3; }
+  .dk-w6, .dk-w8 { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) { .dk-board > * { grid-column: 1 / -1 !important; } }
+
+/* --- board header ------------------------------------------------------ */
+.dk-head { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap;
+  padding-bottom: var(--s-3); border-bottom: 1px solid var(--line); }
+.dk-hd-title { font-size: var(--t-xl); font-weight: 600; letter-spacing: -.015em; }
+.dk-hd-sub { font-size: var(--t-3xs); color: var(--faint); text-transform: uppercase;
+  letter-spacing: .14em; margin-top: 2px; }
+.dk-head-pills { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
+.dk-head-r { display: flex; align-items: center; gap: var(--s-2); }
+.dk-clock { font-family: var(--mono); font-size: var(--t-md); color: var(--text-2);
+  font-variant-numeric: tabular-nums; }
+.dk-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px;
+  border: 1px solid var(--line); border-radius: 99px; font-size: var(--t-3xs);
+  font-family: var(--mono); color: var(--text-2); }
+.dk-pill i { width: 6px; height: 6px; border-radius: 50%; background: var(--neutral-3); }
+.dk-pill.is-ok i { background: var(--success); }
+.dk-pill.is-bad i { background: var(--critical); }
+.dk-pill.is-bad { color: var(--critical-text); border-color: var(--critical-soft); }
+
+.dk-cap-row { display: flex; align-items: baseline; gap: var(--s-2); flex-wrap: wrap; }
+.dk-sub { font-size: var(--t-3xs); }
+.dk-subhead { font-size: var(--t-3xs); color: var(--faint); text-transform: uppercase;
+  letter-spacing: .08em; margin: var(--s-3) 0 var(--s-2); }
+
+
+/* --- live threat feed -------------------------------------------------- */
+.dk-feed { display: flex; flex-direction: column; max-height: 640px; }
+.dk-feed-list { margin-top: var(--s-3); overflow-y: auto; display: flex;
+  flex-direction: column; gap: 1px; }
+.dk-feed-row { display: flex; gap: var(--s-2); align-items: flex-start; padding: 7px 8px;
+  border-left: 2px solid var(--line-strong); background: var(--surface);
+  cursor: pointer; border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.dk-feed-row:hover { background: var(--hover); }
+.dk-feed-row.sev-critical { border-left-color: var(--critical); }
+.dk-feed-row.sev-high { border-left-color: var(--risk-bar, var(--warning)); }
+.dk-feed-row.sev-medium { border-left-color: var(--warning); }
+.dk-feed-row.sev-low { border-left-color: var(--success); }
+.dk-fr-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor;
+  margin-top: 5px; flex: none; opacity: .55; }
+.dk-fr-body { flex: 1; min-width: 0; }
+.dk-fr-t { font-size: var(--t-2xs); color: var(--text); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.dk-fr-m { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 3px;
+  font-size: var(--t-3xs); color: var(--faint); align-items: center; }
+.dk-fr-tag { padding: 1px 5px; border: 1px solid var(--line); border-radius: 3px;
+  font-family: var(--mono); font-size: var(--t-3xs); color: var(--text-2); }
+.dk-fr-tag.is-kev { color: var(--critical-text); border-color: var(--critical-soft);
+  background: var(--critical-soft); }
+.dk-fr-tag.is-intel { color: var(--warning); border-color: var(--warning-soft);
+  background: var(--warning-soft); }
+.dk-fr-tag.is-fused { color: var(--success-text); border-color: var(--success-soft);
+  background: var(--success-soft); }
+.dk-fr-r { text-align: right; flex: none; }
+.dk-fr-score { font-family: var(--mono); font-size: var(--t-sm); font-weight: 600;
+  font-variant-numeric: tabular-nums; }
+.dk-fr-score.is-critical { color: var(--critical-text); }
+.dk-fr-score.is-high { color: var(--warning); }
+.dk-fr-score.is-medium { color: var(--text-2); }
+.dk-fr-score.is-low, .dk-fr-score.is-info { color: var(--faint); }
+.dk-fr-ago { font-size: var(--t-3xs); color: var(--faint); font-family: var(--mono);
+  margin-top: 2px; white-space: nowrap; }
+/* A new row announces itself once, then stops. A feed that keeps animating
+   trains people to ignore it, which defeats the point of a wall board. */
+.dk-feed-row.is-new { animation: dkflash 1.6s ease-out 1; }
+@keyframes dkflash {
+  0%   { background: var(--accent-soft); transform: translateX(-4px); }
+  100% { background: transparent; transform: none; }
+}
+.dk-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success);
+  opacity: .5; }
+.dk-live-dot.is-pulse { animation: dkpulse 1.2s ease-out 1; }
+@keyframes dkpulse { 0% { opacity: 1; transform: scale(1.9); } 100% { opacity: .5; transform: scale(1); } }
+
+/* --- sensor grid ------------------------------------------------------- */
+.dk-sensors { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s-3); margin-top: var(--s-3); }
+.dk-sensor { border: 1px solid var(--line); border-radius: var(--r-sm); padding: var(--s-2); }
+.dk-sn-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.dk-sn-name { font-family: var(--mono); font-size: var(--t-2xs); color: var(--text);
+  text-transform: uppercase; letter-spacing: .05em; }
+.dk-sn-hits { font-family: var(--mono); font-size: var(--t-md); font-weight: 600;
+  color: var(--text); }
+.dk-sn-bar { height: 4px; background: var(--hover); border-radius: 2px; overflow: hidden;
+  margin: 6px 0; }
+.dk-sn-fill { display: block; height: 100%; background: var(--accent); }
+.dk-sn-fill.is-critical { background: var(--critical); }
+.dk-sn-fill.is-high { background: var(--warning); }
+.dk-sn-fill.is-medium { background: var(--accent); }
+.dk-sn-fill.is-low, .dk-sn-fill.is-info { background: var(--success); }
+.dk-sn-meta { display: flex; gap: 5px; flex-wrap: wrap; align-items: center;
+  font-size: var(--t-3xs); color: var(--faint); }
+
+/* --- fusion clusters --------------------------------------------------- */
+.dk-fusion { display: flex; flex-direction: column; gap: var(--s-2); margin-top: var(--s-3); }
+.dk-fusion-row { display: flex; gap: var(--s-3); align-items: center; padding: var(--s-2);
+  border: 1px solid var(--line); border-radius: var(--r-sm); cursor: pointer; }
+.dk-fusion-row:hover { background: var(--hover); border-color: var(--line-strong); }
+.dk-fz { width: 150px; flex: none; height: auto; }
+.dk-fz-edge { stroke: var(--success); stroke-width: 1.1; opacity: .5; }
+.dk-fz-tool { fill: var(--text-2); }
+.dk-fz-obs { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.3; }
+.dk-fz-lbl { fill: var(--faint); font-family: var(--mono); font-size: 7px; }
+.dk-fz-n { fill: var(--accent-text); font-family: var(--mono); font-size: 8px;
+  font-weight: 700; text-anchor: middle; }
+.dk-fu-body { flex: 1; min-width: 0; }
+.dk-fu-t { font-size: var(--t-2xs); color: var(--text); line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-fu-m { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px;
+  font-size: var(--t-3xs); color: var(--faint); }
+
+/* --- vitals ------------------------------------------------------------ */
+.dk-vitals { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3);
+  margin-top: var(--s-3); align-items: center; }
+.dk-cores { grid-column: 1 / -1; }
+.dk-core-row { display: flex; gap: 3px; align-items: flex-end; height: 34px;
+  border-bottom: 1px solid var(--line); }
+.dk-core { flex: 1; height: 100%; display: flex; align-items: flex-end;
+  background: var(--hover); border-radius: 2px 2px 0 0; overflow: hidden; }
+.dk-core i { display: block; width: 100%; background: var(--accent); }
+
+/* --- audit tail -------------------------------------------------------- */
+.dk-audit-row { display: flex; gap: 6px; align-items: baseline; font-size: var(--t-3xs);
+  padding: 3px 0; border-bottom: 1px solid var(--line); }
+.dk-au-m { color: var(--text-2); width: 46px; flex: none; }
+.dk-au-p { flex: 1; min-width: 0; color: var(--muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.dk-au-s.is-ok { color: var(--success-text); }
+.dk-au-s.is-bad { color: var(--critical-text); }
+.dk-au-a { width: 72px; flex: none; text-align: right; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+
+.dk-clickrow { cursor: pointer; }
+.dk-clickrow:hover { background: var(--hover); }
+
+/* =====================================================================
+   CHART PRIMITIVES (charts.js). Colour lives here, never in the JS.
+   ===================================================================== */
+.ch-empty { font-size: var(--t-2xs); color: var(--faint); font-style: italic;
+  padding: var(--s-4) 0; text-align: center; }
+
+/* --- horizontal bars --------------------------------------------------- */
+.ch-bars { display: flex; flex-direction: column; gap: 7px; margin-top: var(--s-3); }
+.ch-bars.is-dense { gap: 5px; }
+.ch-bar-row { display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-3xs); }
+.ch-bar-l { width: 74px; flex: none; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-bar-t { flex: 1; height: 7px; background: var(--hover); border-radius: 2px; overflow: hidden; }
+.ch-bar-f { display: block; height: 100%; background: var(--neutral-3); }
+.ch-bar-n { width: 34px; flex: none; text-align: right; font-family: var(--mono);
+  color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+/* --- stacked columns --------------------------------------------------- */
+.ch-cols { margin-top: var(--s-3); }
+.ch-svg { display: block; width: 100%; height: 120px; }
+.ch-ticks { display: flex; justify-content: space-between; font-size: var(--t-3xs);
+  color: var(--faint); font-family: var(--mono); margin-top: 4px; }
+.ch-col { fill: var(--neutral-3); }
+.ch-col.is-zero { fill: var(--line-strong); }
+
+/* --- donut ------------------------------------------------------------- */
+.ch-donut-wrap { display: flex; align-items: center; gap: var(--s-4); margin-top: var(--s-3); }
+.ch-donut { width: 108px; height: 108px; flex: none; }
+.ch-slice { fill: var(--neutral-3); stroke: var(--surface); stroke-width: 1; }
+.ch-dc { fill: var(--text); font-family: var(--mono); font-size: 20px; font-weight: 600;
+  text-anchor: middle; }
+.ch-ds { fill: var(--faint); font-size: 8px; text-anchor: middle; text-transform: uppercase;
+  letter-spacing: .1em; }
+.ch-legend { display: flex; flex-direction: column; gap: 4px; font-size: var(--t-3xs);
+  color: var(--muted); }
+.ch-lg { display: flex; align-items: center; gap: 5px; }
+.ch-lg i { width: 8px; height: 8px; border-radius: 2px; background: var(--neutral-3); flex: none; }
+.ch-lg b { font-family: var(--mono); color: var(--text-2); font-weight: 600; }
+.ch-key { display: flex; gap: var(--s-3); flex-wrap: wrap; margin-top: var(--s-2);
+  font-size: var(--t-3xs); color: var(--faint); text-transform: uppercase;
+  letter-spacing: .05em; }
+
+/* --- heatmap ----------------------------------------------------------- */
+.ch-heat { display: flex; gap: var(--s-2); margin-top: var(--s-3); overflow-x: auto;
+  padding-bottom: 4px; }
+.ch-heat-col { flex: 1; min-width: 104px; display: flex; flex-direction: column; gap: 4px; }
+.ch-heat-h { font-size: var(--t-3xs); color: var(--faint); text-transform: uppercase;
+  letter-spacing: .06em; padding-bottom: 4px; border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-cell { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 5px 6px;
+  display: flex; flex-direction: column; gap: 1px; }
+.ch-cell b { font-family: var(--mono); font-size: var(--t-3xs); color: var(--text);
+  font-weight: 600; }
+.ch-cell i { font-family: var(--mono); font-size: var(--t-3xs); color: var(--text-2);
+  font-style: normal; }
+.ch-cell u { font-size: 9px; color: var(--faint); text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Five discrete steps, not a continuous ramp: a reader can name the level they
+   are looking at, and it still reads with a colour-vision deficiency because
+   the count is printed in the cell too. */
+.ch-cell.lv0 { background: transparent; }
+.ch-cell.lv1 { background: var(--accent-soft); }
+.ch-cell.lv2 { background: var(--warning-soft); }
+.ch-cell.lv3 { background: var(--critical-soft); }
+.ch-cell.lv4 { background: var(--critical-soft); border-color: var(--critical); }
+.ch-cell.is-hot { outline: 1px solid var(--success); outline-offset: -1px; }
+
+/* --- gauge ------------------------------------------------------------- */
+.ch-gauge-wrap { display: flex; justify-content: center; margin-top: var(--s-3); }
+.ch-gauge { width: 118px; height: 118px; }
+.ch-g-track { stroke: var(--hover); stroke-width: 9; stroke-linecap: round; }
+.ch-g-fill { stroke: var(--accent); stroke-width: 9; stroke-linecap: round; }
+.ch-g-fill.is-ok { stroke: var(--success); }
+.ch-g-fill.is-medium { stroke: var(--warning); }
+.ch-g-fill.is-critical { stroke: var(--critical); }
+.ch-gv { fill: var(--text); font-family: var(--mono); font-size: 19px; font-weight: 600;
+  text-anchor: middle; }
+.ch-gs { fill: var(--faint); font-size: 8px; text-anchor: middle; text-transform: uppercase;
+  letter-spacing: .1em; }
+
+/* --- scatter ----------------------------------------------------------- */
+.ch-scatter-wrap { margin-top: var(--s-3); }
+.ch-scatter { display: block; width: 100%; height: 150px; border: 1px solid var(--line);
+  border-radius: var(--r-sm); background: var(--bg); }
+.ch-grid { stroke: var(--line); stroke-width: .4; }
+.ch-diag { stroke: var(--line-strong); stroke-width: .6; stroke-dasharray: 2 2; }
+.ch-pt { fill: var(--neutral-3); opacity: .85; cursor: pointer; }
+.ch-axes { display: flex; justify-content: space-between; font-size: var(--t-3xs);
+  color: var(--faint); font-family: var(--mono); margin-top: 4px; }
+
+/* --- sparkline --------------------------------------------------------- */
+.ch-spark { width: 100%; height: 22px; display: block; }
+.ch-spark-l { stroke: var(--accent); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.ch-spark-a { fill: var(--accent-soft); }
+
+/* --- shared severity palette for every chart primitive ----------------- */
+.ch-bar-f.is-critical, .ch-col.is-critical, .ch-slice.is-critical,
+.ch-lg i.is-critical, .ch-pt.is-critical { background: var(--critical); fill: var(--critical); }
+.ch-bar-f.is-high, .ch-col.is-high, .ch-slice.is-high,
+.ch-lg i.is-high, .ch-pt.is-high { background: var(--warning); fill: var(--warning); }
+.ch-bar-f.is-medium, .ch-col.is-medium, .ch-slice.is-medium,
+.ch-lg i.is-medium, .ch-pt.is-medium { background: var(--accent); fill: var(--accent); }
+.ch-bar-f.is-low, .ch-col.is-low, .ch-slice.is-low,
+.ch-lg i.is-low, .ch-pt.is-low { background: var(--success); fill: var(--success); }
+.ch-bar-f.is-info, .ch-col.is-info, .ch-slice.is-info,
+.ch-lg i.is-info, .ch-pt.is-info { background: var(--neutral-3); fill: var(--neutral-3); }
+.ch-bar-f.is-ok, .ch-col.is-ok, .ch-slice.is-ok,
+.ch-lg i.is-ok, .ch-pt.is-ok { background: var(--success); fill: var(--success); }
+
+/* =====================================================================
+   WALL MODE — the operations-room display, on exactly ONE screen.
+
+   The hard requirement: no scrolling anywhere. The whole board has to land
+   inside one viewport on a big wall panel and stay legible from across a room.
+
+   How it is done, and why each piece is needed:
+     1. .scroll stops scrolling and becomes exactly 100vh (it is the console's
+        scroll container; capping .view alone does nothing).
+     2. .app's grid template collapses to one column — hiding .rail removes it
+        as a grid ITEM but leaves its 232px TRACK, which otherwise squeezes the
+        board into a narrow strip with the screen empty beside it.
+     3. .dk-board becomes a fixed 12x3 grid of `minmax(0, 1fr)` cells. The
+        minmax(0,...) matters: the default `auto` minimum lets a child's content
+        force a track taller than its share, which is precisely how a "fixed"
+        grid silently starts scrolling again.
+     4. Every panel is `min-height: 0; overflow: hidden` so a long table clips
+        instead of pushing the layout.
+     5. Type scales with vh, so the same layout fills a 1080p or a 4K panel.
+
+   Eight panels cannot hold a permanent cell at this density, so they share one
+   and cycle every 9s (.dk-rot). The board still shows everything the backend
+   produces — just across time rather than across space.
+   ===================================================================== */
+body.wallmode .rail,
+body.wallmode .top,
+body.wallmode .tabs { display: none !important; }
+/* .app is a two-track grid (rail | main). Hiding the rail removes it as a grid
+   ITEM but leaves the TRACKS in place, so .main slides into the narrow first
+   column and the board renders 200px wide with the screen empty beside it.
+   Collapsing the template is the actual fix; display:none on the rail is not. */
+body.wallmode .app { grid-template-columns: 1fr !important; }
+
+body.wallmode, body.wallmode .app { height: 100vh; overflow: hidden; }
+body.wallmode .main { height: 100vh; min-height: 0; }
+body.wallmode .scroll { overflow: hidden !important; height: 100vh; min-height: 0;
+  padding: 10px 12px !important; }
+body.wallmode .view { max-width: none !important; height: 100%; min-height: 0;
+  display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; }
+
+/* Type scales with the viewport so one layout serves 1080p and 4K alike. */
+body.wallmode { --t-3xs: clamp(9px, .85vh, 14px);  --t-2xs: clamp(10px, .95vh, 15px);
+  --t-xs: clamp(11px, 1.05vh, 17px); --t-sm: clamp(12px, 1.2vh, 19px);
+  --t-md: clamp(13px, 1.4vh, 22px);  --t-lg: clamp(15px, 1.7vh, 26px);
+  --t-xl: clamp(19px, 2.4vh, 38px); }
+
+body.wallmode .dk-head { padding-bottom: 6px; }
+body.wallmode .dk-rail { margin-top: 0; }
+body.wallmode .dk-stat { padding: 6px 10px 5px; }
+body.wallmode .dk-sv { font-size: clamp(20px, 2.9vh, 46px); }
+body.wallmode .dk-card { padding: 8px 10px; }
+body.wallmode .dk-note { display: none; }   /* prose is for the scrolling view */
+
+/* --- the single-screen grid ------------------------------------------- */
+body.wallmode .dk-board { height: 100%; min-height: 0; margin-top: 0; gap: 8px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr)); align-items: stretch; }
+body.wallmode .dk-board > .dk-card { min-height: 0; min-width: 0; overflow: hidden;
+  display: flex; flex-direction: column; }
+
+body.wallmode [data-dk="map"]        { grid-column: 1 / 5;  grid-row: 1 / 3; }
+body.wallmode [data-dk="timeline"]   { grid-column: 5 / 8;  grid-row: 1; }
+body.wallmode [data-dk="attack"]     { grid-column: 8 / 11; grid-row: 1; }
+body.wallmode [data-dk="feed"]       { grid-column: 11 / 13; grid-row: 1 / 4; }
+body.wallmode [data-dk="sensors"]    { grid-column: 5 / 8;  grid-row: 2; }
+body.wallmode [data-dk="fusion"]     { grid-column: 8 / 11; grid-row: 2; }
+body.wallmode [data-dk="risk"]       { grid-column: 1 / 3;  grid-row: 3; }
+body.wallmode [data-dk="scatter"]    { grid-column: 3 / 5;  grid-row: 3; }
+body.wallmode [data-dk="defense"]    { grid-column: 5 / 7;  grid-row: 3; }
+body.wallmode [data-dk="compliance"] { grid-column: 7 / 9;  grid-row: 3; }
+/* The rotating pool: one cell, one visible member at a time.
+   Specificity matters here and cost a debugging pass: the panel rule above is
+   `body.wallmode .dk-board > .dk-card` (0,3,1), so a plainer
+   `body.wallmode .dk-rot` (0,2,1) LOSES and every pool member stayed visible —
+   all 18 panels rendered stacked in one cell. Matching the same shape plus the
+   extra class wins cleanly instead of relying on source order. */
+body.wallmode .dk-board > .dk-card.dk-rot { grid-column: 9 / 11; grid-row: 3;
+  display: none; }
+body.wallmode .dk-board > .dk-card.dk-rot.is-showing { display: flex; }
+
+/* --- make each panel's body absorb the leftover height ---------------- */
+body.wallmode .dk-card > .dk-cap-row { flex: none; }
+body.wallmode .dk-stage { flex: 1; min-height: 0; margin-top: 6px; overflow: hidden;
+  display: flex; }
+/* The map is normally given a min-width so it never squashes below legibility
+   in a scrolling column. On the wall it must instead fit whatever cell it gets,
+   and preserveAspectRatio="meet" already keeps the projection square. */
+body.wallmode .dk-svg { min-width: 0; width: 100%; height: 100%; }
+body.wallmode .dk-feed { max-height: none; }
+body.wallmode .dk-feed-list { flex: 1; min-height: 0; overflow: hidden; }
+body.wallmode .dk-sensors { overflow: hidden; }
+body.wallmode .dk-fusion { overflow: hidden; }
+body.wallmode .ch-cols, body.wallmode .ch-scatter-wrap,
+body.wallmode .ch-donut-wrap, body.wallmode .ch-gauge-wrap,
+body.wallmode .ch-bars, body.wallmode .ch-heat { flex: 1; min-height: 0; }
+/* The column chart is three stacked pieces (plot, date ticks, severity key).
+   Letting the plot claim `height:100%` of a flex parent makes it overlap the
+   two captions instead of sharing the space, which had the dates printed on
+   top of the legend. Give the wrapper the column and let only the plot flex. */
+body.wallmode .ch-cols { display: flex; flex-direction: column; min-height: 0; }
+body.wallmode .ch-cols .ch-svg { flex: 1; min-height: 0; height: auto; }
+body.wallmode .ch-ticks, body.wallmode .ch-key { flex: none; }
+/* The scatter carries an axis caption under it, so `height:100%` on the plot
+   alone overflows its cell by exactly the caption's height. Make the wrapper
+   the flex column and let the plot take what is left. */
+body.wallmode .ch-scatter-wrap { display: flex; flex-direction: column; }
+body.wallmode .ch-scatter { flex: 1; min-height: 0; height: auto; }
+body.wallmode .ch-axes { flex: none; }
+/* Gauges are the densest thing on the board; at 768p two of them plus the core
+   strip plus a key/value list cannot all fit, so the gauges give up size first. */
+body.wallmode .ch-gauge { width: clamp(62px, 9vh, 118px); height: clamp(62px, 9vh, 118px); }
+body.wallmode .ch-donut { width: clamp(64px, 9.5vh, 108px); height: clamp(64px, 9.5vh, 108px); }
+body.wallmode .dk-vitals { gap: 6px; }
+body.wallmode .dk-core-row { height: clamp(18px, 3vh, 34px); }
+/* On a short screen (a 768p laptop panel) the vitals tile still cannot hold two
+   gauges, the per-core strip AND a three-row detail list. The list goes: the
+   gauges already state memory and disk as percentages, so nothing is lost that
+   the panel was not saying twice. */
+@media (max-height: 820px) {
+  body.wallmode [data-dk="vitals"] .dk-kv { display: none; }
+}
+body.wallmode .dk-kv { overflow: hidden; }
+body.wallmode .dk-audit { overflow: hidden; }
+body.wallmode .tbl { font-size: var(--t-3xs); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dk-feed-row.is-new { animation: none; }
+  .dk-live-dot.is-pulse { animation: none; }
 }

@@ -12,7 +12,7 @@ import uuid
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
 from .. import audit, db

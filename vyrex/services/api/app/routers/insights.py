@@ -125,11 +125,20 @@ async def audit_events(limit: Annotated[int, Query(ge=1, le=200)] = 40) -> list[
 # --------------------------------------------------------------- fusion clusters ---
 @router.get("/fusion/clusters", summary="Multi-tool fusion clusters (>=2 corroborating tools)")
 async def clusters(limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict]:
-    """Findings that independent tools agreed on, grouped by dedup_key. This is the
-    consensus signal made browsable: which issues multiple tools corroborate."""
+    """Findings that independent tools agreed on. This is the consensus signal made
+    browsable: which issues multiple tools corroborate.
+
+    Grouped by COALESCE(observable_key, dedup_key) — the same priority order as
+    `ml.fusion.cluster_key`, and the two MUST stay in step. Grouping on `dedup_key`
+    alone (as this did until 2026-08-29) keys on THE RULE THAT FIRED rather than THE
+    THING OBSERVED, so a MISP IOC hit, a Sigma detection and an agent rule about one
+    connection land in three separate groups and every one of them fails the
+    `>= 2 tools` test. The endpoint returned [] on live data that contains a
+    three-tool cluster — the project's headline capability reporting nothing.
+    """
     return await db.fetch(
         """
-        SELECT dedup_key,
+        SELECT COALESCE(observable_key, dedup_key) AS dedup_key,
                count(DISTINCT source_tool) AS n_tools,
                array_agg(DISTINCT source_tool) AS tools,
                max(risk_score) AS top_risk_score,
@@ -138,8 +147,8 @@ async def clusters(limit: Annotated[int, Query(ge=1, le=200)] = 50) -> list[dict
                (array_agg(title ORDER BY risk_score DESC NULLS LAST))[1] AS title,
                (array_agg(asset_id ORDER BY risk_score DESC NULLS LAST))[1] AS asset_id
         FROM findings
-        WHERE dedup_key IS NOT NULL AND risk_score IS NOT NULL
-        GROUP BY dedup_key
+        WHERE COALESCE(observable_key, dedup_key) IS NOT NULL AND risk_score IS NOT NULL
+        GROUP BY COALESCE(observable_key, dedup_key)
         HAVING count(DISTINCT source_tool) >= 2
         ORDER BY top_risk_score DESC NULLS LAST
         LIMIT %(limit)s
