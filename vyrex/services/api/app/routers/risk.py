@@ -47,8 +47,8 @@ async def ranking(
 @router.get("/findings/{finding_id}/explain", summary="XAI: composite breakdown + SHAP waterfall + consensus")
 async def explain(finding_id: int) -> dict:
     finding = await db.fetch_one(
-        "SELECT id, title, domain, severity, risk_score, ml_risk_score, risk_components, model_version, "
-        "source_tool, attack, threat_intel, consensus "
+        "SELECT id, title, domain, severity, risk_score, ml_risk_score, risk_components, "
+        "risk_inapplicable, model_version, source_tool, attack, threat_intel, consensus "
         "FROM findings WHERE id = %(id)s",
         {"id": finding_id},
     )
@@ -62,6 +62,12 @@ async def explain(finding_id: int) -> dict:
     return {
         "finding": finding,
         "composite_components": finding.get("risk_components"),
+        # WHY a component is null. A null contribution and a zero contribution are
+        # different claims — "this question cannot be asked of this finding" versus
+        # "we asked and the answer is no" — and only the first is excluded from the
+        # weight (D-063). Without the reason the console can render the distinction
+        # but not explain it, and FR5 is "explain every score", not "most of it".
+        "composite_inapplicable": finding.get("risk_inapplicable") or {},
         "consensus": finding.get("consensus"),
         "ml_explanation": explanation or {"note": "no ML explanation yet — run the risk-engine `train` then `score`"},
     }

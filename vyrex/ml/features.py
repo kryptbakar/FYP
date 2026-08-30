@@ -149,6 +149,34 @@ def applicability(finding: dict) -> dict[str, bool]:
     }
 
 
+# Why a factor cannot be evidenced, in the words an analyst should see. Keyed
+# identically to `applicability()` and consumed by `inapplicable_reasons()` below,
+# so the rule and its explanation cannot drift apart.
+_WHY_UNDEFINED = {
+    "epss": "no CVE — EPSS is a per-CVE exploit-probability percentile",
+    "kev": "no CVE — the CISA KEV catalogue is a list of CVEs",
+    "threat_intel": "no network observable — IOC feeds match IPs, domains and hashes, "
+                    "not package versions",
+}
+
+
+def inapplicable_reasons(finding: dict) -> dict[str, str]:
+    """Human-readable WHY for each factor that could not be evidenced.
+
+    Derived FROM `applicability()` rather than re-deriving the predicates, so the
+    reason a factor is excluded can never disagree with the fact that it was.
+
+    This exists because "—" in the XAI panel is only half an explanation. An
+    analyst reading a blank cell cannot tell "we have no EPSS data for this CVE"
+    (missing — and scored 0, conservatively) from "EPSS does not apply to an IP
+    address" (undefined — and excluded from the weight). Those lead to different
+    actions: the first is a data-quality gap worth chasing, the second is nothing
+    at all. FR5 says explain every score; a dash is not an explanation.
+    """
+    return {k: _WHY_UNDEFINED[k] for k, ok in applicability(finding).items()
+            if not ok and k in _WHY_UNDEFINED}
+
+
 def to_vector(fd: dict[str, float]) -> list[float]:
     return [fd[f] for f in FEATURES]
 

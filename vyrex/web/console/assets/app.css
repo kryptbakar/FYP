@@ -2142,3 +2142,12 @@ body.wallmode .dk-lname { fill: var(--text); letter-spacing: .18em; }
   /* Glow is not motion, so it stays; only the animation is removed elsewhere. */
   body.wallmode .dk-scan { animation: none; }
 }
+/* A composite factor that could not be evidenced by this KIND of finding (D-063).
+   Rendered as its reason rather than as a zero-length bar: "we asked and the answer
+   is no" and "this question cannot be asked" are different claims, and only the
+   second is excluded from the weight. */
+.wfr.is-na { opacity: .72; }
+.wfr.is-na .k { color: var(--faint); }
+.wfna { font-size: var(--t-3xs); color: var(--faint); font-style: italic;
+  align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wfr.is-na .c { color: var(--faint); font-style: italic; }

@@ -184,7 +184,22 @@ async function openFinding(id) {
       left.append(h('details', { class: 'expander' }, h('summary', {}, 'Show full waterfall'),
         waterfall(ml.waterfall),
         h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' }, 'Base → each factor → final ML score. Risk-raising right; risk-lowering left.')));
-  } else if (Object.keys(comp).length) { left.append(factorBars(comp)); }
+  }
+  // The composite breakdown, whenever we have it — NOT only when the ML layer is
+  // missing, which is what the old `else if` meant in practice: every scored finding
+  // has an explanation, so this branch never ran and the composite was never shown.
+  // The caption directly above calls the composite "the primary signal", so a panel
+  // that then displays only the ML re-ranker contradicts itself. It is also the score
+  // the trigger actually fires on.
+  if (Object.keys(comp).length) {
+    left.append(h('details', { class: 'expander' },
+      h('summary', {}, 'Composite breakdown — the primary signal'),
+      factorBars(comp, data.composite_inapplicable),
+      h('div', { class: 'faint', style: 'font-size:var(--t-2xs);margin-top:var(--s-2)' },
+        'Points contributed by each weighted factor; they sum to the composite score. '
+        + 'A factor this KIND of finding cannot evidence — EPSS on an IP address, say — '
+        + 'is excluded from the weight rather than scored zero, and shown as n/a with the reason.')));
+  }
   const right = h('div', {}, h('div', { class: 'sec-label', style: 'margin-bottom:11px' }, 'Multi-tool consensus'), consensusPanel(con));
   b.append(h('div', { class: 'cols2' }, left, right));
 
@@ -273,12 +288,40 @@ function lifecyclePanel(f) {
   return wrap;
 }
 function block(label, body) { return h('div', { class: 'block' }, h('div', { class: 'sec-label' }, label), body); }
-function factorBars(comp) {
-  const max = Math.max(1, ...Object.values(comp).map(Number));
-  return h('div', {}, Object.entries(comp).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
-    h('div', { class: 'wfr', style: 'grid-template-columns:128px 1fr 44px' },
-      h('div', { class: 'k' }, k), h('div', { class: 'wftrack' }, h('div', { class: 'wfbar pos', style: `left:0;width:${(+v / max) * 100}%` })),
-      h('div', { class: 'c' }, n1(v)))));
+/* Composite breakdown. `comp` maps factor -> points, where **null means the factor
+   could not be evidenced by this KIND of finding** (D-063) — an IP address has no
+   CVE, so EPSS and KEV are undefined for it rather than zero. `why` carries the
+   reason, persisted by the scorer so this view never re-derives the rule.
+
+   A null is rendered as its reason, not as a bar of length zero. Those are
+   different claims: "we asked and the answer is no" costs the finding points,
+   "this question cannot be asked" is excluded from the weight entirely. Showing
+   both as an empty bar would hide the one thing an analyst needs to know — whether
+   a blank is a data-quality gap worth chasing or nothing at all. */
+function factorBars(comp, why) {
+  why = why || {};
+  const max = Math.max(1, ...Object.values(comp).filter(v => v != null).map(Number));
+  // Weighed factors first, largest contribution down; then the inapplicable ones.
+  // An excluded factor is not "the smallest contributor" — it is a different kind
+  // of statement, and sorting it among the numbers implies it competed with them.
+  const entries = Object.entries(comp).sort((a, b) => {
+    const na = a[1] == null, nb = b[1] == null;
+    if (na !== nb) return na ? 1 : -1;
+    return (+b[1]) - (+a[1]);
+  });
+  return h('div', {}, entries.map(([k, v]) => {
+    if (v == null) {
+      const full = why[k] || 'not applicable to this finding';
+      return h('div', { class: 'wfr is-na', style: 'grid-template-columns:128px 1fr 44px', title: full },
+        h('div', { class: 'k' }, k),
+        h('div', { class: 'wfna' }, full.split(' — ')[0]),
+        h('div', { class: 'c' }, 'n/a'));
+    }
+    return h('div', { class: 'wfr', style: 'grid-template-columns:128px 1fr 44px' },
+      h('div', { class: 'k' }, k),
+      h('div', { class: 'wftrack' }, h('div', { class: 'wfbar pos', style: `left:0;width:${(+v / max) * 100}%` })),
+      h('div', { class: 'c' }, n1(v)));
+  }));
 }
 function feedbackForm(id) {
   let action = 'confirm_tp', priority = 70;

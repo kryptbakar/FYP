@@ -122,7 +122,13 @@ def do_score_once(pg, ctx, explainer, mver, policy=None) -> int:
         # risk_score -> previous_risk_score and hands back both, so a rise THROUGH the
         # threshold is distinguishable from sitting above it.
         with pg.transaction():
-            previous, current = db.write_risk(pg, fr["id"], comp, components, ml_score, mver)
+            previous, current = db.write_risk(
+                pg, fr["id"], comp, components, ml_score, mver,
+                # Persist WHY each excluded factor could not apply. Stored rather than
+                # recomputed in the API or the console, because the rule already exists
+                # in three places for the fusion key and that has bitten us once — the
+                # scorer is the only component that should own this judgement.
+                features.inapplicable_reasons(fr))
             decision = trigger.evaluate(previous, current, policy)
             if decision.action == "publish":
                 enqueued += db.enqueue_investigation(

@@ -18,6 +18,7 @@ log = logging.getLogger("ml.db")
 MIGRATION = """
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_rank       integer;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_components jsonb;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_inapplicable jsonb;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS ml_risk_score   numeric;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS model_version   text;
 -- The score this finding had before the current scoring pass. Without it there is no
@@ -137,7 +138,8 @@ def load_context(pg: psycopg.Connection) -> features.Context:
 
 
 def write_risk(pg: psycopg.Connection, finding_id: int, composite: float,
-               components: dict, ml_score: float | None, model_version: str | None
+               components: dict, ml_score: float | None, model_version: str | None,
+               inapplicable: dict | None = None
                ) -> tuple[float | None, float | None]:
     """Write the new score; return (previous, current) so the caller can detect a crossing.
 
@@ -155,11 +157,13 @@ def write_risk(pg: psycopg.Connection, finding_id: int, composite: float,
                   SET previous_risk_score = risk_score,
                       risk_score          = %s,
                       risk_components     = %s,
+                      risk_inapplicable   = %s,
                       ml_risk_score       = %s,
                       model_version       = %s
                 WHERE id = %s
             RETURNING previous_risk_score, risk_score""",
-            (composite, Jsonb(components), ml_score, model_version, finding_id),
+            (composite, Jsonb(components), Jsonb(inapplicable or {}),
+             ml_score, model_version, finding_id),
         )
         row = cur.fetchone()
     if not row:
