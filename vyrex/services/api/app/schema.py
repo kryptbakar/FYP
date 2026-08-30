@@ -555,6 +555,22 @@ ALTER TABLE findings ADD COLUMN IF NOT EXISTS triage_note text;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS triaged_by text;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS triaged_at timestamptz;
 ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_accepted_until date;
+
+-- Scoring columns. These are WRITTEN by the risk-engine (ml/db.py owns them) but READ
+-- here by /risk/ranking and /findings/{id}/explain, and the risk-engine sits behind an
+-- optional `ml` profile — so on a fresh install where it has never run, those endpoints
+-- would 500 on a missing column rather than return an honest empty result.
+--
+-- The convention this follows is already established in the repo: a component ENSURES
+-- the columns it READS, idempotently, even when it does not own them. It was adopted
+-- after ml/db.py selected `attack`/`threat_intel` (owned by the optional intel-enricher)
+-- and crashed the core risk engine on any clean checkout — a CI failure that stood for
+-- seven weeks. Ensuring is cheap; discovering the coupling from a 500 is not.
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_score numeric;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS ml_risk_score numeric;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_components jsonb;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS risk_inapplicable jsonb;
+ALTER TABLE findings ADD COLUMN IF NOT EXISTS model_version text;
 """
 
 
